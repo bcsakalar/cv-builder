@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+logs
+uploads
+*.md
+.env*
+.git
+.gitignore
+jest.config.ts

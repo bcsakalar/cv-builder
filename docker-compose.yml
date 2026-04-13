@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: cvbuilder-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cvbuilder}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cvbuilder_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-cvbuilder}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - cvbuilder-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cvbuilder}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: cvbuilder-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secret} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - cvbuilder-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app-backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+      target: development
+    container_name: cvbuilder-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cvbuilder}:${POSTGRES_PASSWORD:-cvbuilder_secret}@postgres:5432/${POSTGRES_DB:-cvbuilder}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret}@redis:6379
+      OLLAMA_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:9b}
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production_jwt_secret_key}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-abcdefghijklmnopqrstuvwxyz123456}
+      CORS_ORIGIN: http://localhost:5173
+      UPLOAD_DIR: /app/packages/backend/uploads
+    ports:
+      - "3001:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./packages/backend/src:/app/packages/backend/src
+      - ./packages/shared/src:/app/packages/shared/src
+      - backend-uploads:/app/packages/backend/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cvbuilder-network
+
+  app-frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+      target: development
+    container_name: cvbuilder-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:3001/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./packages/frontend/src:/app/packages/frontend/src
+      - ./packages/frontend/index.html:/app/packages/frontend/index.html
+      - ./packages/shared/src:/app/packages/shared/src
+    depends_on:
+      - app-backend
+    networks:
+      - cvbuilder-network
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  backend-uploads:
+    driver: local
+
+networks:
+  cvbuilder-network:
+    driver: bridge

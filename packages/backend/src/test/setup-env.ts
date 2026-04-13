@@ -1,0 +1,15 @@
+process.env.NODE_ENV ??= "test";
+process.env.DATABASE_URL ??= "postgresql://postgres:postgres@localhost:5432/cvbuilder_test";
+process.env.REDIS_URL ??= "redis://localhost:6379";
+process.env.JWT_SECRET ??= "test-secret-value-12345";
+process.env.JWT_EXPIRES_IN ??= "7d";
+process.env.ENCRYPTION_KEY ??= "12345678901234567890123456789012";
+process.env.OLLAMA_URL ??= "http://localhost:11434";
+process.env.OLLAMA_MODEL ??= "llama3.2";
+process.env.OLLAMA_CODE_MODEL ??= "codellama";
+process.env.OLLAMA_EMBEDDING_MODEL ??= "nomic-embed-text";
+process.env.CORS_ORIGIN ??= "http://localhost:5173";
+process.env.UPLOAD_DIR ??= "./uploads";
+process.env.MAX_FILE_SIZE ??= "5242880";
+process.env.RATE_LIMIT_WINDOW_MS ??= "900000";
+process.env.RATE_LIMIT_MAX_REQUESTS ??= "100";

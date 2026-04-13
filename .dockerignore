@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+**/dist
+**/coverage
+**/logs
+**/.env*
+.git
+.gitignore
+.vscode
+playwright-report
+test-results
+blob-report
+e2e/.auth
+uploads
+*.md
+packages/backend/uploads

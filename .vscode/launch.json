@@ -1,0 +1,73 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CvBuilder: Backend Debug",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "node",
+      "program": "${workspaceFolder}/node_modules/tsx/dist/cli.mjs",
+      "args": [
+        "watch",
+        "packages/backend/src/server.ts"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PORT": "3002",
+        "CORS_ORIGIN": "http://localhost:5174"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "CvBuilder: Frontend Dev Server",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/packages/frontend",
+      "runtimeExecutable": "node",
+      "program": "${workspaceFolder}/node_modules/vite/bin/vite.js",
+      "args": [
+        "--host",
+        "localhost",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "env": {
+        "VITE_API_URL": "http://localhost:3002/api"
+      },
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://localhost:5174/)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "CvBuilder: Attach Backend Inspector",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "CvBuilder: Full Local Debug",
+      "configurations": [
+        "CvBuilder: Backend Debug",
+        "CvBuilder: Frontend Dev Server"
+      ],
+      "stopAll": true
+    }
+  ]
+}

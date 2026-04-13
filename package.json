@@ -1,0 +1,51 @@
+{
+  "name": "cvbuilder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-Powered CV Builder System",
+  "workspaces": [
+    "packages/shared",
+    "packages/backend",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "doctor": "node scripts/local-doctor.mjs",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:debug": "node scripts/run-local-debug.mjs",
+    "dev:backend": "npm run dev -w packages/backend",
+    "dev:frontend": "npm run dev -w packages/frontend",
+    "dev:debug:backend": "node scripts/run-local-backend-debug.mjs",
+    "dev:debug:frontend": "node scripts/run-local-frontend-debug.mjs",
+    "build": "npm run build -w packages/shared && npm run build -w packages/backend && npm run build -w packages/frontend",
+    "build:shared": "npm run build -w packages/shared",
+    "build:backend": "npm run build -w packages/backend",
+    "build:frontend": "npm run build -w packages/frontend",
+    "test": "npm run test -w packages/backend",
+    "test:backend": "npm run test -w packages/backend",
+    "test:frontend": "npm run test -w packages/frontend",
+    "test:e2e": "node scripts/run-playwright-e2e.mjs",
+    "test:e2e:headed": "node scripts/run-playwright-e2e.mjs --headed",
+    "test:e2e:smoke": "node scripts/run-playwright-e2e.mjs --grep @smoke",
+    "test:e2e:install": "playwright install chromium",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "check": "npm run doctor && npm run typecheck && npm run lint && npm run test:backend && npm run test:frontend",
+    "db:migrate": "npm run db:migrate -w packages/backend",
+    "db:seed": "npm run db:seed -w packages/backend",
+    "db:studio": "npm run db:studio -w packages/backend",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose up -d --build",
+    "docker:logs": "docker compose logs -f",
+    "postinstall": "node -e \"const fs=require('fs'),p='node_modules/express-rate-limit/tsconfig.json';if(fs.existsSync(p))fs.writeFileSync(p,JSON.stringify({include:[],compilerOptions:{skipLibCheck:true}}))\""
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  }
+}

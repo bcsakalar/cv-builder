@@ -1,0 +1,668 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "myCvs": "My CVs",
+    "github": "GitHub",
+    "templates": "Templates",
+    "settings": "Settings"
+  },
+  "header": {
+    "newCv": "+ New CV",
+    "createNewCv": "Create New CV",
+    "editCv": "Edit CV",
+    "githubIntegration": "GitHub Integration",
+    "logout": "Sign Out"
+  },
+  "auth": {
+    "kicker": "Developer-First Resume Workspace",
+    "title": "Build a production-grade CV workflow around your real projects",
+    "subtitle": "Sign in to manage your CVs, connect GitHub, generate AI-assisted content, and export recruiter-ready PDFs from a secure personal workspace.",
+    "featureOneTitle": "GitHub-Aware",
+    "featureOneDesc": "Turn real repositories into strong project entries with technical context and measurable highlights.",
+    "featureTwoTitle": "AI Tailoring",
+    "featureTwoDesc": "Generate summaries, ATS improvements, and targeted CV refinements for each job application.",
+    "featureThreeTitle": "Production Output",
+    "featureThreeDesc": "Keep all CV versions in one place and export consistent PDF documents whenever you need them.",
+    "signIn": "Sign In",
+    "createAccount": "Create Account",
+    "welcomeBack": "Welcome back",
+    "getStarted": "Create your account",
+    "signInHint": "Use your account to continue where you left off.",
+    "registerHint": "Start with a secure workspace for your CV, GitHub analysis, and AI tools.",
+    "activeSession": "Current session: {{name}}",
+    "name": "Full Name",
+    "email": "Email Address",
+    "password": "Password",
+    "nameMin": "Name must be at least 2 characters",
+    "passwordMin": "Password must be at least 8 characters",
+    "invalidForm": "Please review the form fields and try again.",
+    "submitting": "Submitting..."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Welcome to CvBuilder — AI-Powered Resume Creator",
+    "totalCvs": "Total CVs",
+    "exports": "Exports",
+    "githubRepos": "GitHub Repos",
+    "lastEdit": "Last Edit",
+    "today": "Today",
+    "justNow": "Just now",
+    "newCv": "New CV",
+    "connectGithub": "Connect GitHub",
+    "browseTemplates": "Browse Templates",
+    "noCvsYet": "No CVs yet",
+    "createFirstCv": "Create your first CV to get started",
+    "createCv": "Create CV"
+  },
+  "cvList": {
+    "title": "My CVs",
+    "newCv": "New CV",
+    "noCvsYet": "No CVs yet",
+    "createFirstCv": "Create your first CV to get started",
+    "createCv": "Create CV",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this CV?",
+    "updated": "Updated"
+  },
+  "cvNew": {
+    "title": "Create New CV",
+    "cvTitle": "CV Title",
+    "titlePlaceholder": "e.g. Senior Frontend Developer",
+    "template": "Template",
+    "selectTemplate": "Select a template...",
+    "language": "Language",
+    "creating": "Creating...",
+    "createCv": "Create CV",
+    "titleRequired": "Title is required",
+    "templateRequired": "Template is required"
+  },
+  "cvEdit": {
+    "notFound": "CV not found",
+    "notFoundDesc": "The requested CV could not be loaded."
+  },
+  "cvSections": {
+    "personalInfo": {
+      "label": "Personal Information",
+      "description": "Name, contact details, and profile photo"
+    },
+    "socialLinks": {
+      "label": "Social Links",
+      "description": "LinkedIn, GitHub, and other professional profiles"
+    },
+    "summary": {
+      "label": "Professional Summary",
+      "description": "A concise introduction tailored to your target role"
+    },
+    "experience": {
+      "label": "Work Experience",
+      "description": "Employment history and measurable achievements"
+    },
+    "education": {
+      "label": "Education",
+      "description": "Academic background and qualifications"
+    },
+    "skills": {
+      "label": "Skills",
+      "description": "Technical, soft, and domain expertise"
+    },
+    "projects": {
+      "label": "Projects",
+      "description": "Selected work, products, or open-source contributions"
+    },
+    "certifications": {
+      "label": "Certifications",
+      "description": "Professional certifications and credentials"
+    },
+    "languages": {
+      "label": "Languages",
+      "description": "Languages you speak and your proficiency level"
+    },
+    "volunteering": {
+      "label": "Volunteer Experience",
+      "description": "Community involvement and volunteer work"
+    },
+    "publications": {
+      "label": "Publications",
+      "description": "Articles, research, and published work"
+    },
+    "awards": {
+      "label": "Awards & Honors",
+      "description": "Recognition, awards, and notable achievements"
+    },
+    "references": {
+      "label": "References",
+      "description": "Professional references and endorsements"
+    },
+    "hobbies": {
+      "label": "Hobbies & Interests",
+      "description": "Personal interests that add context to your profile"
+    },
+    "customSection": {
+      "label": "Custom Section",
+      "description": "Create a section tailored to your story"
+    }
+  },
+  "editor": {
+    "theme": "Theme",
+    "pdf": "PDF",
+    "ai": "AI",
+    "preview": "Preview",
+    "showPreview": "Show",
+    "hidePreview": "Hide",
+    "emptyPreview": "Start filling in your CV sections to see a live preview here.",
+    "comingSoon": "{{section}} editor is coming soon",
+    "saveStatus": {
+      "saving": "Saving...",
+      "saved": "Saved",
+      "error": "Error"
+    }
+  },
+  "editorSections": {
+    "personalInfo": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "professionalTitle": "Professional Title",
+      "email": "Email",
+      "phone": "Phone",
+      "city": "City",
+      "country": "Country",
+      "zipCode": "Zip Code",
+      "website": "Website",
+      "linkedIn": "LinkedIn",
+      "github": "GitHub",
+      "twitter": "Twitter",
+      "socialLinks": "Social Links"
+    },
+    "summary": {
+      "title": "Professional Summary",
+      "generate": "AI Generate",
+      "stream": "Stream",
+      "apply": "Apply to summary",
+      "placeholder": "Write a brief professional summary...",
+      "count": "{{count}} / {{max}} characters"
+    },
+    "experience": {
+      "add": "Add Experience",
+      "jobTitle": "Job Title",
+      "company": "Company",
+      "location": "Location",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "description": "Description",
+      "currentlyWorking": "Currently working here",
+      "improveWithAi": "Improve with AI",
+      "deleteAria": "Delete {{title}} experience"
+    },
+    "education": {
+      "add": "Add Education",
+      "degree": "Degree",
+      "fieldOfStudy": "Field of Study",
+      "institution": "Institution",
+      "start": "Start",
+      "end": "End",
+      "gpa": "GPA"
+    },
+    "skills": {
+      "add": "Add Skill",
+      "suggest": "AI Suggest Skills",
+      "suggestedInstructions": "Suggested skills — click to add:",
+      "name": "Skill Name",
+      "category": "Category",
+      "proficiency": "Proficiency",
+      "years": "Years",
+      "categories": {
+        "technical": "Technical",
+        "soft": "Soft",
+        "language": "Language",
+        "tool": "Tool",
+        "framework": "Framework",
+        "other": "Other"
+      },
+      "levels": {
+        "beginner": "Beginner",
+        "intermediate": "Intermediate",
+        "advanced": "Advanced",
+        "expert": "Expert"
+      }
+    },
+    "projects": {
+      "add": "Add Project",
+      "name": "Project Name",
+      "description": "Description",
+      "startDate": "Start Date",
+      "url": "URL",
+      "moreCount": "+{{count}} more",
+      "highlightsCount_one": "{{count}} highlight",
+      "highlightsCount_other": "{{count}} highlights",
+      "improvedDescription": "AI-improved description",
+      "improveWithAi": "Improve with AI",
+      "viewOnGithub": "View on GitHub",
+      "visitProject": "Visit project"
+    },
+    "certifications": {
+      "add": "Add Certification",
+      "name": "Certification Name",
+      "issuer": "Issuing Organization",
+      "issued": "Issued",
+      "issueDate": "Issue Date",
+      "expiryDate": "Expiry Date",
+      "credentialId": "Credential ID",
+      "credentialUrl": "Credential URL"
+    },
+    "languages": {
+      "add": "Add Language",
+      "language": "Language",
+      "proficiency": "Proficiency",
+      "levels": {
+        "native": "Native",
+        "bilingual": "Bilingual",
+        "fullProfessional": "Full Professional",
+        "professionalWorking": "Professional Working",
+        "limitedWorking": "Limited Working",
+        "elementary": "Elementary",
+        "fluent": "Fluent",
+        "advanced": "Advanced",
+        "intermediate": "Intermediate",
+        "beginner": "Beginner"
+      }
+    },
+    "volunteering": {
+      "add": "Add Volunteer Experience",
+      "organization": "Organization",
+      "role": "Role",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "currentlyVolunteering": "Currently volunteering",
+      "description": "Description"
+    },
+    "publications": {
+      "add": "Add Publication",
+      "title": "Title",
+      "publisher": "Publisher",
+      "publishDate": "Publish Date",
+      "url": "URL",
+      "description": "Description"
+    },
+    "awards": {
+      "add": "Add Award",
+      "title": "Award Title",
+      "issuer": "Issuing Organization",
+      "date": "Date",
+      "description": "Description"
+    },
+    "references": {
+      "add": "Add Reference",
+      "fullName": "Full Name",
+      "company": "Company",
+      "position": "Position",
+      "relationship": "Relationship",
+      "email": "Email",
+      "phone": "Phone",
+      "positionAtCompany": "{{position}} at {{company}}"
+    },
+    "hobbies": {
+      "placeholder": "Add a hobby or interest..."
+    },
+    "customSection": {
+      "add": "Add Custom Section",
+      "title": "Section Title",
+      "content": "Content",
+      "contentPlaceholder": "Content..."
+    }
+  },
+  "themeCustomizer": {
+    "title": "Theme Customizer",
+    "colors": "Colors",
+    "typography": "Typography",
+    "layout": "Layout",
+    "headingFont": "Heading Font",
+    "bodyFont": "Body Font",
+    "fontSize": "Font Size",
+    "colorLabels": {
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "accent": "Accent",
+      "text": "Text",
+      "background": "Background"
+    },
+    "layouts": {
+      "single": "Single Column",
+      "twoColumn": "Two Columns",
+      "threeColumn": "Three Columns"
+    }
+  },
+  "pdf": {
+    "title": "PDF Export",
+    "pageSize": "Page Size",
+    "margins": "Margins",
+    "generate": "Generate PDF",
+    "generating": "Generating...",
+    "previousExports": "Previous Exports",
+    "marginOptions": {
+      "narrow": "Narrow",
+      "normal": "Normal",
+      "wide": "Wide"
+    }
+  },
+  "upload": {
+    "profileAlt": "Profile",
+    "uploadPhoto": "Upload Photo",
+    "changePhoto": "Change Photo",
+    "removePhoto": "Remove",
+    "imageHint": "JPEG, PNG or WebP. Max 5MB."
+  },
+  "ai": {
+    "title": "AI Assistant",
+    "tabs": {
+      "review": "Review",
+      "ats": "ATS",
+      "match": "Match",
+      "tailor": "Tailor",
+    "pageSizes": {
+      "a4": "A4",
+      "letter": "Letter",
+      "legal": "Legal"
+    },
+      "summary": "Summary",
+      "skills": "Skills",
+      "cover": "Cover"
+    },
+    "actions": {
+      "reviewCv": "Review My CV",
+      "analyzeMatch": "Analyze Match",
+      "tailorCv": "Tailor My CV",
+      "generateSummary": "Generate Professional Summary",
+      "suggestSkills": "Suggest Skills",
+      "runAts": "Run ATS Check",
+      "generateCoverLetter": "Generate Cover Letter"
+    },
+    "placeholders": {
+      "matchJobDescription": "Paste the job description here...",
+      "tailorJobDescription": "Paste the job description to tailor your CV...",
+      "coverJobDescription": "Paste job description here (optional)..."
+    },
+    "copySuccess": "Copied to clipboard",
+    "review": {
+      "overallScore": "Overall Score",
+      "strengths": "Strengths",
+      "areasToImprove": "Areas to Improve"
+    },
+    "match": {
+      "matchScore": "Match Score",
+      "matchingSkills": "Matching Skills",
+      "missingSkills": "Missing Skills",
+      "keywordGaps": "Keyword Gaps",
+      "suggestions": "Suggestions"
+    },
+    "tailor": {
+      "suggestedSummary": "Suggested Summary",
+      "skillsToAdd": "Skills to Add",
+      "skillsToHighlight": "Skills to Highlight",
+      "experienceTips": "Experience Tips",
+      "overallStrategy": "Overall Strategy"
+    },
+    "ats": {
+      "issues": "Issues",
+      "suggestions": "Suggestions"
+    },
+    "toasts": {
+      "summaryFailed": "AI summary generation failed. Check that Ollama is running.",
+      "improveExperienceFailed": "AI improvement failed",
+      "suggestSkillsFailed": "Skill suggestion failed",
+      "atsFailed": "ATS check failed",
+      "coverLetterFailed": "Cover letter generation failed",
+      "improveProjectFailed": "Project improvement failed",
+      "reviewFailed": "CV review failed",
+      "jobMatchFailed": "Job match analysis failed",
+      "tailorFailed": "CV tailoring failed",
+      "githubProfileSummaryFailed": "GitHub profile summary failed",
+      "streamingLost": "Streaming connection lost"
+    }
+  },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Browse and select a template for your CV",
+    "noTemplates": "No templates available",
+    "premium": "Premium",
+    "categories": {
+      "professional": "Professional",
+      "modern": "Modern",
+      "creative": "Creative",
+      "academic": "Academic",
+      "technical": "Technical"
+    },
+    "templateNames": {
+      "classicProfessional": "Classic Professional",
+      "modernMinimal": "Modern Minimal",
+      "creativePortfolio": "Creative Portfolio",
+      "academicCv": "Academic CV",
+      "techDeveloper": "Tech Developer"
+    },
+    "templateDescriptions": {
+      "classicProfessional": "A clean, traditional CV layout with clear section hierarchy. Perfect for corporate and finance roles.",
+      "modernMinimal": "Minimalist design with generous white space and modern typography. Great for design and tech positions.",
+      "creativePortfolio": "Bold colors and creative layout for designers, artists, and creative professionals.",
+      "academicCv": "Formal academic curriculum vitae with emphasis on publications, research, and teaching experience.",
+      "techDeveloper": "Developer-focused template highlighting technical skills, projects, and open source contributions."
+    }
+  },
+  "github": {
+    "title": "GitHub Integration",
+    "subtitle": "Connect your GitHub account to import projects and skills into your CV",
+    "yourRepos": "Your Repositories",
+    "analysisHistory": "Analysis History",
+    "checkingConnection": "Checking connection...",
+    "connectedAs": "Connected as @{{username}}",
+    "integrationActive": "GitHub integration active",
+    "disconnect": "Disconnect",
+    "connectGithub": "Connect GitHub",
+    "tokenDescription": "Enter your GitHub Personal Access Token (PAT) with repo scope to import projects.",
+    "tokenPlaceholder": "ghp_...",
+    "connect": "Connect",
+    "loadingRepos": "Loading repositories...",
+    "searchRepos": "Search repositories...",
+    "overview": "Overview",
+    "techStack": "Tech Stack",
+    "codeQuality": "Code Quality",
+    "activity": "Activity",
+    "aiInsights": "AI Insights",
+    "devops": "DevOps",
+    "fileStructure": "File Structure",
+    "detectedSkills": "Detected Skills",
+    "strengths": "Strengths",
+    "improvements": "Improvement Suggestions",
+    "cvReadyDesc": "CV-Ready Description",
+    "qualityScore": "Code Quality Score",
+    "commitAnalytics": "Commit Analytics",
+    "topContributors": "Top Contributors",
+    "recentCommits": "Recent Commits",
+    "noDepsFound": "No dependency manifest found",
+    "noCiCdFound": "No CI/CD or containerization detected",
+    "aiAssessment": "AI Assessment",
+    "architectureAnalysis": "Architecture Analysis",
+    "deepAnalysis": "Deep Analysis",
+    "archived": "Archived",
+    "fork": "Fork",
+    "languages": "Languages",
+    "topics": "Topics",
+    "technologies": "Technologies",
+    "created": "Created",
+    "updated": "Updated",
+    "dependenciesSource": "From {{source}}",
+    "frameworks": "Frameworks",
+    "databases": "Databases",
+    "uiLibraries": "UI Libraries",
+    "testing": "Testing",
+    "buildTools": "Build Tools",
+    "linters": "Linters",
+    "allDependencies": "All Dependencies ({{count}})",
+    "devDependencies": "Dev Dependencies ({{count}})",
+    "qualityScoreDescription": "Based on testing, CI/CD, linting, documentation, and best practices",
+    "tests": "Tests",
+    "linting": "Linting",
+    "readme": "README",
+    "license": "License",
+    "contributingGuide": "Contributing Guide",
+    "changelog": "Changelog",
+    "conventionalCommits": "Conventional Commits",
+    "configFilesDetected": "Config Files Detected",
+    "totalCommits": "Total Commits",
+    "last30Days": "Last 30 Days",
+    "averagePerWeek": "Avg/Week",
+    "activeDays": "Active Days",
+    "firstCommit": "First commit",
+    "lastCommit": "Last commit",
+    "committers": "Committers",
+    "aiProjectSummary": "AI Project Summary",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "insightsUnavailable": "AI analysis couldn't generate insights for this repository.",
+    "insightsRetryHint": "Try re-analyzing. The AI model may have been busy or timed out.",
+    "githubActions": "GitHub Actions",
+    "dockerfile": "Dockerfile",
+    "dockerCompose": "Docker Compose",
+    "workflowFiles": "Workflow Files",
+    "metrics": {
+      "issues": "issues",
+      "files": "files",
+      "commits": "commits",
+      "contributors": "contributors",
+      "quality": "Quality"
+    },
+    "stats": {
+      "files": "Files",
+      "directories": "Directories",
+      "maxDepth": "Max Depth"
+    },
+    "projectTypes": {
+      "fullstack": "fullstack",
+      "frontend": "frontend",
+      "backend": "backend",
+      "monorepo": "monorepo",
+      "other": "other"
+    },
+    "complexity": {
+      "simple": "simple",
+      "medium": "medium",
+      "complex": "complex"
+    },
+    "profileSummaryTitle": "Developer Profile Summary",
+    "regenerate": "Regenerate",
+    "generateFromRepos": "Generate from Repos",
+    "profileSummaryDescription": "AI generates a developer profile summary from your analyzed GitHub repositories.",
+    "profileSummaryFailed": "Failed to generate. Make sure you have analyzed repos and Ollama is running.",
+    "analyze": "Analyze",
+    "analyzing": "Analyzing...",
+    "noReposFound": "No repositories found",
+    "importedToCv": "Imported to CV",
+    "noCvsFound": "No CVs found. Create one first.",
+    "selectCv": "Select CV...",
+    "addToCv": "Add to CV",
+    "addManyToCv": "Add {{count}} to CV",
+    "connectingStream": "Connecting to analysis stream...",
+    "connectingStreamWithRepo": "Connecting to analysis stream for {{repoName}}...",
+    "analysisStages": {
+      "starting": "Starting deep analysis...",
+      "fetching_repo": "Fetching repository info...",
+      "fetching_languages": "Analyzing language breakdown...",
+      "fetching_tree": "Mapping file structure...",
+      "fetching_commits": "Analyzing commit history...",
+      "fetching_contributors": "Identifying contributors...",
+      "fetching_dependencies": "Scanning dependencies...",
+      "fetching_workflows": "Detecting CI/CD pipelines...",
+      "fetching_readme": "Reading README and source files...",
+      "ai_analyzing": "AI is analyzing code patterns and architecture...",
+      "completed": "Deep analysis complete!",
+      "failed": "Analysis failed"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Application preferences and configuration",
+    "language": "Language",
+    "languageHint": "This will set the default language for new CVs.",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "data": "Data",
+    "dataDesc": "Export or clear your CV data.",
+    "about": "About",
+    "aboutDesc": "CvBuilder v1.0.0 — AI-Powered CV Builder"
+  },
+  "common": {
+    "appName": "CvBuilder",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "loading": "Loading...",
+    "loadingSession": "Loading session...",
+    "error": "Error",
+    "required": "Required",
+    "maxLength": "Maximum {{count}} characters",
+    "invalidEmail": "Invalid email",
+    "invalidUrl": "Invalid URL",
+    "unexpectedError": "An unexpected error occurred",
+    "present": "Present",
+    "edit": "Edit",
+    "delete": "Delete",
+    "remove": "Remove",
+    "add": "Add",
+    "reset": "Reset",
+    "download": "Download",
+    "upload": "Upload",
+    "change": "Change",
+    "dismiss": "Dismiss",
+    "toggleMenu": "Toggle menu",
+    "toggleSidebar": "Toggle sidebar"
+  },
+  "languages": {
+    "en": "English",
+    "tr": "Turkish"
+  },
+  "toasts": {
+    "auth": {
+      "registerSuccess": "Account created successfully",
+      "loginSuccess": "Signed in successfully",
+      "logoutSuccess": "Signed out successfully"
+    },
+    "cv": {
+      "created": "CV created successfully",
+      "deleted": "CV deleted"
+    },
+    "github": {
+      "connectedAs": "Connected as {{username}}",
+      "connectFailed": "Failed to connect GitHub",
+      "disconnected": "GitHub disconnected",
+      "disconnectFailed": "Failed to disconnect",
+      "analysisStarted": "Analysis started",
+      "analysisFailed": "Failed to start analysis",
+      "projectImported": "Project imported to CV",
+      "projectsImported": "{{count}} projects imported to CV",
+      "importFailed": "Failed to import project",
+      "bulkImportFailed": "Failed to import projects"
+    },
+    "pdf": {
+      "generated": "PDF generated: {{fileName}}",
+      "generationFailed": "PDF generation failed",
+      "downloadFailed": "Download failed",
+      "deleted": "PDF export deleted",
+      "deleteFailed": "Delete failed"
+    },
+    "upload": {
+      "uploaded": "Photo uploaded",
+      "uploadFailed": "Failed to upload photo",
+      "removed": "Photo removed",
+      "removeFailed": "Failed to remove photo"
+    }
+  },
+  "status": {
+    "published": "PUBLISHED",
+    "draft": "DRAFT",
+    "pending": "PENDING",
+    "processing": "PROCESSING",
+    "completed": "COMPLETED",
+    "failed": "FAILED"
+  }
+}

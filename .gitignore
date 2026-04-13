@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+
+# Workspace package dependencies
+packages/*/node_modules/
+
+# Build outputs
+dist/
+build/
+packages/*/dist/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.envrc
+*.local
+.npmrc
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (local dev)
+postgres-data/
+redis-data/
+ollama-models/
+
+# Runtime data
+uploads/*
+!uploads/.gitkeep
+packages/backend/uploads/
+e2e/.auth/*
+!e2e/.auth/.gitkeep
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test artifacts
+coverage/
+packages/*/coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Prisma
+packages/backend/prisma/migrations/**/migration_lock.toml
+
+# Generated
+packages/backend/src/generated/
+
+# Misc
+*.tgz
+.cache/
+.eslintcache

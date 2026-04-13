@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "true"
+
+jobs:
+  quality:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate -w packages/backend
+
+      - name: Typecheck workspaces
+        run: npm run typecheck
+
+      - name: Lint workspaces
+        run: npm run lint
+
+      - name: Run backend tests
+        run: npm run test -w packages/backend -- --runInBand
+
+      - name: Run frontend tests
+        run: npm run test:frontend
+
+      - name: Build workspaces
+        run: npm run build
+
+  docker-build:
+    name: Docker Build Validation
+    needs: quality
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - backend
+          - frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/${{ matrix.service }}/Dockerfile
+          target: production
+          push: false
+          tags: cvbuilder/${{ matrix.service }}:ci

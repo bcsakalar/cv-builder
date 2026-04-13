@@ -1,0 +1,476 @@
+// ═══════════════════════════════════════════════════════════
+// Prisma Schema — CvBuilder
+// ═══════════════════════════════════════════════════════════
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+// ── Enums ────────────────────────────────────────────────
+
+enum CVStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum SkillCategory {
+  TECHNICAL
+  SOFT
+  LANGUAGE
+  TOOL
+  FRAMEWORK
+  OTHER
+}
+
+enum ProficiencyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum LanguageProficiency {
+  NATIVE
+  BILINGUAL
+  FULL_PROFESSIONAL
+  PROFESSIONAL_WORKING
+  LIMITED_WORKING
+  ELEMENTARY
+}
+
+enum TemplateCategory {
+  PROFESSIONAL
+  CREATIVE
+  MODERN
+  MINIMAL
+  ACADEMIC
+  TECHNICAL
+}
+
+enum AnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ── User ─────────────────────────────────────────────────
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  email           String   @unique @db.VarChar(255)
+  name            String   @db.VarChar(200)
+  passwordHash    String   @map("password_hash") @db.VarChar(255)
+  avatarUrl       String?  @map("avatar_url") @db.Text
+  githubUsername   String?  @map("github_username") @db.VarChar(100)
+  githubToken     String?  @map("github_token") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  cvs              CV[]
+  githubAnalyses   GitHubAnalysis[]
+
+  @@map("users")
+}
+
+// ── CV ───────────────────────────────────────────────────
+
+model CV {
+  id              String    @id @default(uuid()) @db.Uuid
+  title           String    @db.VarChar(200)
+  slug            String    @unique @db.VarChar(300)
+  status          CVStatus  @default(DRAFT)
+  locale          String    @default("en") @db.VarChar(5)
+  isAtsOptimized  Boolean   @default(false) @map("is_ats_optimized")
+  sectionOrder    Json      @default("[]") @map("section_order")
+  themeConfig     Json      @default("{}") @map("theme_config")
+  userId          String    @map("user_id") @db.Uuid
+  templateId      String    @map("template_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template             Template              @relation(fields: [templateId], references: [id])
+  personalInfo         PersonalInfo?
+  summary              Summary?
+  experiences          Experience[]
+  educations           Education[]
+  skills               Skill[]
+  projects             Project[]
+  certifications       Certification[]
+  languages            Language[]
+  volunteerExperiences VolunteerExperience[]
+  publications         Publication[]
+  awards               Award[]
+  references           Reference[]
+  hobbies              Hobby[]
+  customSections       CustomSection[]
+  pdfExports           PDFExport[]
+
+  @@index([userId])
+  @@index([templateId])
+  @@index([status])
+  @@map("cvs")
+}
+
+// ── Template ─────────────────────────────────────────────
+
+model Template {
+  id              String            @id @default(uuid()) @db.Uuid
+  name            String            @unique @db.VarChar(100)
+  slug            String            @unique @db.VarChar(150)
+  description     String            @db.Text
+  category        TemplateCategory
+  thumbnailUrl    String?           @map("thumbnail_url") @db.Text
+  previewUrl      String?           @map("preview_url") @db.Text
+  structure       Json              @default("{}")
+  defaultTheme    Json              @default("{}") @map("default_theme")
+  isActive        Boolean           @default(true) @map("is_active")
+  isPremium       Boolean           @default(false) @map("is_premium")
+  supportedLayouts Json             @default("[\"SINGLE_COLUMN\"]") @map("supported_layouts")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  cvs CV[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("templates")
+}
+
+// ── Personal Info ────────────────────────────────────────
+
+model PersonalInfo {
+  id                String   @id @default(uuid()) @db.Uuid
+  firstName         String   @map("first_name") @db.VarChar(100)
+  lastName          String   @map("last_name") @db.VarChar(100)
+  professionalTitle String   @default("") @map("professional_title") @db.VarChar(200)
+  email             String   @db.VarChar(255)
+  phone             String   @default("") @db.VarChar(30)
+  city              String   @default("") @db.VarChar(100)
+  country           String   @default("") @db.VarChar(100)
+  zipCode           String   @default("") @map("zip_code") @db.VarChar(20)
+  dateOfBirth       String?  @map("date_of_birth") @db.VarChar(20)
+  nationality       String?  @db.VarChar(100)
+  website           String?  @db.Text
+  linkedIn          String?  @map("linked_in") @db.Text
+  github            String?  @db.Text
+  twitter           String?  @db.Text
+  stackoverflow     String?  @db.Text
+  medium            String?  @db.Text
+  behance           String?  @db.Text
+  dribbble          String?  @db.Text
+  profilePhotoUrl   String?  @map("profile_photo_url") @db.Text
+  address           String?  @db.VarChar(300)
+  cvId              String   @unique @map("cv_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@map("personal_infos")
+}
+
+// ── Summary ──────────────────────────────────────────────
+
+model Summary {
+  id          String   @id @default(uuid()) @db.Uuid
+  content     String   @default("") @db.Text
+  aiGenerated Boolean  @default(false) @map("ai_generated")
+  cvId        String   @unique @map("cv_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+}
+
+// ── Experience ───────────────────────────────────────────
+
+model Experience {
+  id                  String   @id @default(uuid()) @db.Uuid
+  jobTitle            String   @map("job_title") @db.VarChar(200)
+  company             String   @db.VarChar(200)
+  companyDescription  String?  @map("company_description") @db.VarChar(500)
+  location            String   @default("") @db.VarChar(200)
+  startDate           String   @map("start_date") @db.VarChar(20)
+  endDate             String?  @map("end_date") @db.VarChar(20)
+  isCurrent           Boolean  @default(false) @map("is_current")
+  description         String   @default("") @db.Text
+  achievements        Json     @default("[]")
+  technologies        Json     @default("[]")
+  orderIndex          Int      @default(0) @map("order_index")
+  cvId                String   @map("cv_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("experiences")
+}
+
+// ── Education ────────────────────────────────────────────
+
+model Education {
+  id                  String   @id @default(uuid()) @db.Uuid
+  degree              String   @db.VarChar(200)
+  fieldOfStudy        String   @map("field_of_study") @db.VarChar(200)
+  institution         String   @db.VarChar(200)
+  location            String   @default("") @db.VarChar(200)
+  startDate           String   @map("start_date") @db.VarChar(20)
+  endDate             String?  @map("end_date") @db.VarChar(20)
+  gpa                 String?  @db.VarChar(10)
+  relevantCoursework  Json     @default("[]") @map("relevant_coursework")
+  achievements        Json     @default("[]")
+  orderIndex          Int      @default(0) @map("order_index")
+  cvId                String   @map("cv_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("educations")
+}
+
+// ── Skill ────────────────────────────────────────────────
+
+model Skill {
+  id                String           @id @default(uuid()) @db.Uuid
+  name              String           @db.VarChar(100)
+  category          SkillCategory
+  proficiencyLevel  ProficiencyLevel @map("proficiency_level")
+  yearsOfExperience Float?           @map("years_of_experience")
+  orderIndex        Int              @default(0) @map("order_index")
+  cvId              String           @map("cv_id") @db.Uuid
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("skills")
+}
+
+// ── Project ──────────────────────────────────────────────
+
+model Project {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(200)
+  description    String   @default("") @db.Text
+  role           String?  @db.VarChar(200)
+  technologies   Json     @default("[]")
+  url            String?  @db.Text
+  githubUrl      String?  @map("github_url") @db.Text
+  startDate      String   @map("start_date") @db.VarChar(20)
+  endDate        String?  @map("end_date") @db.VarChar(20)
+  highlights     Json     @default("[]")
+  isFromGitHub   Boolean  @default(false) @map("is_from_github")
+  githubRepoData Json?    @map("github_repo_data")
+  orderIndex     Int      @default(0) @map("order_index")
+  cvId           String   @map("cv_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("projects")
+}
+
+// ── Certification ────────────────────────────────────────
+
+model Certification {
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String   @db.VarChar(200)
+  issuingOrganization  String   @map("issuing_organization") @db.VarChar(200)
+  issueDate            String   @map("issue_date") @db.VarChar(20)
+  expirationDate       String?  @map("expiration_date") @db.VarChar(20)
+  credentialId         String?  @map("credential_id") @db.VarChar(100)
+  credentialUrl        String?  @map("credential_url") @db.Text
+  orderIndex           Int      @default(0) @map("order_index")
+  cvId                 String   @map("cv_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("certifications")
+}
+
+// ── Language ─────────────────────────────────────────────
+
+model Language {
+  id          String              @id @default(uuid()) @db.Uuid
+  name        String              @db.VarChar(100)
+  proficiency LanguageProficiency
+  orderIndex  Int                 @default(0) @map("order_index")
+  cvId        String              @map("cv_id") @db.Uuid
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("languages")
+}
+
+// ── Volunteer Experience ─────────────────────────────────
+
+model VolunteerExperience {
+  id           String   @id @default(uuid()) @db.Uuid
+  role         String   @db.VarChar(200)
+  organization String   @db.VarChar(200)
+  location     String?  @db.VarChar(200)
+  startDate    String   @map("start_date") @db.VarChar(20)
+  endDate      String?  @map("end_date") @db.VarChar(20)
+  description  String   @default("") @db.Text
+  orderIndex   Int      @default(0) @map("order_index")
+  cvId         String   @map("cv_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("volunteer_experiences")
+}
+
+// ── Publication ──────────────────────────────────────────
+
+model Publication {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(300)
+  publisher   String   @db.VarChar(200)
+  date        String   @db.VarChar(20)
+  url         String?  @db.Text
+  description String?  @db.Text
+  orderIndex  Int      @default(0) @map("order_index")
+  cvId        String   @map("cv_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("publications")
+}
+
+// ── Award ────────────────────────────────────────────────
+
+model Award {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(200)
+  issuer      String   @db.VarChar(200)
+  date        String   @db.VarChar(20)
+  description String?  @db.Text
+  orderIndex  Int      @default(0) @map("order_index")
+  cvId        String   @map("cv_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("awards")
+}
+
+// ── Reference ────────────────────────────────────────────
+
+model Reference {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(200)
+  title        String   @db.VarChar(200)
+  company      String   @db.VarChar(200)
+  email        String?  @db.VarChar(255)
+  phone        String?  @db.VarChar(30)
+  relationship String   @db.VarChar(200)
+  orderIndex   Int      @default(0) @map("order_index")
+  cvId         String   @map("cv_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("references")
+}
+
+// ── Hobby ────────────────────────────────────────────────
+
+model Hobby {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  orderIndex  Int      @default(0) @map("order_index")
+  cvId        String   @map("cv_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("hobbies")
+}
+
+// ── Custom Section ───────────────────────────────────────
+
+model CustomSection {
+  id            String   @id @default(uuid()) @db.Uuid
+  sectionTitle  String   @map("section_title") @db.VarChar(200)
+  content       Json     @default("{}")
+  orderIndex    Int      @default(0) @map("order_index")
+  cvId          String   @map("cv_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("custom_sections")
+}
+
+// ── PDF Export ───────────────────────────────────────────
+
+model PDFExport {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileName    String   @map("file_name") @db.VarChar(300)
+  filePath    String   @map("file_path") @db.Text
+  fileSize    Int      @map("file_size")
+  cvId        String   @map("cv_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([cvId])
+  @@map("pdf_exports")
+}
+
+// ── GitHub Analysis ──────────────────────────────────────
+
+model GitHubAnalysis {
+  id                String         @id @default(uuid()) @db.Uuid
+  username          String         @db.VarChar(100)
+  status            AnalysisStatus @default(PENDING)
+  result            Json?
+  error             String?        @db.Text
+  userId            String         @map("user_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("github_analyses")
+}

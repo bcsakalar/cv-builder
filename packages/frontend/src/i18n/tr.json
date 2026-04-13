@@ -1,0 +1,668 @@
+{
+  "nav": {
+    "dashboard": "Ana Sayfa",
+    "myCvs": "CV'lerim",
+    "github": "GitHub",
+    "templates": "Şablonlar",
+    "settings": "Ayarlar"
+  },
+  "header": {
+    "newCv": "+ Yeni CV",
+    "createNewCv": "Yeni CV Oluştur",
+    "editCv": "CV Düzenle",
+    "githubIntegration": "GitHub Entegrasyonu",
+    "logout": "Çıkış Yap"
+  },
+  "auth": {
+    "kicker": "Geliştirici Odaklı CV Çalışma Alanı",
+    "title": "Gerçek projelerinizin etrafında production-grade bir CV akışı kurun",
+    "subtitle": "CV'lerinizi yönetmek, GitHub bağlamak, yapay zeka destekli içerik üretmek ve güvenli kişisel alanınızdan recruiter-ready PDF çıktıları almak için giriş yapın.",
+    "featureOneTitle": "GitHub Farkındalığı",
+    "featureOneDesc": "Gerçek repoları teknik bağlamı ve ölçülebilir çıktıları olan güçlü proje kayıtlarına dönüştürün.",
+    "featureTwoTitle": "AI Tailoring",
+    "featureTwoDesc": "Her iş başvurusu için özet, ATS iyileştirmesi ve hedefli CV önerileri üretin.",
+    "featureThreeTitle": "Production Çıktı",
+    "featureThreeDesc": "Tüm CV sürümlerinizi tek yerde tutun ve gerektiğinde tutarlı PDF çıktıları alın.",
+    "signIn": "Giriş Yap",
+    "createAccount": "Hesap Oluştur",
+    "welcomeBack": "Tekrar hoş geldiniz",
+    "getStarted": "Hesabınızı oluşturun",
+    "signInHint": "Kaldığınız yerden devam etmek için hesabınıza giriş yapın.",
+    "registerHint": "CV, GitHub analizi ve AI araçlarınız için güvenli bir çalışma alanı oluşturun.",
+    "activeSession": "Mevcut oturum: {{name}}",
+    "name": "Ad Soyad",
+    "email": "E-posta Adresi",
+    "password": "Şifre",
+    "nameMin": "Ad en az 2 karakter olmalıdır",
+    "passwordMin": "Şifre en az 8 karakter olmalıdır",
+    "invalidForm": "Lütfen form alanlarını kontrol edip tekrar deneyin.",
+    "submitting": "Gönderiliyor..."
+  },
+  "dashboard": {
+    "title": "Ana Sayfa",
+    "subtitle": "CvBuilder'a Hoş Geldiniz — Yapay Zeka Destekli CV Oluşturucu",
+    "totalCvs": "Toplam CV",
+    "exports": "Dışa Aktarım",
+    "githubRepos": "GitHub Depoları",
+    "lastEdit": "Son Düzenleme",
+    "today": "Bugün",
+    "justNow": "Az önce",
+    "newCv": "Yeni CV",
+    "connectGithub": "GitHub Bağla",
+    "browseTemplates": "Şablonlara Göz At",
+    "noCvsYet": "Henüz CV yok",
+    "createFirstCv": "Başlamak için ilk CV'nizi oluşturun",
+    "createCv": "CV Oluştur"
+  },
+  "cvList": {
+    "title": "CV'lerim",
+    "newCv": "Yeni CV",
+    "noCvsYet": "Henüz CV yok",
+    "createFirstCv": "Başlamak için ilk CV'nizi oluşturun",
+    "createCv": "CV Oluştur",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "deleteConfirm": "Bu CV'yi silmek istediğinize emin misiniz?",
+    "updated": "Güncellendi"
+  },
+  "cvNew": {
+    "title": "Yeni CV Oluştur",
+    "cvTitle": "CV Başlığı",
+    "titlePlaceholder": "ör. Kıdemli Frontend Geliştirici",
+    "template": "Şablon",
+    "selectTemplate": "Bir şablon seçin...",
+    "language": "Dil",
+    "creating": "Oluşturuluyor...",
+    "createCv": "CV Oluştur",
+    "titleRequired": "Başlık gereklidir",
+    "templateRequired": "Şablon gereklidir"
+  },
+  "cvEdit": {
+    "notFound": "CV bulunamadı",
+    "notFoundDesc": "İstenen CV yüklenemedi."
+  },
+  "cvSections": {
+    "personalInfo": {
+      "label": "Kişisel Bilgiler",
+      "description": "Ad, iletişim bilgileri ve profil fotoğrafı"
+    },
+    "socialLinks": {
+      "label": "Sosyal Bağlantılar",
+      "description": "LinkedIn, GitHub ve diğer profesyonel profiller"
+    },
+    "summary": {
+      "label": "Profesyonel Özet",
+      "description": "Hedef rolünüze uygun kısa bir tanıtım"
+    },
+    "experience": {
+      "label": "İş Deneyimi",
+      "description": "Çalışma geçmişi ve ölçülebilir başarılar"
+    },
+    "education": {
+      "label": "Eğitim",
+      "description": "Akademik geçmiş ve nitelikler"
+    },
+    "skills": {
+      "label": "Yetenekler",
+      "description": "Teknik, sosyal ve alan uzmanlıkları"
+    },
+    "projects": {
+      "label": "Projeler",
+      "description": "Seçili işler, ürünler veya açık kaynak katkıları"
+    },
+    "certifications": {
+      "label": "Sertifikalar",
+      "description": "Profesyonel sertifikalar ve belgeler"
+    },
+    "languages": {
+      "label": "Diller",
+      "description": "Konuştuğunuz diller ve seviyeleri"
+    },
+    "volunteering": {
+      "label": "Gönüllü Deneyimi",
+      "description": "Topluluk katkıları ve gönüllü çalışmalar"
+    },
+    "publications": {
+      "label": "Yayınlar",
+      "description": "Makaleler, araştırmalar ve yayımlanmış çalışmalar"
+    },
+    "awards": {
+      "label": "Ödüller ve Onurlar",
+      "description": "Takdirler, ödüller ve dikkat çeken başarılar"
+    },
+    "references": {
+      "label": "Referanslar",
+      "description": "Profesyonel referanslar ve destekleyici görüşler"
+    },
+    "hobbies": {
+      "label": "Hobiler ve İlgi Alanları",
+      "description": "Profilinize kişisel bağlam katan ilgi alanları"
+    },
+    "customSection": {
+      "label": "Özel Bölüm",
+      "description": "Hikayenize uygun bir bölüm oluşturun"
+    }
+  },
+  "editor": {
+    "theme": "Tema",
+    "pdf": "PDF",
+    "ai": "AI",
+    "preview": "Önizleme",
+    "showPreview": "Göster",
+    "hidePreview": "Gizle",
+    "emptyPreview": "Canlı önizlemeyi burada görmek için CV bölümlerinizi doldurmaya başlayın.",
+    "comingSoon": "{{section}} düzenleyicisi yakında eklenecek",
+    "saveStatus": {
+      "saving": "Kaydediliyor...",
+      "saved": "Kaydedildi",
+      "error": "Hata"
+    }
+  },
+  "editorSections": {
+    "personalInfo": {
+      "firstName": "Ad",
+      "lastName": "Soyad",
+      "professionalTitle": "Profesyonel Unvan",
+      "email": "E-posta",
+      "phone": "Telefon",
+      "city": "Şehir",
+      "country": "Ülke",
+      "zipCode": "Posta Kodu",
+      "website": "Web Sitesi",
+      "linkedIn": "LinkedIn",
+      "github": "GitHub",
+      "twitter": "Twitter",
+      "socialLinks": "Sosyal Bağlantılar"
+    },
+    "summary": {
+      "title": "Profesyonel Özet",
+      "generate": "AI ile Üret",
+      "stream": "Akış",
+      "apply": "Özete uygula",
+      "placeholder": "Kısa bir profesyonel özet yazın...",
+      "count": "{{count}} / {{max}} karakter"
+    },
+    "experience": {
+      "add": "Deneyim Ekle",
+      "jobTitle": "Pozisyon",
+      "company": "Şirket",
+      "location": "Konum",
+      "startDate": "Başlangıç Tarihi",
+      "endDate": "Bitiş Tarihi",
+      "description": "Açıklama",
+      "currentlyWorking": "Burada hâlen çalışıyorum",
+      "improveWithAi": "AI ile iyileştir",
+      "deleteAria": "{{title}} deneyimini sil"
+    },
+    "education": {
+      "add": "Eğitim Ekle",
+      "degree": "Derece",
+      "fieldOfStudy": "Bölüm",
+      "institution": "Kurum",
+      "start": "Başlangıç",
+      "end": "Bitiş",
+      "gpa": "Not Ortalaması"
+    },
+    "skills": {
+      "add": "Yetenek Ekle",
+      "suggest": "AI ile Yetenek Öner",
+      "suggestedInstructions": "Önerilen yetenekler — eklemek için tıklayın:",
+      "name": "Yetenek Adı",
+      "category": "Kategori",
+      "proficiency": "Seviye",
+      "years": "Yıl",
+      "categories": {
+        "technical": "Teknik",
+        "soft": "Sosyal",
+        "language": "Dil",
+        "tool": "Araç",
+        "framework": "Framework",
+        "other": "Diğer"
+      },
+      "levels": {
+        "beginner": "Başlangıç",
+        "intermediate": "Orta",
+        "advanced": "İleri",
+        "expert": "Uzman"
+      }
+    },
+    "projects": {
+      "add": "Proje Ekle",
+      "name": "Proje Adı",
+      "description": "Açıklama",
+      "startDate": "Başlangıç Tarihi",
+      "url": "URL",
+      "moreCount": "+{{count}} daha",
+      "highlightsCount_one": "{{count}} öne çıkan nokta",
+      "highlightsCount_other": "{{count}} öne çıkan nokta",
+      "improvedDescription": "AI ile iyileştirilmiş açıklama",
+      "improveWithAi": "AI ile iyileştir",
+      "viewOnGithub": "GitHub'da görüntüle",
+      "visitProject": "Projeyi ziyaret et"
+    },
+    "certifications": {
+      "add": "Sertifika Ekle",
+      "name": "Sertifika Adı",
+      "issuer": "Veren Kurum",
+      "issued": "Veriliş",
+      "issueDate": "Veriliş Tarihi",
+      "expiryDate": "Bitiş Tarihi",
+      "credentialId": "Kimlik Numarası",
+      "credentialUrl": "Belge URL'si"
+    },
+    "languages": {
+      "add": "Dil Ekle",
+      "language": "Dil",
+      "proficiency": "Seviye",
+      "levels": {
+        "native": "Ana Dil",
+        "bilingual": "İki Dilli",
+        "fullProfessional": "Tam Profesyonel",
+        "professionalWorking": "Profesyonel Çalışma",
+        "limitedWorking": "Sınırlı Çalışma",
+        "elementary": "Temel",
+        "fluent": "Akıcı",
+        "advanced": "İleri",
+        "intermediate": "Orta",
+        "beginner": "Başlangıç"
+      }
+    },
+    "volunteering": {
+      "add": "Gönüllü Deneyimi Ekle",
+      "organization": "Kurum",
+      "role": "Rol",
+      "startDate": "Başlangıç Tarihi",
+      "endDate": "Bitiş Tarihi",
+      "currentlyVolunteering": "Hâlen gönüllü olarak çalışıyorum",
+      "description": "Açıklama"
+    },
+    "publications": {
+      "add": "Yayın Ekle",
+      "title": "Başlık",
+      "publisher": "Yayınevi / Yayıncı",
+      "publishDate": "Yayın Tarihi",
+      "url": "URL",
+      "description": "Açıklama"
+    },
+    "awards": {
+      "add": "Ödül Ekle",
+      "title": "Ödül Başlığı",
+      "issuer": "Veren Kurum",
+      "date": "Tarih",
+      "description": "Açıklama"
+    },
+    "references": {
+      "add": "Referans Ekle",
+      "fullName": "Ad Soyad",
+      "company": "Şirket",
+      "position": "Pozisyon",
+      "relationship": "İlişki",
+      "email": "E-posta",
+      "phone": "Telefon",
+      "positionAtCompany": "{{company}} şirketinde {{position}}"
+    },
+    "hobbies": {
+      "placeholder": "Bir hobi veya ilgi alanı ekleyin..."
+    },
+    "customSection": {
+      "add": "Özel Bölüm Ekle",
+      "title": "Bölüm Başlığı",
+      "content": "İçerik",
+      "contentPlaceholder": "İçerik..."
+    }
+  },
+  "themeCustomizer": {
+    "title": "Tema Özelleştirici",
+    "colors": "Renkler",
+    "typography": "Tipografi",
+    "layout": "Yerleşim",
+    "headingFont": "Başlık Fontu",
+    "bodyFont": "Metin Fontu",
+    "fontSize": "Font Boyutu",
+    "colorLabels": {
+      "primary": "Ana",
+      "secondary": "İkincil",
+      "accent": "Vurgu",
+      "text": "Metin",
+      "background": "Arka Plan"
+    },
+    "layouts": {
+      "single": "Tek Sütun",
+      "twoColumn": "İki Sütun",
+      "threeColumn": "Üç Sütun"
+    }
+  },
+  "pdf": {
+    "title": "PDF Dışa Aktarımı",
+    "pageSize": "Sayfa Boyutu",
+    "margins": "Kenar Boşlukları",
+    "generate": "PDF Oluştur",
+    "generating": "Oluşturuluyor...",
+    "previousExports": "Önceki Dışa Aktarımlar",
+    "pageSizes": {
+      "a4": "A4",
+      "letter": "Letter",
+      "legal": "Legal"
+    },
+    "marginOptions": {
+      "narrow": "Dar",
+      "normal": "Normal",
+      "wide": "Geniş"
+    }
+  },
+  "upload": {
+    "profileAlt": "Profil",
+    "uploadPhoto": "Fotoğraf Yükle",
+    "changePhoto": "Fotoğrafı Değiştir",
+    "removePhoto": "Kaldır",
+    "imageHint": "JPEG, PNG veya WebP. En fazla 5MB."
+  },
+  "ai": {
+    "title": "AI Asistanı",
+    "tabs": {
+      "review": "İnceleme",
+      "ats": "ATS",
+      "match": "Eşleşme",
+      "tailor": "Uyarlama",
+      "summary": "Özet",
+      "skills": "Yetenekler",
+      "cover": "Ön Yazı"
+    },
+    "actions": {
+      "reviewCv": "CV'mi İncele",
+      "analyzeMatch": "Eşleşmeyi Analiz Et",
+      "tailorCv": "CV'mi Uyarlat",
+      "generateSummary": "Profesyonel Özet Oluştur",
+      "suggestSkills": "Yetenek Öner",
+      "runAts": "ATS Kontrolü Yap",
+      "generateCoverLetter": "Ön Yazı Oluştur"
+    },
+    "placeholders": {
+      "matchJobDescription": "İş ilanı açıklamasını buraya yapıştırın...",
+      "tailorJobDescription": "CV'nizi uyarlamak için iş ilanını buraya yapıştırın...",
+      "coverJobDescription": "İş ilanını buraya yapıştırın (isteğe bağlı)..."
+    },
+    "copySuccess": "Panoya kopyalandı",
+    "review": {
+      "overallScore": "Genel Puan",
+      "strengths": "Güçlü Yönler",
+      "areasToImprove": "Geliştirilmesi Gereken Alanlar"
+    },
+    "match": {
+      "matchScore": "Eşleşme Puanı",
+      "matchingSkills": "Eşleşen Yetenekler",
+      "missingSkills": "Eksik Yetenekler",
+      "keywordGaps": "Eksik Anahtar Kelimeler",
+      "suggestions": "Öneriler"
+    },
+    "tailor": {
+      "suggestedSummary": "Önerilen Özet",
+      "skillsToAdd": "Eklenmesi Gereken Yetenekler",
+      "skillsToHighlight": "Vurgulanması Gereken Yetenekler",
+      "experienceTips": "Deneyim Önerileri",
+      "overallStrategy": "Genel Strateji"
+    },
+    "ats": {
+      "issues": "Sorunlar",
+      "suggestions": "Öneriler"
+    },
+    "toasts": {
+      "summaryFailed": "AI özet üretimi başarısız oldu. Ollama'nın çalıştığını kontrol edin.",
+      "improveExperienceFailed": "AI iyileştirmesi başarısız oldu",
+      "suggestSkillsFailed": "Yetenek önerisi başarısız oldu",
+      "atsFailed": "ATS kontrolü başarısız oldu",
+      "coverLetterFailed": "Ön yazı üretimi başarısız oldu",
+      "improveProjectFailed": "Proje iyileştirmesi başarısız oldu",
+      "reviewFailed": "CV incelemesi başarısız oldu",
+      "jobMatchFailed": "İş eşleşmesi analizi başarısız oldu",
+      "tailorFailed": "CV uyarlama başarısız oldu",
+      "githubProfileSummaryFailed": "GitHub profil özeti üretilemedi",
+      "streamingLost": "Akış bağlantısı kesildi"
+    }
+  },
+  "templates": {
+    "title": "Şablonlar",
+    "subtitle": "CV'niz için bir şablon seçin",
+    "noTemplates": "Kullanılabilir şablon yok",
+    "premium": "Premium",
+    "categories": {
+      "professional": "Profesyonel",
+      "modern": "Modern",
+      "creative": "Yaratıcı",
+      "academic": "Akademik",
+      "technical": "Teknik"
+    },
+    "templateNames": {
+      "classicProfessional": "Klasik Profesyonel",
+      "modernMinimal": "Modern Minimal",
+      "creativePortfolio": "Yaratıcı Portfolyo",
+      "academicCv": "Akademik CV",
+      "techDeveloper": "Teknoloji Geliştiricisi"
+    },
+    "templateDescriptions": {
+      "classicProfessional": "Net bölüm hiyerarşisine sahip temiz ve geleneksel bir CV düzeni. Kurumsal ve finans rollerine uygundur.",
+      "modernMinimal": "Geniş beyaz alan ve modern tipografi kullanan minimalist bir tasarım. Tasarım ve teknoloji pozisyonları için idealdir.",
+      "creativePortfolio": "Tasarımcılar, sanatçılar ve yaratıcı profesyoneller için cesur renkler ve özgün yerleşim.",
+      "academicCv": "Yayınlar, araştırmalar ve öğretim deneyimini öne çıkaran resmi akademik özgeçmiş düzeni.",
+      "techDeveloper": "Teknik yetenekleri, projeleri ve açık kaynak katkılarını öne çıkaran geliştirici odaklı şablon."
+    }
+  },
+  "github": {
+    "title": "GitHub Entegrasyonu",
+    "subtitle": "Projeleri ve becerileri CV'nize aktarmak için GitHub hesabınızı bağlayın",
+    "yourRepos": "Depolarınız",
+    "analysisHistory": "Analiz Geçmişi",
+    "checkingConnection": "Bağlantı kontrol ediliyor...",
+    "connectedAs": "@{{username}} olarak bağlandı",
+    "integrationActive": "GitHub entegrasyonu aktif",
+    "disconnect": "Bağlantıyı Kes",
+    "connectGithub": "GitHub Bağla",
+    "tokenDescription": "Projeleri içe aktarmak için repo kapsamına sahip GitHub Kişisel Erişim Belirtecinizi (PAT) girin.",
+    "tokenPlaceholder": "ghp_...",
+    "connect": "Bağlan",
+    "loadingRepos": "Depolar yükleniyor...",
+    "searchRepos": "Depo ara...",
+    "overview": "Genel Bakış",
+    "techStack": "Teknoloji Yığını",
+    "codeQuality": "Kod Kalitesi",
+    "activity": "Aktivite",
+    "aiInsights": "AI İçgörüleri",
+    "devops": "DevOps",
+    "fileStructure": "Dosya Yapısı",
+    "detectedSkills": "Tespit Edilen Yetenekler",
+    "strengths": "Güçlü Yönler",
+    "improvements": "İyileştirme Önerileri",
+    "cvReadyDesc": "CV'ye Hazır Açıklama",
+    "qualityScore": "Kod Kalite Puanı",
+    "commitAnalytics": "Commit Analitiği",
+    "topContributors": "En Aktif Katkıda Bulunanlar",
+    "recentCommits": "Son Commitler",
+    "noDepsFound": "Bağımlılık bildirimi bulunamadı",
+    "noCiCdFound": "CI/CD veya konteynerizasyon tespit edilemedi",
+    "aiAssessment": "AI Değerlendirmesi",
+    "architectureAnalysis": "Mimari Analizi",
+    "deepAnalysis": "Derin Analiz",
+    "archived": "Arşivli",
+    "fork": "Fork",
+    "languages": "Diller",
+    "topics": "Konular",
+    "technologies": "Teknolojiler",
+    "created": "Oluşturulma",
+    "updated": "Güncellenme",
+    "dependenciesSource": "Kaynak: {{source}}",
+    "frameworks": "Frameworkler",
+    "databases": "Veritabanları",
+    "uiLibraries": "UI Kütüphaneleri",
+    "testing": "Test",
+    "buildTools": "Build Araçları",
+    "linters": "Linter'lar",
+    "allDependencies": "Tüm Bağımlılıklar ({{count}})",
+    "devDependencies": "Geliştirme Bağımlılıkları ({{count}})",
+    "qualityScoreDescription": "Testler, CI/CD, linting, dokümantasyon ve iyi uygulamalara göre hesaplanır",
+    "tests": "Testler",
+    "linting": "Linting",
+    "readme": "README",
+    "license": "Lisans",
+    "contributingGuide": "Katkı Rehberi",
+    "changelog": "Değişiklik Günlüğü",
+    "conventionalCommits": "Conventional Commits",
+    "configFilesDetected": "Tespit Edilen Yapılandırma Dosyaları",
+    "totalCommits": "Toplam Commit",
+    "last30Days": "Son 30 Gün",
+    "averagePerWeek": "Ort./Hafta",
+    "activeDays": "Aktif Gün",
+    "firstCommit": "İlk commit",
+    "lastCommit": "Son commit",
+    "committers": "Commit Yapanlar",
+    "aiProjectSummary": "AI Proje Özeti",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı!",
+    "insightsUnavailable": "AI bu depo için içgörü üretemedi.",
+    "insightsRetryHint": "Yeniden analiz etmeyi deneyin. Model meşgul olmuş veya zaman aşımına uğramış olabilir.",
+    "githubActions": "GitHub Actions",
+    "dockerfile": "Dockerfile",
+    "dockerCompose": "Docker Compose",
+    "workflowFiles": "Workflow Dosyaları",
+    "metrics": {
+      "issues": "issue",
+      "files": "dosya",
+      "commits": "commit",
+      "contributors": "katkıda bulunan",
+      "quality": "Kalite"
+    },
+    "stats": {
+      "files": "Dosyalar",
+      "directories": "Klasörler",
+      "maxDepth": "Maks. Derinlik"
+    },
+    "projectTypes": {
+      "fullstack": "fullstack",
+      "frontend": "frontend",
+      "backend": "backend",
+      "monorepo": "monorepo",
+      "other": "diğer"
+    },
+    "complexity": {
+      "simple": "basit",
+      "medium": "orta",
+      "complex": "karmaşık"
+    },
+    "profileSummaryTitle": "Geliştirici Profil Özeti",
+    "regenerate": "Yeniden Üret",
+    "generateFromRepos": "Depolardan Üret",
+    "profileSummaryDescription": "AI, analiz edilen GitHub depolarınızdan bir geliştirici profil özeti oluşturur.",
+    "profileSummaryFailed": "Üretilemedi. Depolarınızı analiz ettiğinizden ve Ollama'nın çalıştığından emin olun.",
+    "analyze": "Analiz Et",
+    "analyzing": "Analiz ediliyor...",
+    "noReposFound": "Depo bulunamadı",
+    "importedToCv": "CV'ye aktarıldı",
+    "noCvsFound": "CV bulunamadı. Önce bir tane oluşturun.",
+    "selectCv": "CV seçin...",
+    "addToCv": "CV'ye ekle",
+    "addManyToCv": "{{count}} öğeyi CV'ye ekle",
+    "connectingStream": "Analiz akışına bağlanılıyor...",
+    "connectingStreamWithRepo": "{{repoName}} için analiz akışına bağlanılıyor...",
+    "analysisStages": {
+      "starting": "Derin analiz başlatılıyor...",
+      "fetching_repo": "Depo bilgileri alınıyor...",
+      "fetching_languages": "Dil dağılımı analiz ediliyor...",
+      "fetching_tree": "Dosya yapısı çıkarılıyor...",
+      "fetching_commits": "Commit geçmişi analiz ediliyor...",
+      "fetching_contributors": "Katkı sağlayanlar belirleniyor...",
+      "fetching_dependencies": "Bağımlılıklar taranıyor...",
+      "fetching_workflows": "CI/CD akışları tespit ediliyor...",
+      "fetching_readme": "README ve kaynak dosyalar okunuyor...",
+      "ai_analyzing": "AI, kod kalıplarını ve mimariyi analiz ediyor...",
+      "completed": "Derin analiz tamamlandı!",
+      "failed": "Analiz başarısız oldu"
+    }
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "subtitle": "Uygulama tercihleri ve yapılandırma",
+    "language": "Dil",
+    "languageHint": "Bu ayar yeni CV'ler için varsayılan dili belirler.",
+    "theme": "Tema",
+    "light": "Açık",
+    "dark": "Koyu",
+    "system": "Sistem",
+    "data": "Veri",
+    "dataDesc": "CV verilerinizi dışa aktarın veya temizleyin.",
+    "about": "Hakkında",
+    "aboutDesc": "CvBuilder v1.0.0 — Yapay Zeka Destekli CV Oluşturucu"
+  },
+  "common": {
+    "appName": "CvBuilder",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "close": "Kapat",
+    "loading": "Yükleniyor...",
+    "loadingSession": "Oturum yükleniyor...",
+    "error": "Hata",
+    "required": "Zorunlu",
+    "maxLength": "En fazla {{count}} karakter",
+    "invalidEmail": "Geçersiz e-posta",
+    "invalidUrl": "Geçersiz URL",
+    "unexpectedError": "Beklenmeyen bir hata oluştu",
+    "present": "Devam ediyor",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "remove": "Kaldır",
+    "add": "Ekle",
+    "reset": "Sıfırla",
+    "download": "İndir",
+    "upload": "Yükle",
+    "change": "Değiştir",
+    "dismiss": "Kapat",
+    "toggleMenu": "Menüyü aç veya kapat",
+    "toggleSidebar": "Kenar çubuğunu aç veya kapat"
+  },
+  "languages": {
+    "en": "İngilizce",
+    "tr": "Türkçe"
+  },
+  "toasts": {
+    "auth": {
+      "registerSuccess": "Hesap başarıyla oluşturuldu",
+      "loginSuccess": "Giriş başarılı",
+      "logoutSuccess": "Çıkış yapıldı"
+    },
+    "cv": {
+      "created": "CV başarıyla oluşturuldu",
+      "deleted": "CV silindi"
+    },
+    "github": {
+      "connectedAs": "{{username}} olarak bağlandı",
+      "connectFailed": "GitHub bağlantısı kurulamadı",
+      "disconnected": "GitHub bağlantısı kesildi",
+      "disconnectFailed": "Bağlantı kesilemedi",
+      "analysisStarted": "Analiz başlatıldı",
+      "analysisFailed": "Analiz başlatılamadı",
+      "projectImported": "Proje CV'ye aktarıldı",
+      "projectsImported": "{{count}} proje CV'ye aktarıldı",
+      "importFailed": "Proje aktarılamadı",
+      "bulkImportFailed": "Projeler aktarılamadı"
+    },
+    "pdf": {
+      "generated": "PDF oluşturuldu: {{fileName}}",
+      "generationFailed": "PDF oluşturulamadı",
+      "downloadFailed": "İndirme başarısız oldu",
+      "deleted": "PDF çıktısı silindi",
+      "deleteFailed": "Silme başarısız oldu"
+    },
+    "upload": {
+      "uploaded": "Fotoğraf yüklendi",
+      "uploadFailed": "Fotoğraf yüklenemedi",
+      "removed": "Fotoğraf kaldırıldı",
+      "removeFailed": "Fotoğraf kaldırılamadı"
+    }
+  },
+  "status": {
+    "published": "YAYINDA",
+    "draft": "TASLAK",
+    "pending": "BEKLEMEDE",
+    "processing": "İŞLENİYOR",
+    "completed": "TAMAMLANDI",
+    "failed": "BAŞARISIZ"
+  }
+}
