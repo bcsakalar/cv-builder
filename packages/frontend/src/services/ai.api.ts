@@ -2,47 +2,24 @@
 // AI API Service
 // ═══════════════════════════════════════════════════════════
 
+import type {
+  AIArtifact,
+  AIArtifactApplyResult,
+  AIATSCheckResponse,
+  AICoverLetterResponse,
+  AICVReviewResponse,
+  AIGitHubProfileSummaryResponse,
+  AIHealthResult,
+  AIImproveTextResult,
+  AIJobMatchResponse,
+  AISkillSuggestionResult,
+  AISummaryGenerationResult,
+  AITailorResponse,
+  AIToolKind,
+} from "@cvbuilder/shared";
 import { api } from "@/lib/api";
 import { createAuthenticatedEventSource } from "@/lib/authenticated-event-source";
 import { API_BASE_URL } from "@/lib/constants";
-
-export interface ATSResult {
-  score: number;
-  issues: string[];
-  suggestions: string[];
-}
-
-export interface CVReviewResult {
-  overallScore: number;
-  sections: { name: string; score: number; feedback: string }[];
-  strengths: string[];
-  improvements: string[];
-  summary: string;
-}
-
-export interface JobMatchResult {
-  matchScore: number;
-  matchingSkills: string[];
-  missingSkills: string[];
-  keywordGaps: string[];
-  suggestions: string[];
-  summary: string;
-}
-
-export interface TailorResult {
-  suggestedSummary: string;
-  skillsToAdd: string[];
-  skillsToHighlight: string[];
-  experienceTips: { company: string; suggestion: string }[];
-  overallStrategy: string;
-}
-
-export interface AIHealthResult {
-  ollama: string;
-  model: string;
-  modelAvailable: boolean;
-  availableModels: string[];
-}
 
 export const aiApi = {
   async health(): Promise<AIHealthResult> {
@@ -50,54 +27,69 @@ export const aiApi = {
     return res.data.data;
   },
 
-  async generateSummary(cvId: string): Promise<string> {
+  async listArtifacts(filters?: { cvId?: string; tool?: AIToolKind; limit?: number }): Promise<AIArtifact[]> {
+    const res = await api.get("/ai/artifacts", { params: filters });
+    return res.data.data;
+  },
+
+  async applyArtifact(artifactId: string): Promise<AIArtifactApplyResult> {
+    const res = await api.post(`/ai/artifacts/${artifactId}/apply`);
+    return res.data.data;
+  },
+
+  async dismissArtifact(artifactId: string): Promise<AIArtifact> {
+    const res = await api.post(`/ai/artifacts/${artifactId}/dismiss`);
+    return res.data.data;
+  },
+
+  async generateSummary(cvId: string): Promise<AISummaryGenerationResult> {
     const res = await api.post(`/ai/summary/${cvId}`);
-    return res.data.data.summary;
+    return res.data.data;
   },
 
-  async improveExperience(description: string, jobTitle: string, company: string): Promise<string> {
+  async improveExperience(description: string, jobTitle: string, company: string): Promise<AIImproveTextResult> {
     const res = await api.post("/ai/improve-experience", { description, jobTitle, company });
-    return res.data.data.improved;
+    return res.data.data;
   },
 
-  async improveProject(name: string, description: string, technologies: string[]): Promise<string> {
+  async improveProject(name: string, description: string, technologies: string[]): Promise<AIImproveTextResult> {
     const res = await api.post("/ai/improve-project", { name, description, technologies });
-    return res.data.data.improved;
+    return res.data.data;
   },
 
-  async suggestSkills(cvId: string): Promise<string[]> {
+  async suggestSkills(cvId: string): Promise<AISkillSuggestionResult> {
     const res = await api.post(`/ai/suggest-skills/${cvId}`);
-    return res.data.data.skills;
+    return res.data.data;
   },
 
-  async atsCheck(cvId: string): Promise<ATSResult> {
+  async atsCheck(cvId: string): Promise<AIATSCheckResponse> {
     const res = await api.post(`/ai/ats-check/${cvId}`);
     return res.data.data;
   },
 
-  async generateCoverLetter(cvId: string, jobDescription?: string): Promise<string> {
+  async generateCoverLetter(cvId: string, jobDescription?: string): Promise<AICoverLetterResponse> {
     const res = await api.post(`/ai/cover-letter/${cvId}`, { jobDescription });
-    return res.data.data.coverLetter;
+    return res.data.data;
   },
 
-  async reviewCV(cvId: string): Promise<CVReviewResult> {
+  async reviewCV(cvId: string): Promise<AICVReviewResponse> {
     const res = await api.post(`/ai/review/${cvId}`);
     return res.data.data;
   },
 
-  async jobMatch(cvId: string, jobDescription: string): Promise<JobMatchResult> {
+  async jobMatch(cvId: string, jobDescription: string): Promise<AIJobMatchResponse> {
     const res = await api.post(`/ai/job-match/${cvId}`, { jobDescription });
     return res.data.data;
   },
 
-  async tailorCV(cvId: string, jobDescription: string): Promise<TailorResult> {
+  async tailorCV(cvId: string, jobDescription: string): Promise<AITailorResponse> {
     const res = await api.post(`/ai/tailor/${cvId}`, { jobDescription });
     return res.data.data;
   },
 
-  async githubProfileSummary(): Promise<string> {
+  async githubProfileSummary(): Promise<AIGitHubProfileSummaryResponse> {
     const res = await api.post("/ai/github-summary");
-    return res.data.data.summary;
+    return res.data.data;
   },
 
   /**

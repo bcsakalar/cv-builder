@@ -61,6 +61,26 @@ enum AnalysisStatus {
   FAILED
 }
 
+enum AiToolKind {
+  SUMMARY
+  SKILLS
+  ATS
+  REVIEW
+  JOB_MATCH
+  TAILOR
+  COVER_LETTER
+  GITHUB_PROFILE_SUMMARY
+  PROJECT_IMPROVEMENT
+  EXPERIENCE_IMPROVEMENT
+}
+
+enum AiArtifactStatus {
+  READY
+  APPLIED
+  DISMISSED
+  FAILED
+}
+
 // ── User ─────────────────────────────────────────────────
 
 model User {
@@ -76,6 +96,7 @@ model User {
 
   cvs              CV[]
   githubAnalyses   GitHubAnalysis[]
+  aiArtifacts      AiArtifact[]
 
   @@map("users")
 }
@@ -113,6 +134,7 @@ model CV {
   hobbies              Hobby[]
   customSections       CustomSection[]
   pdfExports           PDFExport[]
+  aiArtifacts          AiArtifact[]
 
   @@index([userId])
   @@index([templateId])
@@ -454,6 +476,37 @@ model PDFExport {
 
   @@index([cvId])
   @@map("pdf_exports")
+}
+
+// ── AI Artifact ─────────────────────────────────────────
+
+model AiArtifact {
+  id            String           @id @default(uuid()) @db.Uuid
+  tool          AiToolKind
+  status        AiArtifactStatus @default(READY)
+  title         String           @db.VarChar(160)
+  provider      String           @default("ollama") @db.VarChar(40)
+  model         String           @db.VarChar(120)
+  locale        String           @default("en") @db.VarChar(5)
+  targetSection String?          @map("target_section") @db.VarChar(40)
+  input         Json?
+  output        Json?
+  summary       String?          @db.Text
+  error         String?          @db.Text
+  appliedAt     DateTime?        @map("applied_at")
+  dismissedAt   DateTime?        @map("dismissed_at")
+  userId        String           @map("user_id") @db.Uuid
+  cvId          String?          @map("cv_id") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cv   CV?  @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([cvId, createdAt])
+  @@index([userId, tool])
+  @@map("ai_artifacts")
 }
 
 // ── GitHub Analysis ──────────────────────────────────────

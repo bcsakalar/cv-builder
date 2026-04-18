@@ -29,7 +29,7 @@ export function GitHubProfileSummary() {
 
       {profileMut.data && (
         <div className="mt-3 rounded-lg border bg-purple-50/50 p-3 dark:bg-purple-950/50">
-          <p className="whitespace-pre-line text-sm">{profileMut.data}</p>
+          <p className="whitespace-pre-line text-sm">{profileMut.data.summary}</p>
         </div>
       )}
 

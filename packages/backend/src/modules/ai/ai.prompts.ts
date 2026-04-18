@@ -259,20 +259,22 @@ CRITICAL RULES:
 - Respond with ONLY a valid JSON object. No markdown fences, no explanation text.
 - "cvReadyDescription" MUST be in FIRST PERSON ("I developed...", "I built...", "I designed..."). This goes directly on the developer's CV.
 - Be SPECIFIC — mention actual framework names, versions, patterns, and architecture decisions you observe.
+- Prioritize the signals that matter in hiring reviews: business/problem scope, ownership, engineering quality, architecture maturity, collaboration, and operational readiness.
+- Do NOT invent scale, users, or performance metrics that are not explicitly supported by the repository evidence.
 - "detectedSkills" must be concrete technical skills (e.g. "React 19 with Server Components", "PostgreSQL with pgvector", "BullMQ job queues", "JWT authentication") NOT generic ones like "JavaScript" or "coding".
 - "strengths" should highlight things that would impress a hiring manager.
 - "improvements" should be actionable senior-level suggestions, not obvious things.
 
 Required JSON shape:
 {
-  "projectSummary": "3-4 sentences: What this project IS, what PROBLEM it solves, who it's FOR, and what makes it technically interesting. Be specific about features and capabilities.",
-  "architectureAnalysis": "Detailed analysis of code organization: design patterns used (MVC, hexagonal, microservices, etc.), module structure, separation of concerns, data flow, state management approach. Mention specific directories and their roles.",
-  "techStackAssessment": "Expert assessment of technology choices: why they work well together, how modern/production-ready the stack is, any notable integrations or advanced usage patterns.",
+  "projectSummary": "2-4 concise sentences: what this project is, what problem it solves, who it is for, and why the implementation is technically credible. Favor specific capability and scope over hype.",
+  "architectureAnalysis": "Detailed but concise analysis of code organization: design patterns used (MVC, layered, hexagonal, monorepo boundaries, etc.), module structure, separation of concerns, data flow, and operational structure. Mention specific directories/files and what they imply.",
+  "techStackAssessment": "Expert assessment of technology choices: why they fit together, how production-ready the stack looks, and what maturity signals exist around testing, CI/CD, type safety, deployment, and developer workflow.",
   "complexityLevel": "simple | medium | complex",
   "detectedSkills": ["List 10-20 SPECIFIC technical skills demonstrated. Include framework names with versions if detectable, specific libraries, patterns (e.g. 'Repository Pattern', 'Event-driven architecture'), cloud services, databases, protocols, etc."],
-  "strengths": ["5-7 impressive aspects: code quality practices, architecture decisions, advanced features, scalability patterns, security measures, testing approach, CI/CD, documentation quality"],
+  "strengths": ["4-6 short, high-value points: architecture decisions, code quality practices, advanced integrations, delivery discipline, collaboration signals, documentation or operational maturity"],
   "improvements": ["4-6 senior-level actionable suggestions: performance optimizations, security hardening, scalability improvements, code quality enhancements, missing best practices"],
-  "cvReadyDescription": "3-5 sentences in FIRST PERSON that would look EXCELLENT on a senior developer's CV. Highlight the most impressive technical achievements. Example: 'I architected and developed a full-stack real-time collaborative platform using React 19 and Node.js, implementing WebSocket-based synchronization and Redis pub/sub for cross-instance communication. The system handles concurrent editing with operational transformation and serves 500+ daily active users with <100ms latency. I designed a microservices architecture with BullMQ job queues for background processing, achieving 99.9% uptime in production.'"
+  "cvReadyDescription": "2-4 sentences in FIRST PERSON that would look excellent on a strong software engineer CV. Emphasize ownership, problem scope, notable architecture/engineering quality, and concrete stack choices. Keep it recruiter-readable and CTO-legible."
 }`,
     buildPrompt: (repoData: {
       name: string;
@@ -286,9 +288,22 @@ Required JSON shape:
       commitCount: number;
       contributors: number;
       stars: number;
+      qualityScore: number;
       hasTests: boolean;
       hasCI: boolean;
       hasDocker: boolean;
+      hasTypeScript: boolean;
+      recentActivityCount: number;
+      activeDays: number;
+      recentCommits: string[];
+      dependencySignals: {
+        frameworks: string[];
+        databases: string[];
+        uiLibraries: string[];
+        testingTools: string[];
+        buildTools: string[];
+        linters: string[];
+      } | null;
     }) => {
       const lines: string[] = [];
       lines.push(`# Repository: ${repoData.name}`);
@@ -342,8 +357,31 @@ Required JSON shape:
       lines.push(`Testing: ${repoData.hasTests ? "YES" : "NO"}`);
       lines.push(`CI/CD: ${repoData.hasCI ? "YES" : "NO"}`);
       lines.push(`Docker: ${repoData.hasDocker ? "YES" : "NO"}`);
+      lines.push(`TypeScript: ${repoData.hasTypeScript ? "YES" : "NO"}`);
+      lines.push(`Quality Score: ${repoData.qualityScore}/100`);
+      lines.push(`Recent Activity: ${repoData.recentActivityCount} commits in last 30 days`);
+      lines.push(`Active Development Window: ${repoData.activeDays} days`);
       if (repoData.topics.length) lines.push(`Topics/Tags: ${repoData.topics.join(", ")}`);
       lines.push("");
+
+      if (repoData.dependencySignals) {
+        lines.push("## Dependency Signals");
+        if (repoData.dependencySignals.frameworks.length) lines.push(`Frameworks: ${repoData.dependencySignals.frameworks.join(", ")}`);
+        if (repoData.dependencySignals.databases.length) lines.push(`Databases: ${repoData.dependencySignals.databases.join(", ")}`);
+        if (repoData.dependencySignals.uiLibraries.length) lines.push(`UI Libraries: ${repoData.dependencySignals.uiLibraries.join(", ")}`);
+        if (repoData.dependencySignals.testingTools.length) lines.push(`Testing Tools: ${repoData.dependencySignals.testingTools.join(", ")}`);
+        if (repoData.dependencySignals.buildTools.length) lines.push(`Build Tools: ${repoData.dependencySignals.buildTools.join(", ")}`);
+        if (repoData.dependencySignals.linters.length) lines.push(`Linters/Formatting: ${repoData.dependencySignals.linters.join(", ")}`);
+        lines.push("");
+      }
+
+      if (repoData.recentCommits.length) {
+        lines.push("## Recent Commit Signals");
+        for (const commit of repoData.recentCommits) {
+          lines.push(`- ${commit}`);
+        }
+        lines.push("");
+      }
 
       // README
       if (repoData.readmeContent) {

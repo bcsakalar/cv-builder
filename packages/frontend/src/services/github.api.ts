@@ -2,6 +2,7 @@
 // GitHub API Service
 // ═══════════════════════════════════════════════════════════
 
+import type { DeepAnalysisResult, GitHubProjectImportOverrides, GitHubProjectImportPreview, Project } from "@cvbuilder/shared";
 import { api } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/constants";
 import { createAuthenticatedEventSource } from "@/lib/authenticated-event-source";
@@ -37,7 +38,7 @@ export interface GitHubAnalysis {
   id: string;
   username: string;
   status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
-  result: Record<string, unknown> | null;
+  result: DeepAnalysisResult | null;
   error: string | null;
   createdAt: string;
 }
@@ -93,13 +94,18 @@ export const githubApi = {
     return res.data.data;
   },
 
+  async getImportPreview(analysisId: string): Promise<GitHubProjectImportPreview> {
+    const res = await api.post("/github/import-preview", { analysisId });
+    return res.data.data;
+  },
+
   /** Create an EventSource for real-time analysis progress via SSE */
   createAnalysisStream(analysisId: string): EventSource {
     return createAuthenticatedEventSource(`${API_BASE_URL}/github/analyses/${analysisId}/stream`);
   },
 
-  async importToCV(cvId: string, analysisId: string): Promise<unknown> {
-    const res = await api.post(`/github/import/${cvId}`, { analysisId });
+  async importToCV(cvId: string, analysisId: string, projectOverrides?: GitHubProjectImportOverrides): Promise<Project> {
+    const res = await api.post(`/github/import/${cvId}`, { analysisId, projectOverrides });
     return res.data.data;
   },
 

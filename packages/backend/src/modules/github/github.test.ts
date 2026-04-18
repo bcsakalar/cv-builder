@@ -61,6 +61,91 @@ const mockProject = (prisma as unknown as { project: { count: jest.Mock; create:
 const mockAnalysis = (prisma as unknown as { gitHubAnalysis: { findMany: jest.Mock; findFirst: jest.Mock } }).gitHubAnalysis;
 const mockCacheDelete = cacheDelete as jest.MockedFunction<typeof cacheDelete>;
 
+function buildCompletedAnalysisResult(overrides?: Record<string, unknown>) {
+  return {
+    repoFullName: "mock-dev/platform-repo",
+    name: "platform-repo",
+    description: "Developer workflow platform",
+    url: "https://github.com/mock-dev/platform-repo",
+    createdAt: "2025-01-01T00:00:00.000Z",
+    updatedAt: "2026-04-10T00:00:00.000Z",
+    primaryLanguage: "TypeScript",
+    languages: [
+      { language: "TypeScript", percentage: 82 },
+      { language: "SQL", percentage: 10 },
+      { language: "CSS", percentage: 8 },
+    ],
+    totalCommits: 128,
+    stars: 42,
+    forks: 7,
+    watchers: 11,
+    openIssues: 3,
+    license: "MIT",
+    topics: ["automation", "developer-tools"],
+    technologies: ["Node.js", "React", "PostgreSQL", "Playwright"],
+    contributors: [
+      { login: "mock-dev", contributions: 96 },
+      { login: "teammate", contributions: 32 },
+    ],
+    fileTree: {
+      totalFiles: 120,
+      totalDirectories: 18,
+      maxDepth: 5,
+      projectType: "fullstack",
+      keyDirectories: ["packages/frontend", "packages/backend"],
+    },
+    dependencyInfo: {
+      frameworks: ["React", "Express"],
+      databases: ["PostgreSQL"],
+      uiLibraries: ["Tailwind CSS"],
+      testingTools: ["Playwright", "Vitest"],
+      buildTools: ["Vite"],
+      linters: ["ESLint"],
+      packageManager: "npm",
+      dependenciesCount: 42,
+      devDependenciesCount: 18,
+      source: "package.json",
+    },
+    codeQuality: {
+      hasTests: true,
+      hasCI: true,
+      hasDocker: true,
+      hasTypeScript: true,
+      hasLinting: true,
+      qualityScore: 84,
+      configFiles: ["playwright.config.ts", "vite.config.ts"],
+    },
+    commitAnalytics: {
+      recentActivityCount: 14,
+      averagePerWeek: 3.5,
+      activeDays: 48,
+      lastCommitDate: "2026-04-10T00:00:00.000Z",
+      firstCommitDate: "2025-01-02T00:00:00.000Z",
+    },
+    aiInsights: {
+      projectSummary: "Full-stack platform for automating developer workflows.",
+      architectureAnalysis: "Monorepo setup separates frontend, backend, and shared contracts.",
+      techStackAssessment: "Modern TypeScript stack with strong testing and delivery practices.",
+      strengths: [
+        "Clear separation between UI, API, and shared modules",
+        "Well-defined testing and CI workflow",
+      ],
+      detectedSkills: ["TypeScript", "React", "Node.js", "Testing"],
+      complexityLevel: "complex",
+      cvReadyDescription: "Built a full-stack workflow platform with React, TypeScript, PostgreSQL, and Playwright. Focused on maintainable architecture, automated testing, and delivery quality.",
+    },
+    ...overrides,
+  };
+}
+
+function buildCompletedAnalysis(overrides?: Record<string, unknown>) {
+  return {
+    id: "analysis-1",
+    status: "COMPLETED",
+    result: buildCompletedAnalysisResult(overrides),
+  };
+}
+
 describe("githubService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -156,31 +241,65 @@ describe("githubService", () => {
   });
 
   describe("importToCV", () => {
-    it("should invalidate cached CV detail after importing a project", async () => {
-      mockCV.findFirst.mockResolvedValue({ id: CV_ID, userId: USER_ID });
-      mockAnalysis.findFirst.mockResolvedValue({
-        id: "analysis-1",
-        status: "COMPLETED",
-        result: {
-          repoFullName: "bcsakalar/bcsakalar",
-          name: "bcsakalar",
-          description: "Profile repository",
-          url: "https://github.com/bcsakalar/bcsakalar",
-          createdAt: "2026-02-20T00:00:00.000Z",
-          updatedAt: "2026-04-10T00:00:00.000Z",
-          primaryLanguage: "Markdown",
-          languages: [{ language: "Markdown", percentage: 100 }],
-          totalCommits: 9,
-          topics: [],
-          fileTree: { totalFiles: 1, totalDirectories: 0 },
+    it("returns a structured import preview for completed analyses", async () => {
+      mockAnalysis.findFirst.mockResolvedValue(buildCompletedAnalysis());
+
+      const result = await githubService.getImportPreview(USER_ID, "analysis-1");
+
+      expect(result).toMatchObject({
+        analysisId: "analysis-1",
+        repoFullName: "mock-dev/platform-repo",
+        draft: {
+          name: "platform-repo",
+          role: "Full-Stack Developer",
+          githubRepoData: expect.objectContaining({
+            projectType: "fullstack",
+            qualityScore: 84,
+            contributorCount: 2,
+            hasCI: true,
+          }),
+        },
+        dependencyInfo: {
+          frameworks: ["React", "Express"],
+          databases: ["PostgreSQL"],
+          testingTools: ["Playwright", "Vitest"],
         },
       });
+
+      expect(result.draft.technologies).toEqual(expect.arrayContaining(["TypeScript", "React", "PostgreSQL", "Playwright"]));
+      expect(result.draft.highlights).toEqual(expect.arrayContaining([
+        expect.stringContaining("full-stack codebase"),
+        expect.stringContaining("CI/CD workflows"),
+      ]));
+    });
+
+    it("applies reviewed overrides and invalidates cached CV detail after importing a project", async () => {
+      mockCV.findFirst.mockResolvedValue({ id: CV_ID, userId: USER_ID });
+      mockAnalysis.findFirst.mockResolvedValue(buildCompletedAnalysis());
       mockProject.count.mockResolvedValue(0);
       mockProject.create.mockResolvedValue({ id: "project-1" });
 
-      await githubService.importToCV(USER_ID, CV_ID, "analysis-1");
+      await githubService.importToCV(USER_ID, CV_ID, "analysis-1", {
+        name: " Reviewed Platform ",
+        role: " Lead Full-Stack Developer ",
+        description: "Reviewed summary for CV import.",
+        technologies: ["TypeScript", "React", "TypeScript", "Playwright"],
+        highlights: [" Led architecture across frontend and backend ", "Led architecture across frontend and backend", "Shipped CI/CD automation"],
+      });
 
-      expect(mockProject.create).toHaveBeenCalled();
+      expect(mockProject.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          cvId: CV_ID,
+          name: "Reviewed Platform",
+          description: "Reviewed summary for CV import.",
+          role: "Lead Full-Stack Developer",
+          technologies: ["TypeScript", "React", "Playwright"],
+          highlights: ["Led architecture across frontend and backend", "Shipped CI/CD automation"],
+          url: "https://github.com/mock-dev/platform-repo",
+          githubUrl: "https://github.com/mock-dev/platform-repo",
+          orderIndex: 0,
+        }),
+      });
       expect(mockCacheDelete).toHaveBeenCalledWith(`cv:${USER_ID}:${CV_ID}`);
     });
   });

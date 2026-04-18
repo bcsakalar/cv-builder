@@ -58,8 +58,10 @@ services:
       - "3001:3001"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    command: sh -lc "cd /app/packages/backend && npx prisma generate && cd /app && npx tsx watch packages/backend/src/server.ts"
     volumes:
       - ./packages/backend/src:/app/packages/backend/src
+      - ./packages/backend/prisma:/app/packages/backend/prisma
       - ./packages/shared/src:/app/packages/shared/src
       - backend-uploads:/app/packages/backend/uploads
     depends_on:

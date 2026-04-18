@@ -36,7 +36,7 @@ export function SummarySection({ cv }: { cv: CVDetail }) {
   const handleGenerate = () => {
     summaryMut.mutate(cv.id, {
       onSuccess: (data) => {
-        form.setValue("content", data);
+        form.setValue("content", data.summary);
         form.setValue("aiGenerated", true);
       },
     });

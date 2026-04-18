@@ -45,6 +45,59 @@ const completedAnalysis = {
   },
 };
 
+const importPreview = {
+  analysisId: "analysis-1",
+  repoFullName: "mock-dev/mock-repo",
+  draft: {
+    name: "mock-repo",
+    description: "Built a browser automation toolkit with a delivery-focused TypeScript stack.",
+    role: "Full-Stack Developer",
+    technologies: ["TypeScript", "Playwright", "React", "Node.js"],
+    url: "https://github.com/mock-dev/mock-repo",
+    githubUrl: "https://github.com/mock-dev/mock-repo",
+    startDate: "2025-01-01T00:00:00.000Z",
+    endDate: "2026-04-12T12:00:00.000Z",
+    highlights: [
+      "Built reusable automation flows across browser and API layers",
+      "Maintained a strong CI-backed testing workflow",
+    ],
+    isFromGitHub: true,
+    githubRepoData: {
+      projectType: "fullstack",
+      qualityScore: 84,
+      commitCount: 128,
+      contributorCount: 2,
+      stars: 42,
+      forks: 7,
+      watchers: 11,
+      language: "TypeScript",
+      languageStats: { TypeScript: 82 },
+      userCommitCount: 128,
+      openIssues: 3,
+      topics: ["automation", "playwright"],
+      license: "MIT",
+      frameworks: ["React"],
+      databases: [],
+      uiLibraries: [],
+      testingTools: ["Playwright"],
+      buildTools: ["Vite"],
+      linters: ["ESLint"],
+      hasTests: true,
+      hasCI: true,
+      hasDocker: false,
+      hasTypeScript: true,
+    },
+  },
+  dependencyInfo: {
+    frameworks: ["React"],
+    databases: [],
+    uiLibraries: [],
+    testingTools: ["Playwright"],
+    buildTools: ["Vite"],
+    linters: ["ESLint"],
+  },
+};
+
 test("connects and disconnects a mocked GitHub account @smoke", async ({ page }) => {
   let connected = false;
 
@@ -89,6 +142,7 @@ test("connects and disconnects a mocked GitHub account @smoke", async ({ page })
 
 test("analyzes a mocked repo, expands the result, and imports it into a CV @smoke", async ({ page }) => {
   let analyses: typeof completedAnalysis[] = [];
+  let importPayload: Record<string, unknown> | null = null;
 
   await page.route("**/api/github/status", async (route) => {
     await route.fulfill({ json: apiSuccess({ connected: true, username: "mock-dev" }) });
@@ -131,7 +185,12 @@ test("analyzes a mocked repo, expands the result, and imports it into a CV @smok
     });
   });
 
+  await page.route("**/api/github/import-preview", async (route) => {
+    await route.fulfill({ json: apiSuccess(importPreview) });
+  });
+
   await page.route("**/api/github/import/cv-import-target", async (route) => {
+    importPayload = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({ json: apiSuccess({ imported: true }) });
   });
 
@@ -155,8 +214,22 @@ test("analyzes a mocked repo, expands the result, and imports it into a CV @smok
   await expect(page.getByText("TypeScript 82%")).toBeVisible();
 
   await page.getByTestId("github-import-cv-select").selectOption("cv-import-target");
+  await page.getByTestId("github-import-review-button").click();
+  await expect(page.getByTestId("github-import-review")).toBeVisible();
+  await page.locator("#github-import-name").fill("Mock Repo Platform");
+  await page.locator("#github-import-role").fill("Lead Full-Stack Developer");
+  await page.locator("#github-import-description").fill("Balanced project summary for recruiter and CTO review.");
   await page.getByTestId("github-import-button").click();
   await expect(page.getByTestId("github-imported")).toBeVisible();
+
+  expect(importPayload).toMatchObject({
+    analysisId: "analysis-1",
+    projectOverrides: {
+      name: "Mock Repo Platform",
+      role: "Lead Full-Stack Developer",
+      description: "Balanced project summary for recruiter and CTO review.",
+    },
+  });
 
   await page.getByRole("button", { name: /Generate from Repos/i }).click();
   await expect(page.getByText("Automation-focused full-stack developer with strong TypeScript and testing depth.")).toBeVisible();

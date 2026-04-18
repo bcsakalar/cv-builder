@@ -7,8 +7,8 @@ import { useTranslation } from "react-i18next";
 import type { CVDetail } from "@/services/cv.api";
 import { useSectionMutation } from "@/hooks/useCV";
 import { useImproveProject } from "@/hooks/useAI";
-import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, Star, GitFork, GitCommit, Calendar, ChevronDown, ChevronUp, Shield, Gauge } from "lucide-react";
-import { normalizeAppLocale } from "@/i18n/locale";
+import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp, Gauge } from "lucide-react";
+import { buildPreviewProject } from "@/components/cv-preview/project-preview";
 
 const createSchema = (t: TFunction) => z.object({
   name: z.string().min(1, t("common.required")),
@@ -94,19 +94,25 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
   const [improved, setImproved] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  const ghData = project.githubRepoData as Record<string, unknown> | null;
-  const projectType = typeof ghData?.projectType === "string" ? ghData.projectType : null;
-  const highlights = (project.highlights ?? []) as string[];
-  const dateLocale = normalizeAppLocale(i18n.language) === "tr" ? "tr-TR" : "en-US";
-
-  // Format date for display
-  const formatDate = (d: string | null) => {
-    if (!d) return null;
-    try {
-      const date = new Date(d);
-      return date.toLocaleDateString(dateLocale, { year: "numeric", month: "short" });
-    } catch { return d; }
-  };
+  const allHighlights = project.highlights ?? [];
+  const previewProject = buildPreviewProject(project as unknown as Record<string, unknown>, i18n.language, {
+    technologyLimit: expanded ? Math.max(project.technologies.length, 8) : 8,
+    highlightLimit: expanded ? Math.max(allHighlights.length, 2) : 2,
+  });
+  const ghData = previewProject.githubRepoData;
+  const projectTypeLabel = ghData?.projectType
+    ? t(`github.projectTypes.${ghData.projectType}`, { defaultValue: ghData.projectType })
+    : null;
+  const complexityLabel = ghData?.complexityLevel
+    ? t(`github.complexity.${ghData.complexityLevel}`, { defaultValue: ghData.complexityLevel })
+    : null;
+  const deliverySignals = [
+    ghData?.hasTypeScript ? "TypeScript" : null,
+    ghData?.hasTests ? t("github.tests") : null,
+    ghData?.hasCI ? "CI" : null,
+    ghData?.hasDocker ? "Docker" : null,
+  ].filter((signal): signal is string => Boolean(signal));
+  const hasHiddenHighlights = allHighlights.length > previewProject.highlights.length;
 
   return (
     <div className={`rounded-lg border p-4 ${project.isFromGitHub ? "border-l-4 border-l-purple-500" : ""}`}>
@@ -114,15 +120,20 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="font-semibold text-base">{project.name}</h4>
+            <h4 className="font-semibold text-base">{previewProject.name}</h4>
             {project.isFromGitHub && (
               <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
                 <Github size={10} /> {t("nav.github")}
               </span>
             )}
-            {project.role && (
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                {project.role}
+            {projectTypeLabel && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+                {projectTypeLabel}
+              </span>
+            )}
+            {complexityLabel && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+                {complexityLabel}
               </span>
             )}
             {ghData?.qualityScore != null && (
@@ -138,30 +149,21 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
             )}
           </div>
 
-          {/* Date range */}
-          {(project.startDate || project.endDate) && (
-            <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar size={10} />
-              {formatDate(project.startDate as string)}
-              {project.endDate ? ` — ${formatDate(project.endDate as string)}` : ` — ${t("common.present")}`}
-            </div>
+          {previewProject.metaLine && (
+            <p className="mt-1 text-xs text-muted-foreground">{previewProject.metaLine}</p>
           )}
 
-          {/* GitHub Stats row */}
-          {ghData && (
-            <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
-              {(ghData.stars as number) > 0 && (
-                <span className="flex items-center gap-1"><Star size={11} className="text-yellow-500" /> {ghData.stars as number}</span>
-              )}
-              {(ghData.forks as number) > 0 && (
-                <span className="flex items-center gap-1"><GitFork size={11} /> {ghData.forks as number}</span>
-              )}
-              {(ghData.commitCount as number) > 0 && (
-                <span className="flex items-center gap-1"><GitCommit size={11} /> {ghData.commitCount as number}</span>
-              )}
-              {projectType && (
-                <span className="flex items-center gap-1"><Shield size={11} /> {projectType}</span>
-              )}
+          {previewProject.signalLine && (
+            <p className="mt-1 text-xs font-medium text-foreground/70">{previewProject.signalLine}</p>
+          )}
+
+          {deliverySignals.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {deliverySignals.map((signal) => (
+                <span key={signal} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {signal}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -173,7 +175,7 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
               onClick={() =>
                 improveMut.mutate(
                   { name: project.name, description: project.description, technologies: project.technologies },
-                  { onSuccess: (data) => setImproved(data) }
+                  { onSuccess: (data) => setImproved(data.improved) }
                 )
               }
               disabled={improveMut.isPending}
@@ -200,39 +202,51 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
       </div>
 
       {/* Description */}
-      {project.description && (
-        <p className="mt-2 text-sm text-foreground/80 leading-relaxed">{project.description}</p>
+      {previewProject.description && (
+        <p className="mt-2 text-sm text-foreground/80 leading-relaxed">{previewProject.description}</p>
+      )}
+
+      {/* Highlights */}
+      {previewProject.highlights.length > 0 && (
+        <ul className="mt-2.5 space-y-1 pl-4">
+          {previewProject.highlights.map((highlight, index) => (
+            <li key={`${highlight}-${index}`} className="list-disc text-xs text-muted-foreground">
+              {highlight}
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* Technologies */}
-      {project.technologies.length > 0 && (
+      {previewProject.technologies.length > 0 && (
         <div className="mt-2.5 flex flex-wrap gap-1">
-          {project.technologies.slice(0, expanded ? undefined : 8).map((t: string) => (
-            <span key={t} className="rounded-md bg-accent px-2 py-0.5 text-xs font-medium">{t}</span>
+          {previewProject.technologies.map((technology) => (
+            <span key={technology} className="rounded-md bg-accent px-2 py-0.5 text-xs font-medium">{technology}</span>
           ))}
-          {!expanded && project.technologies.length > 8 && (
-            <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{t("editorSections.projects.moreCount", { count: project.technologies.length - 8 })}</span>
+          {previewProject.extraTechnologyCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+            >
+              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              {t("editorSections.projects.moreCount", { count: previewProject.extraTechnologyCount })}
+            </button>
           )}
         </div>
       )}
 
-      {/* Expandable highlights */}
-      {highlights.length > 0 && (
+      {/* Expand hidden highlights */}
+      {hasHiddenHighlights && (
         <div className="mt-2">
           <button
-            onClick={() => setExpanded(!expanded)}
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
             className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
             {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            {t("editorSections.projects.highlightsCount", { count: highlights.length })}
+            {t("editorSections.projects.highlightsCount", { count: allHighlights.length })}
           </button>
-          {expanded && (
-            <ul className="mt-1.5 space-y-1 pl-4">
-              {highlights.map((h, i) => (
-                <li key={i} className="text-xs text-muted-foreground list-disc">{h}</li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
 

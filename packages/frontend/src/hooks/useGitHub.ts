@@ -93,11 +93,18 @@ export function useAnalyzeRepo() {
   });
 }
 
+export function useImportPreview() {
+  return useMutation({
+    mutationFn: (analysisId: string) => githubApi.getImportPreview(analysisId),
+    onError: () => toast.error(translate("toasts.github.importPreviewFailed")),
+  });
+}
+
 export function useImportToCV() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ cvId, analysisId }: { cvId: string; analysisId: string }) =>
-      githubApi.importToCV(cvId, analysisId),
+    mutationFn: ({ cvId, analysisId, projectOverrides }: { cvId: string; analysisId: string; projectOverrides?: Record<string, unknown> }) =>
+      githubApi.importToCV(cvId, analysisId, projectOverrides),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["cvs"] });
       qc.invalidateQueries({ queryKey: ["cvs", vars.cvId] });

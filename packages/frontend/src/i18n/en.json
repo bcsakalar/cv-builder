@@ -354,16 +354,12 @@
   },
   "ai": {
     "title": "AI Assistant",
+    "subtitle": "Generate, review, and apply structured AI outputs directly to the current CV.",
     "tabs": {
       "review": "Review",
       "ats": "ATS",
       "match": "Match",
       "tailor": "Tailor",
-    "pageSizes": {
-      "a4": "A4",
-      "letter": "Letter",
-      "legal": "Legal"
-    },
       "summary": "Summary",
       "skills": "Skills",
       "cover": "Cover"
@@ -375,7 +371,10 @@
       "generateSummary": "Generate Professional Summary",
       "suggestSkills": "Suggest Skills",
       "runAts": "Run ATS Check",
-      "generateCoverLetter": "Generate Cover Letter"
+      "generateCoverLetter": "Generate Cover Letter",
+      "copy": "Copy",
+      "apply": "Apply to CV",
+      "dismiss": "Dismiss"
     },
     "placeholders": {
       "matchJobDescription": "Paste the job description here...",
@@ -383,6 +382,22 @@
       "coverJobDescription": "Paste job description here (optional)..."
     },
     "copySuccess": "Copied to clipboard",
+    "emptyState": "No AI output yet. Run the tool to generate a result.",
+    "health": {
+      "ready": "Ollama is ready",
+      "unavailable": "Ollama is not ready",
+      "model": "Current model: {{model}}"
+    },
+    "history": {
+      "title": "Recent outputs",
+      "empty": "No AI outputs for this CV yet.",
+      "status": {
+        "ready": "Ready",
+        "applied": "Applied",
+        "dismissed": "Dismissed",
+        "failed": "Failed"
+      }
+    },
     "review": {
       "overallScore": "Overall Score",
       "strengths": "Strengths",
@@ -417,7 +432,11 @@
       "jobMatchFailed": "Job match analysis failed",
       "tailorFailed": "CV tailoring failed",
       "githubProfileSummaryFailed": "GitHub profile summary failed",
-      "streamingLost": "Streaming connection lost"
+      "streamingLost": "Streaming connection lost",
+      "applySuccess": "AI suggestion applied to the CV",
+      "applyFailed": "Could not apply the AI suggestion",
+      "dismissSuccess": "AI suggestion dismissed",
+      "dismissFailed": "Could not dismiss the AI suggestion"
     }
   },
   "templates": {
@@ -540,6 +559,10 @@
       "frontend": "frontend",
       "backend": "backend",
       "monorepo": "monorepo",
+      "mobile": "mobile",
+      "library": "library",
+      "cli": "cli",
+      "unknown": "unknown",
       "other": "other"
     },
     "complexity": {
@@ -559,7 +582,19 @@
     "noCvsFound": "No CVs found. Create one first.",
     "selectCv": "Select CV...",
     "addToCv": "Add to CV",
+    "reviewAndAddToCv": "Review and Add to CV",
     "addManyToCv": "Add {{count}} to CV",
+    "importReviewTitle": "Review project before importing",
+    "importReviewDescription": "Adjust the project summary, role, technologies, and highlights so the CV entry stays recruiter-readable and technically credible.",
+    "confirmImport": "Import Project",
+    "cancelReview": "Cancel review",
+    "projectName": "Project Name",
+    "projectRole": "Role",
+    "projectDescription": "Project Description",
+    "projectHighlights": "Highlights",
+    "projectHighlightsHint": "Use one highlight per line. Keep each item short and outcome-oriented.",
+    "projectTechnologiesHint": "Separate technologies with commas or new lines. Keep only the most relevant stack items.",
+    "suggestedStack": "Suggested stack focus",
     "connectingStream": "Connecting to analysis stream...",
     "connectingStreamWithRepo": "Connecting to analysis stream for {{repoName}}...",
     "analysisStages": {
@@ -638,6 +673,7 @@
       "disconnectFailed": "Failed to disconnect",
       "analysisStarted": "Analysis started",
       "analysisFailed": "Failed to start analysis",
+      "importPreviewFailed": "Failed to prepare the GitHub project for review",
       "projectImported": "Project imported to CV",
       "projectsImported": "{{count}} projects imported to CV",
       "importFailed": "Failed to import project",

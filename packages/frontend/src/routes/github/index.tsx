@@ -1,3 +1,4 @@
+import type { DeepAnalysisResult } from "@cvbuilder/shared";
 import { createRoute } from "@tanstack/react-router";
 import { rootRoute } from "../__root";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -53,8 +54,7 @@ function GitHubPage() {
                 <div className="space-y-2">
                   {analyses.map((a) => {
                     const isExpanded = expandedId === a.id;
-                    const repoName =
-                      (a.result as Record<string, unknown>)?.repoFullName as string | undefined;
+                    const repoName = a.result?.repoFullName;
 
                     return (
                       <div key={a.id} className="space-y-0">
@@ -94,7 +94,7 @@ function GitHubPage() {
                         {isExpanded && a.result && (
                           <div className="rounded-b-lg border border-t-0 px-3 pb-3">
                             <AnalysisDetail
-                              result={a.result}
+                              result={a.result as DeepAnalysisResult}
                               analysisId={a.id}
                               onClose={() => setExpandedId(null)}
                             />

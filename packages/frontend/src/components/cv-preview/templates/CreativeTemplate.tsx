@@ -1,6 +1,7 @@
 import type { CVDetail } from "@/services/cv.api";
 import type { ThemeConfig } from "@/stores/theme.store";
 import { formatPreviewDateRange } from "../date-range";
+import { buildPreviewProject } from "../project-preview";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
 import { getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
@@ -134,19 +135,35 @@ export function CreativeTemplate({ cv, theme }: TemplateProps) {
           <section className="mb-8">
             {sectionTitle(sectionLabel("projects"))}
             <div className="grid grid-cols-2 gap-4">
-              {cv.projects.map((p: Record<string, unknown>, i: number) => (
-                <div key={i} className="rounded-lg p-4" style={{ backgroundColor: `${theme.primaryColor}0A` }}>
-                  <p className="font-bold">{String(p.name)}</p>
-                  {!!p.description && <p className="mt-1 text-sm">{String(p.description)}</p>}
-                  {Array.isArray(p.technologies) && (p.technologies as string[]).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {(p.technologies as string[]).map((t, j) => (
-                        <span key={j} className="rounded-full px-2 py-0.5 text-xs opacity-70" style={{ backgroundColor: `${theme.primaryColor}15` }}>{t}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+              {cv.projects.map((p: Record<string, unknown>, i: number) => {
+                const project = buildPreviewProject(p, cv.locale, { technologyLimit: 5, highlightLimit: 2 });
+
+                return (
+                  <div key={i} className="rounded-lg p-4" style={{ backgroundColor: `${theme.primaryColor}0A` }}>
+                    <p className="font-bold">{project.name}</p>
+                    {project.metaLine && <p className="mt-0.5 text-xs opacity-70">{project.metaLine}</p>}
+                    {project.description && <p className="mt-1 text-sm whitespace-pre-line">{project.description}</p>}
+                    {project.highlights.length > 0 && (
+                      <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
+                        {project.highlights.map((highlight) => (
+                          <li key={highlight}>{highlight}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {project.signalLine && <p className="mt-2 text-xs font-medium" style={{ color: theme.primaryColor }}>{project.signalLine}</p>}
+                    {project.technologies.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {project.technologies.map((technology) => (
+                          <span key={technology} className="rounded-full px-2 py-0.5 text-xs opacity-70" style={{ backgroundColor: `${theme.primaryColor}15` }}>{technology}</span>
+                        ))}
+                        {project.extraTechnologyCount > 0 && (
+                          <span className="rounded-full px-2 py-0.5 text-xs opacity-60" style={{ backgroundColor: `${theme.primaryColor}10` }}>+{project.extraTechnologyCount}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

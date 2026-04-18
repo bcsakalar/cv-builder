@@ -2,6 +2,13 @@
 // CV Data Models — Core type definitions for the CV Builder
 // ═══════════════════════════════════════════════════════════
 
+import type {
+  ContributorInfo,
+  GitHubComplexityLevel,
+  GitHubDependencyInfo,
+  GitHubProjectType,
+} from "./github.types";
+
 export enum CVStatus {
   DRAFT = "DRAFT",
   PUBLISHED = "PUBLISHED",
@@ -220,6 +227,60 @@ export interface GitHubRepoData {
   openIssues: number;
   topics: string[];
   license: string | null;
+  projectType?: GitHubProjectType | null;
+  qualityScore?: number | null;
+  complexityLevel?: GitHubComplexityLevel | null;
+  projectSummary?: string | null;
+  architectureAnalysis?: string | null;
+  techStackAssessment?: string | null;
+  detectedSkills?: string[];
+  strengths?: string[];
+  contributorCount?: number | null;
+  topContributors?: ContributorInfo[];
+  lastCommitDate?: string | null;
+  recentActivityCount?: number | null;
+  averagePerWeek?: number | null;
+  activeDays?: number | null;
+  keyDirectories?: string[];
+  frameworks?: string[];
+  databases?: string[];
+  uiLibraries?: string[];
+  testingTools?: string[];
+  buildTools?: string[];
+  linters?: string[];
+  hasTests?: boolean;
+  hasCI?: boolean;
+  hasDocker?: boolean;
+  hasTypeScript?: boolean;
+}
+
+export interface GitHubProjectImportDraft {
+  name: string;
+  description: string;
+  role: string | null;
+  technologies: string[];
+  url: string | null;
+  githubUrl: string | null;
+  startDate: string;
+  endDate: string | null;
+  highlights: string[];
+  isFromGitHub: boolean;
+  githubRepoData: GitHubRepoData | null;
+}
+
+export interface GitHubProjectImportOverrides {
+  name?: string;
+  description?: string;
+  role?: string | null;
+  technologies?: string[];
+  highlights?: string[];
+}
+
+export interface GitHubProjectImportPreview {
+  analysisId: string;
+  repoFullName: string;
+  draft: GitHubProjectImportDraft;
+  dependencyInfo: Pick<GitHubDependencyInfo, "frameworks" | "databases" | "uiLibraries" | "testingTools" | "buildTools" | "linters"> | null;
 }
 
 // ── Certification ────────────────────────────────────────

@@ -24,6 +24,7 @@ router.get("/analyses/:id", asyncHandler(githubController.getAnalysis));
 router.get("/analyses/:id/stream", asyncHandler(githubController.streamAnalysis));
 
 // Import to CV
+router.post("/import-preview", asyncHandler(githubController.importPreview));
 router.post("/import/:cvId", asyncHandler(githubController.importToCV));
 router.post("/import-bulk/:cvId", asyncHandler(githubController.bulkImportToCV));
 

@@ -16,8 +16,23 @@ export const analyzeRepoSchema = z.object({
 
 export type AnalyzeRepoInput = z.infer<typeof analyzeRepoSchema>;
 
+export const importPreviewSchema = z.object({
+  analysisId: z.string().uuid("Invalid analysis ID"),
+});
+
+export type ImportPreviewInput = z.infer<typeof importPreviewSchema>;
+
+const projectImportOverridesSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(5000).optional(),
+  role: z.string().max(200).nullable().optional(),
+  technologies: z.array(z.string()).optional(),
+  highlights: z.array(z.string()).optional(),
+});
+
 export const importToCVSchema = z.object({
   analysisId: z.string().uuid("Invalid analysis ID"),
+  projectOverrides: projectImportOverridesSchema.optional(),
 });
 
 export type ImportToCVInput = z.infer<typeof importToCVSchema>;

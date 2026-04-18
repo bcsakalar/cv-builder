@@ -7,7 +7,7 @@ import Redis from "ioredis";
 import { env } from "../../config/env";
 import { requireAuthUser } from "../../middleware/auth";
 import { githubService } from "./github.service";
-import { connectGitHubSchema, analyzeRepoSchema, importToCVSchema, bulkImportToCVSchema } from "./github.schema";
+import { connectGitHubSchema, analyzeRepoSchema, importPreviewSchema, importToCVSchema, bulkImportToCVSchema } from "./github.schema";
 import { sendCreated, sendSuccess } from "../../utils/api-response";
 import { ApiError } from "../../utils/api-error";
 import { progressChannel } from "../../workers/github-analysis.worker";
@@ -71,11 +71,17 @@ export const githubController = {
     sendSuccess(res, analysis);
   },
 
+  async importPreview(req: Request, res: Response) {
+    const { analysisId } = importPreviewSchema.parse(req.body);
+    const preview = await githubService.getImportPreview(currentUserId(req), analysisId);
+    sendSuccess(res, preview);
+  },
+
   async importToCV(req: Request, res: Response) {
     const cvId = req.params.cvId as string;
     if (!cvId) throw ApiError.badRequest("cvId is required");
-    const { analysisId } = importToCVSchema.parse(req.body);
-    const project = await githubService.importToCV(currentUserId(req), cvId, analysisId);
+    const { analysisId, projectOverrides } = importToCVSchema.parse(req.body);
+    const project = await githubService.importToCV(currentUserId(req), cvId, analysisId, projectOverrides);
     sendCreated(res, project);
   },
 

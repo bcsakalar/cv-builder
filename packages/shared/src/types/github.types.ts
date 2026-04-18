@@ -93,6 +93,18 @@ export interface GitHubImportInput {
   importExperience: boolean;
 }
 
+export type GitHubProjectType =
+  | "monorepo"
+  | "frontend"
+  | "backend"
+  | "fullstack"
+  | "library"
+  | "cli"
+  | "mobile"
+  | "unknown";
+
+export type GitHubComplexityLevel = "simple" | "medium" | "complex";
+
 // ═══════════════════════════════════════════════════════════
 // Deep Analysis Types
 // ═══════════════════════════════════════════════════════════
@@ -105,7 +117,7 @@ export interface FileTreeInfo {
   /** Key config/tool files detected */
   configFiles: string[];
   /** e.g. "monorepo", "frontend", "backend", "fullstack", "library", "cli", "mobile" */
-  projectType: string;
+  projectType: GitHubProjectType;
   /** Notable directories found */
   keyDirectories: string[];
 }
@@ -173,7 +185,7 @@ export interface AIAnalysisInsight {
   projectSummary: string;
   architectureAnalysis: string;
   techStackAssessment: string;
-  complexityLevel: "simple" | "medium" | "complex";
+  complexityLevel: GitHubComplexityLevel;
   detectedSkills: string[];
   strengths: string[];
   improvements: string[];
@@ -203,6 +215,7 @@ export interface DeepAnalysisResult {
   defaultBranch: string;
   isArchived: boolean;
   isFork: boolean;
+  isPrivate: boolean;
 
   // ── Deep analysis fields ──
   fileTree: FileTreeInfo;

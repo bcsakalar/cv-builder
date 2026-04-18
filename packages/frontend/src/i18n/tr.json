@@ -359,6 +359,7 @@
   },
   "ai": {
     "title": "AI Asistanı",
+    "subtitle": "Üretilen AI çıktıları doğrudan bu CV üzerinde gözden geçirip uygulayın.",
     "tabs": {
       "review": "İnceleme",
       "ats": "ATS",
@@ -375,7 +376,10 @@
       "generateSummary": "Profesyonel Özet Oluştur",
       "suggestSkills": "Yetenek Öner",
       "runAts": "ATS Kontrolü Yap",
-      "generateCoverLetter": "Ön Yazı Oluştur"
+      "generateCoverLetter": "Ön Yazı Oluştur",
+      "copy": "Kopyala",
+      "apply": "CV'ye uygula",
+      "dismiss": "Kapat"
     },
     "placeholders": {
       "matchJobDescription": "İş ilanı açıklamasını buraya yapıştırın...",
@@ -383,6 +387,22 @@
       "coverJobDescription": "İş ilanını buraya yapıştırın (isteğe bağlı)..."
     },
     "copySuccess": "Panoya kopyalandı",
+    "emptyState": "Henüz AI çıktısı yok. Sonuç üretmek için aracı çalıştırın.",
+    "health": {
+      "ready": "Ollama hazır",
+      "unavailable": "Ollama hazır değil",
+      "model": "Geçerli model: {{model}}"
+    },
+    "history": {
+      "title": "Son çıktılar",
+      "empty": "Bu CV için henüz AI çıktısı yok.",
+      "status": {
+        "ready": "Hazır",
+        "applied": "Uygulandı",
+        "dismissed": "Kapatıldı",
+        "failed": "Başarısız"
+      }
+    },
     "review": {
       "overallScore": "Genel Puan",
       "strengths": "Güçlü Yönler",
@@ -417,7 +437,11 @@
       "jobMatchFailed": "İş eşleşmesi analizi başarısız oldu",
       "tailorFailed": "CV uyarlama başarısız oldu",
       "githubProfileSummaryFailed": "GitHub profil özeti üretilemedi",
-      "streamingLost": "Akış bağlantısı kesildi"
+      "streamingLost": "Akış bağlantısı kesildi",
+      "applySuccess": "AI önerisi CV'ye uygulandı",
+      "applyFailed": "AI önerisi CV'ye uygulanamadı",
+      "dismissSuccess": "AI önerisi kapatıldı",
+      "dismissFailed": "AI önerisi kapatılamadı"
     }
   },
   "templates": {
@@ -540,6 +564,10 @@
       "frontend": "frontend",
       "backend": "backend",
       "monorepo": "monorepo",
+      "mobile": "mobile",
+      "library": "library",
+      "cli": "cli",
+      "unknown": "bilinmiyor",
       "other": "diğer"
     },
     "complexity": {
@@ -559,7 +587,19 @@
     "noCvsFound": "CV bulunamadı. Önce bir tane oluşturun.",
     "selectCv": "CV seçin...",
     "addToCv": "CV'ye ekle",
+    "reviewAndAddToCv": "İncele ve CV'ye ekle",
     "addManyToCv": "{{count}} öğeyi CV'ye ekle",
+    "importReviewTitle": "Projeyi içe aktarmadan önce gözden geçir",
+    "importReviewDescription": "CV girdisini hem okunur hem de teknik olarak güçlü tutmak için proje özeti, rol, teknolojiler ve highlight'ları son kez düzenleyin.",
+    "confirmImport": "Projeyi içe aktar",
+    "cancelReview": "İncelemeyi kapat",
+    "projectName": "Proje Adı",
+    "projectRole": "Rol",
+    "projectDescription": "Proje Açıklaması",
+    "projectHighlights": "Öne Çıkanlar",
+    "projectHighlightsHint": "Her satıra bir highlight yazın. Kısa ve sonuç odaklı tutun.",
+    "projectTechnologiesHint": "Teknolojileri virgül veya yeni satırla ayırın. Yalnızca en ilgili stack öğelerini bırakın.",
+    "suggestedStack": "Önerilen stack odağı",
     "connectingStream": "Analiz akışına bağlanılıyor...",
     "connectingStreamWithRepo": "{{repoName}} için analiz akışına bağlanılıyor...",
     "analysisStages": {
@@ -638,6 +678,7 @@
       "disconnectFailed": "Bağlantı kesilemedi",
       "analysisStarted": "Analiz başlatıldı",
       "analysisFailed": "Analiz başlatılamadı",
+      "importPreviewFailed": "GitHub projesi inceleme için hazırlanamadı",
       "projectImported": "Proje CV'ye aktarıldı",
       "projectsImported": "{{count}} proje CV'ye aktarıldı",
       "importFailed": "Proje aktarılamadı",

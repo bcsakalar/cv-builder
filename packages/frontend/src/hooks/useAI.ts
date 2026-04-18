@@ -2,57 +2,127 @@
 // AI Hooks — TanStack Query
 // ═══════════════════════════════════════════════════════════
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import type { AIToolKind } from "@cvbuilder/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { aiApi } from "@/services/ai.api";
 import { toast } from "sonner";
 import { useState, useCallback } from "react";
 import { translate } from "@/i18n/helpers";
+import { cvKeys } from "./useCV";
+
+export const aiKeys = {
+  health: ["ai", "health"] as const,
+  artifacts: (cvId?: string, tool?: AIToolKind) => ["ai", "artifacts", cvId ?? "all", tool ?? "all"] as const,
+};
 
 // ── Health check ─────────────────────────────────────────
 
 export function useAIHealth() {
   return useQuery({
-    queryKey: ["ai", "health"],
+    queryKey: aiKeys.health,
     queryFn: () => aiApi.health(),
     staleTime: 30_000,
+  });
+}
+
+export function useAIArtifacts(filters?: { cvId?: string; tool?: AIToolKind; limit?: number }) {
+  return useQuery({
+    queryKey: aiKeys.artifacts(filters?.cvId, filters?.tool),
+    queryFn: () => aiApi.listArtifacts(filters),
+  });
+}
+
+export function useApplyAIArtifact() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (artifactId: string) => aiApi.applyArtifact(artifactId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+      qc.invalidateQueries({ queryKey: ["ai", "artifacts"] });
+      if (data.artifact.cvId) {
+        qc.invalidateQueries({ queryKey: cvKeys.detail(data.artifact.cvId) });
+      }
+      toast.success(translate("ai.toasts.applySuccess"));
+    },
+    onError: () => toast.error(translate("ai.toasts.applyFailed")),
+  });
+}
+
+export function useDismissAIArtifact() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (artifactId: string) => aiApi.dismissArtifact(artifactId),
+    onSuccess: (artifact) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(artifact.cvId ?? undefined) });
+      qc.invalidateQueries({ queryKey: ["ai", "artifacts"] });
+      toast.success(translate("ai.toasts.dismissSuccess"));
+    },
+    onError: () => toast.error(translate("ai.toasts.dismissFailed")),
   });
 }
 
 // ── Existing features ────────────────────────────────────
 
 export function useGenerateSummary() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: (cvId: string) => aiApi.generateSummary(cvId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
     onError: () => toast.error(translate("ai.toasts.summaryFailed")),
   });
 }
 
 export function useImproveExperience() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: ({ description, jobTitle, company }: { description: string; jobTitle: string; company: string }) =>
       aiApi.improveExperience(description, jobTitle, company),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai", "artifacts"] });
+    },
     onError: () => toast.error(translate("ai.toasts.improveExperienceFailed")),
   });
 }
 
 export function useSuggestSkills() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: (cvId: string) => aiApi.suggestSkills(cvId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
     onError: () => toast.error(translate("ai.toasts.suggestSkillsFailed")),
   });
 }
 
 export function useATSCheck() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: (cvId: string) => aiApi.atsCheck(cvId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
     onError: () => toast.error(translate("ai.toasts.atsFailed")),
   });
 }
 
 export function useGenerateCoverLetter() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: ({ cvId, jobDescription }: { cvId: string; jobDescription?: string }) =>
       aiApi.generateCoverLetter(cvId, jobDescription),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
     onError: () => toast.error(translate("ai.toasts.coverLetterFailed")),
   });
 }
@@ -60,9 +130,14 @@ export function useGenerateCoverLetter() {
 // ── New: Improve Project ─────────────────────────────────
 
 export function useImproveProject() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: ({ name, description, technologies }: { name: string; description: string; technologies: string[] }) =>
       aiApi.improveProject(name, description, technologies),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai", "artifacts"] });
+    },
     onError: () => toast.error(translate("ai.toasts.improveProjectFailed")),
   });
 }
@@ -70,8 +145,13 @@ export function useImproveProject() {
 // ── New: CV Review ───────────────────────────────────────
 
 export function useReviewCV() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: (cvId: string) => aiApi.reviewCV(cvId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
     onError: () => toast.error(translate("ai.toasts.reviewFailed")),
   });
 }
@@ -79,9 +159,14 @@ export function useReviewCV() {
 // ── New: Job Match ───────────────────────────────────────
 
 export function useJobMatch() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: ({ cvId, jobDescription }: { cvId: string; jobDescription: string }) =>
       aiApi.jobMatch(cvId, jobDescription),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
     onError: () => toast.error(translate("ai.toasts.jobMatchFailed")),
   });
 }
@@ -89,9 +174,14 @@ export function useJobMatch() {
 // ── New: Tailor CV ───────────────────────────────────────
 
 export function useTailorCV() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: ({ cvId, jobDescription }: { cvId: string; jobDescription: string }) =>
       aiApi.tailorCV(cvId, jobDescription),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
     onError: () => toast.error(translate("ai.toasts.tailorFailed")),
   });
 }
@@ -99,8 +189,13 @@ export function useTailorCV() {
 // ── New: GitHub Profile Summary ──────────────────────────
 
 export function useGitHubProfileSummary() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: () => aiApi.githubProfileSummary(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai", "artifacts"] });
+    },
     onError: () => toast.error(translate("ai.toasts.githubProfileSummaryFailed")),
   });
 }

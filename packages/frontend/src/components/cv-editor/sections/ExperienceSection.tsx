@@ -241,7 +241,7 @@ function ImproveButton({
       onClick={() =>
         improveMut.mutate(
           { description, jobTitle, company },
-          { onSuccess: (data) => onImproved(data) }
+          { onSuccess: (data) => onImproved(data.improved) }
         )
       }
       disabled={improveMut.isPending}

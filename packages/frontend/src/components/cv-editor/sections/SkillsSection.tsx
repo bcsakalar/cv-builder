@@ -48,7 +48,7 @@ export function SkillsSection({ cv }: { cv: CVDetail }) {
   const handleSuggest = () => {
     suggestMut.mutate(cv.id, {
       onSuccess: (data) => {
-        const filtered = data
+        const filtered = data.skills
           .map((skill) => skill.trim())
           .filter((skill) => skill.length > 0 && skill.length <= 100 && !existingNames.has(skill.toLowerCase()));
         setSuggestedSkills(filtered);

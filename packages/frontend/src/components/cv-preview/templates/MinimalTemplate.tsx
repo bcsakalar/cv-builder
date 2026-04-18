@@ -1,6 +1,7 @@
 import type { CVDetail } from "@/services/cv.api";
 import type { ThemeConfig } from "@/stores/theme.store";
 import { formatPreviewDateRange } from "../date-range";
+import { buildPreviewProject } from "../project-preview";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
 import { getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
@@ -100,17 +101,30 @@ export function MinimalTemplate({ cv, theme }: TemplateProps) {
       {cv.projects.length > 0 && (
         <section className="mb-8">
           {heading(sectionLabel("projects"))}
-          {cv.projects.map((p: Record<string, unknown>, i: number) => (
-            <div key={i} className="mb-4">
-              <p className="font-medium">{String(p.name)}</p>
-              {!!p.description && <p className="mt-1 font-light whitespace-pre-line">{String(p.description)}</p>}
-              {Array.isArray(p.technologies) && (p.technologies as string[]).length > 0 && (
-                <p className="mt-1 text-xs" style={{ color: theme.secondaryColor }}>
-                  {(p.technologies as string[]).join(" · ")}
-                </p>
-              )}
-            </div>
-          ))}
+          {cv.projects.map((p: Record<string, unknown>, i: number) => {
+            const project = buildPreviewProject(p, cv.locale, { technologyLimit: 5, highlightLimit: 2 });
+
+            return (
+              <div key={i} className="mb-5">
+                <p className="font-medium">{project.name}</p>
+                {project.metaLine && <p className="mt-0.5 text-xs" style={{ color: theme.secondaryColor }}>{project.metaLine}</p>}
+                {project.description && <p className="mt-1 font-light whitespace-pre-line">{project.description}</p>}
+                {project.highlights.length > 0 && (
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-sm font-light">
+                    {project.highlights.map((highlight) => (
+                      <li key={highlight}>{highlight}</li>
+                    ))}
+                  </ul>
+                )}
+                {project.signalLine && <p className="mt-2 text-xs" style={{ color: theme.secondaryColor }}>{project.signalLine}</p>}
+                {project.technologies.length > 0 && (
+                  <p className="mt-1 text-xs" style={{ color: theme.secondaryColor }}>
+                    {project.technologies.join(" · ")}{project.extraTechnologyCount > 0 ? ` · +${project.extraTechnologyCount}` : ""}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </section>
       )}
 

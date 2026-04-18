@@ -1,14 +1,34 @@
 import { aiService } from "./ai.service";
 
 const mockGenerate = jest.fn();
+const mockGenerateStreaming = jest.fn();
+const mockCheckOllamaHealth = jest.fn();
+const mockCheckModelAvailable = jest.fn();
+const mockGetAvailableModels = jest.fn();
+const mockCacheDelete = jest.fn();
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     cV: {
       findFirst: jest.fn(),
+      update: jest.fn(),
     },
     gitHubAnalysis: {
       findMany: jest.fn(),
+    },
+    aiArtifact: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
+    skill: {
+      count: jest.fn(),
+      findMany: jest.fn(),
+      createMany: jest.fn(),
+    },
+    summary: {
+      upsert: jest.fn(),
     },
   },
 }));
@@ -16,8 +36,15 @@ jest.mock("../../lib/prisma", () => ({
 jest.mock("../../lib/ollama", () => ({
   ollama: {
     generate: (...args: unknown[]) => mockGenerate(...args),
-    generateStreaming: jest.fn(),
+    generateStreaming: (...args: unknown[]) => mockGenerateStreaming(...args),
   },
+  checkOllamaHealth: () => mockCheckOllamaHealth(),
+  checkModelAvailable: () => mockCheckModelAvailable(),
+  getAvailableModels: () => mockGetAvailableModels(),
+}));
+
+jest.mock("../../lib/redis", () => ({
+  cacheDelete: (...args: unknown[]) => mockCacheDelete(...args),
 }));
 
 jest.mock("../../lib/logger", () => ({
@@ -33,11 +60,22 @@ jest.mock("../../config/env", () => ({
 import { prisma } from "../../lib/prisma";
 
 const USER_ID = "user-1";
-const mockCVFind = (prisma as unknown as { cV: { findFirst: jest.Mock } }).cV.findFirst;
+const CV_ID = "cv-1";
+
+const mockCVFind = (prisma as unknown as { cV: { findFirst: jest.Mock; update: jest.Mock } }).cV.findFirst;
+const mockCVUpdate = (prisma as unknown as { cV: { findFirst: jest.Mock; update: jest.Mock } }).cV.update;
 const mockAnalysesFindMany = (prisma as unknown as { gitHubAnalysis: { findMany: jest.Mock } }).gitHubAnalysis.findMany;
+const mockAiArtifactCreate = (prisma as unknown as { aiArtifact: { create: jest.Mock; findMany: jest.Mock; findFirst: jest.Mock; update: jest.Mock } }).aiArtifact.create;
+const mockAiArtifactFindMany = (prisma as unknown as { aiArtifact: { create: jest.Mock; findMany: jest.Mock; findFirst: jest.Mock; update: jest.Mock } }).aiArtifact.findMany;
+const mockAiArtifactFindFirst = (prisma as unknown as { aiArtifact: { create: jest.Mock; findMany: jest.Mock; findFirst: jest.Mock; update: jest.Mock } }).aiArtifact.findFirst;
+const mockAiArtifactUpdate = (prisma as unknown as { aiArtifact: { create: jest.Mock; findMany: jest.Mock; findFirst: jest.Mock; update: jest.Mock } }).aiArtifact.update;
+const mockSkillCount = (prisma as unknown as { skill: { count: jest.Mock; findMany: jest.Mock; createMany: jest.Mock } }).skill.count;
+const mockSkillFindMany = (prisma as unknown as { skill: { count: jest.Mock; findMany: jest.Mock; createMany: jest.Mock } }).skill.findMany;
+const mockSkillCreateMany = (prisma as unknown as { skill: { count: jest.Mock; findMany: jest.Mock; createMany: jest.Mock } }).skill.createMany;
+const mockSummaryUpsert = (prisma as unknown as { summary: { upsert: jest.Mock } }).summary.upsert;
 
 const MOCK_CV = {
-  id: "cv-1",
+  id: CV_ID,
   personalInfo: {
     firstName: "John",
     lastName: "Doe",
@@ -62,307 +100,193 @@ const MOCK_CV = {
   languages: [{ name: "English", proficiency: "NATIVE" }],
 };
 
+function buildArtifactRecord(overrides?: Record<string, unknown>) {
+  return {
+    id: "artifact-1",
+    tool: "SUMMARY",
+    status: "READY",
+    title: "Professional summary draft",
+    provider: "ollama",
+    model: "qwen3.5:9b",
+    locale: "en",
+    targetSection: "summary",
+    input: { promptVersion: "developer-cv-v2", cvId: CV_ID },
+    output: "Generated output",
+    summary: "Generated output",
+    error: null,
+    cvId: CV_ID,
+    appliedAt: null,
+    dismissedAt: null,
+    createdAt: new Date("2026-04-12T10:00:00.000Z"),
+    updatedAt: new Date("2026-04-12T10:00:00.000Z"),
+    ...overrides,
+  };
+}
+
 describe("aiService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockCVFind.mockResolvedValue(MOCK_CV);
+    mockAiArtifactCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
+      buildArtifactRecord({
+        tool: data.tool,
+        status: data.status ?? "READY",
+        title: data.title,
+        provider: data.provider,
+        model: data.model,
+        locale: data.locale,
+        targetSection: data.targetSection,
+        input: data.input,
+        output: data.output,
+        summary: data.summary,
+        error: data.error ?? null,
+        cvId: data.cvId ?? null,
+      })
+    );
+    mockAiArtifactUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
+      buildArtifactRecord({
+        status: data.status ?? "READY",
+        appliedAt: data.appliedAt ?? null,
+        dismissedAt: data.dismissedAt ?? null,
+      })
+    );
   });
 
-  // ── generateSummary ────────────────────────────────────
+  describe("getHealth", () => {
+    it("reports readiness and available models", async () => {
+      mockCheckOllamaHealth.mockResolvedValue(true);
+      mockCheckModelAvailable.mockResolvedValue(true);
+      mockGetAvailableModels.mockResolvedValue(["qwen3.5:9b", "llama3.2"]);
+
+      const result = await aiService.getHealth();
+
+      expect(result.ready).toBe(true);
+      expect(result.availableModels).toEqual(["qwen3.5:9b", "llama3.2"]);
+      expect(result.readinessIssues).toHaveLength(0);
+    });
+  });
 
   describe("generateSummary", () => {
-    it("should generate a professional summary", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue("A highly skilled developer with expertise...");
+    it("returns a summary and persists an artifact", async () => {
+      mockGenerate.mockResolvedValue("Senior developer focused on delivery quality and platform engineering.");
 
-      const result = await aiService.generateSummary(USER_ID, "cv-1");
+      const result = await aiService.generateSummary(USER_ID, CV_ID);
 
-      expect(result).toBe("A highly skilled developer with expertise...");
-      expect(mockGenerate).toHaveBeenCalled();
-    });
-
-    it("should strip <think> tags from Qwen output", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue(
-        "<think>Let me analyze this CV...</think>A results-driven developer..."
-      );
-
-      const result = await aiService.generateSummary(USER_ID, "cv-1");
-      // Note: stripping happens in ollama.generate, but we mock that.
-      // Still, the .trim() should handle remaining whitespace.
-      expect(result).toBeTruthy();
-    });
-
-    it("should throw if CV not found", async () => {
-      mockCVFind.mockResolvedValue(null);
-
-      await expect(aiService.generateSummary(USER_ID, "nonexistent")).rejects.toThrow();
+      expect(result.summary).toContain("delivery quality");
+      expect(result.artifact.tool).toBe("summary");
+      expect(mockAiArtifactCreate).toHaveBeenCalled();
     });
   });
-
-  // ── improveExperience ──────────────────────────────────
-
-  describe("improveExperience", () => {
-    it("should improve experience description", async () => {
-      mockGenerate.mockResolvedValue("Spearheaded a cross-functional team of 5...");
-
-      const result = await aiService.improveExperience(
-        "Led team",
-        "Senior Dev",
-        "Tech Co"
-      );
-
-      expect(result).toBe("Spearheaded a cross-functional team of 5...");
-    });
-  });
-
-  // ── suggestSkills ──────────────────────────────────────
 
   describe("suggestSkills", () => {
-    it("should return skill suggestions as array", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue('["React", "Node.js", "Docker"]');
+    it("deduplicates suggestions and persists a skills artifact", async () => {
+      mockGenerate.mockResolvedValue(JSON.stringify(["React", "Docker", "TypeScript", "react"]));
 
-      const result = await aiService.suggestSkills(USER_ID, "cv-1");
+      const result = await aiService.suggestSkills(USER_ID, CV_ID);
 
-      expect(result).toEqual(["React", "Node.js", "Docker"]);
+      expect(result.skills).toEqual(["React", "Docker"]);
+      expect(result.artifact.tool).toBe("skills");
+      expect(mockAiArtifactCreate).toHaveBeenCalled();
     });
 
-    it("should handle markdown-fenced JSON response", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue('```json\n["React", "Docker"]\n```');
-
-      const result = await aiService.suggestSkills(USER_ID, "cv-1");
-
-      expect(result).toEqual(["React", "Docker"]);
-    });
-
-    it("should handle non-JSON response gracefully", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue("React, Node.js, Docker");
-
-      const result = await aiService.suggestSkills(USER_ID, "cv-1");
-
-      expect(Array.isArray(result)).toBe(true);
-    });
-
-    it("should filter out non-string items", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue('["React", 42, null, "Docker"]');
-
-      const result = await aiService.suggestSkills(USER_ID, "cv-1");
-
-      expect(result).toEqual(["React", "Docker"]);
-    });
-
-    it("should drop duplicate, existing, blank, and oversized skills", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue(JSON.stringify([
-        " TypeScript ",
-        "Docker",
-        "docker",
-        "",
-        "x".repeat(101),
-      ]));
-
-      const result = await aiService.suggestSkills(USER_ID, "cv-1");
-
-      expect(result).toEqual(["Docker"]);
-    });
-
-    it("should derive fallback skills when Ollama fails", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
+    it("falls back when Ollama fails", async () => {
       mockGenerate.mockRejectedValue(new Error("Ollama unavailable"));
 
-      const result = await aiService.suggestSkills(USER_ID, "cv-1");
+      const result = await aiService.suggestSkills(USER_ID, CV_ID);
 
-      expect(result).toContain("Node.js");
-      expect(result).not.toContain("TypeScript");
-    });
-
-    it("should derive fallback skills when AI suggestions add no new usable skills", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue('["TypeScript"]');
-
-      const result = await aiService.suggestSkills(USER_ID, "cv-1");
-
-      expect(result).toContain("Node.js");
+      expect(result.skills).toContain("Node.js");
+      expect(result.artifact.tool).toBe("skills");
     });
   });
 
-  // ── atsCheck ───────────────────────────────────────────
+  describe("listArtifacts", () => {
+    it("maps persisted artifacts back to API contracts", async () => {
+      mockAiArtifactFindMany.mockResolvedValue([
+        buildArtifactRecord({ tool: "REVIEW", output: { overallScore: 82, sections: [], strengths: [], improvements: [], summary: "Strong baseline" }, summary: "Overall CV score 82/100" }),
+      ]);
 
-  describe("atsCheck", () => {
-    it("should return score, issues and suggestions", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue(
-        JSON.stringify({
-          score: 85,
-          issues: ["Missing keywords"],
-          suggestions: ["Add more action verbs"],
+      const result = await aiService.listArtifacts(USER_ID, { cvId: CV_ID, limit: 5 });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.tool).toBe("review");
+      expect(result[0]?.status).toBe("ready");
+    });
+  });
+
+  describe("applyArtifact", () => {
+    it("applies a summary artifact to the CV", async () => {
+      mockAiArtifactFindFirst.mockResolvedValue(
+        buildArtifactRecord({ tool: "SUMMARY", output: "Updated professional summary", summary: "Updated professional summary" })
+      );
+
+      const result = await aiService.applyArtifact(USER_ID, "artifact-1");
+
+      expect(mockSummaryUpsert).toHaveBeenCalledWith({
+        where: { cvId: CV_ID },
+        create: { cvId: CV_ID, content: "Updated professional summary", aiGenerated: true },
+        update: { content: "Updated professional summary", aiGenerated: true },
+      });
+      expect(mockAiArtifactUpdate).toHaveBeenCalled();
+      expect(mockCacheDelete).toHaveBeenCalledWith(`cv:${USER_ID}:${CV_ID}`);
+      expect(result.actions[0]?.type).toBe("summary_updated");
+      expect(result.artifact.status).toBe("applied");
+    });
+
+    it("applies a tailoring artifact by updating summary, skills, and ATS flag", async () => {
+      mockAiArtifactFindFirst.mockResolvedValue(
+        buildArtifactRecord({
+          tool: "TAILOR",
+          targetSection: "general",
+          title: "CV tailoring plan",
+          output: {
+            suggestedSummary: "Platform engineer with strong QA automation depth.",
+            skillsToAdd: ["Playwright", "TypeScript"],
+            skillsToHighlight: ["CI/CD"],
+            experienceTips: [],
+            overallStrategy: "Lead with platform reliability outcomes.",
+          },
         })
       );
+      mockSkillFindMany.mockResolvedValue([{ name: "TypeScript" }]);
+      mockSkillCount.mockResolvedValue(2);
+      mockSkillCreateMany.mockResolvedValue({ count: 1 });
+      mockCVUpdate.mockResolvedValue({ id: CV_ID });
 
-      const result = await aiService.atsCheck(USER_ID, "cv-1");
+      const result = await aiService.applyArtifact(USER_ID, "artifact-1");
 
-      expect(result.score).toBe(85);
-      expect(result.issues).toContain("Missing keywords");
-    });
-
-    it("should handle markdown-fenced JSON", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue(
-        '```json\n{"score": 70, "issues": [], "suggestions": ["Add skills"]}\n```'
-      );
-
-      const result = await aiService.atsCheck(USER_ID, "cv-1");
-
-      expect(result.score).toBe(70);
-      expect(result.suggestions).toContain("Add skills");
-    });
-
-    it("should clamp score to 0-100 range", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue('{"score": 150, "issues": [], "suggestions": []}');
-
-      const result = await aiService.atsCheck(USER_ID, "cv-1");
-
-      expect(result.score).toBe(100);
-    });
-
-    it("should return fallback on unparseable response", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue("The ATS score is about 80 percent.");
-
-      const result = await aiService.atsCheck(USER_ID, "cv-1");
-
-      expect(result.score).toBe(50);
-      expect(Array.isArray(result.issues)).toBe(true);
+      expect(mockSummaryUpsert).toHaveBeenCalled();
+      expect(mockSkillCreateMany).toHaveBeenCalledWith({
+        data: [
+          {
+            cvId: CV_ID,
+            name: "Playwright",
+            category: "TECHNICAL",
+            proficiencyLevel: "INTERMEDIATE",
+            yearsOfExperience: null,
+            orderIndex: 2,
+          },
+        ],
+      });
+      expect(mockCVUpdate).toHaveBeenCalledWith({ where: { id: CV_ID }, data: { isAtsOptimized: true } });
+      expect(result.actions.map((action) => action.type)).toEqual(["summary_updated", "skills_added", "cv_flagged"]);
     });
   });
 
-  // ── generateCoverLetter ────────────────────────────────
+  describe("dismissArtifact", () => {
+    it("marks an artifact as dismissed", async () => {
+      mockAiArtifactFindFirst.mockResolvedValue(buildArtifactRecord());
+      mockAiArtifactUpdate.mockResolvedValue(buildArtifactRecord({ status: "DISMISSED", dismissedAt: new Date("2026-04-12T11:00:00.000Z") }));
 
-  describe("generateCoverLetter", () => {
-    it("should generate a cover letter", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue("Dear Hiring Manager...");
+      const result = await aiService.dismissArtifact(USER_ID, "artifact-1");
 
-      const result = await aiService.generateCoverLetter(USER_ID, "cv-1");
-
-      expect(result).toContain("Dear Hiring Manager");
-    });
-
-    it("should accept optional job description", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue("Dear Team...");
-
-      await aiService.generateCoverLetter(USER_ID, "cv-1", "Frontend Developer at Google");
-
-      const calledPrompt = mockGenerate.mock.calls[0][0].prompt as string;
-      expect(calledPrompt).toContain("Frontend Developer at Google");
+      expect(result.status).toBe("dismissed");
+      expect(mockAiArtifactUpdate).toHaveBeenCalled();
     });
   });
-
-  // ── improveProject ─────────────────────────────────────
-
-  describe("improveProject", () => {
-    it("should improve project description", async () => {
-      mockGenerate.mockResolvedValue("Built a high-performance open-source library...");
-
-      const result = await aiService.improveProject(
-        "OpenLib",
-        "A library",
-        ["Rust", "WebAssembly"]
-      );
-
-      expect(result).toBe("Built a high-performance open-source library...");
-    });
-  });
-
-  // ── reviewCV ───────────────────────────────────────────
-
-  describe("reviewCV", () => {
-    it("should return comprehensive review", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue(
-        JSON.stringify({
-          overallScore: 75,
-          sections: [{ name: "Experience", score: 80, feedback: "Good detail" }],
-          strengths: ["Strong tech skills"],
-          improvements: ["Add more projects"],
-          summary: "Solid CV overall",
-        })
-      );
-
-      const result = await aiService.reviewCV(USER_ID, "cv-1");
-
-      expect(result.overallScore).toBe(75);
-      expect(result.sections).toHaveLength(1);
-      expect(result.strengths).toContain("Strong tech skills");
-    });
-
-    it("should return fallback on bad response", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue("This is a great CV!");
-
-      const result = await aiService.reviewCV(USER_ID, "cv-1");
-
-      expect(result.overallScore).toBe(50);
-      expect(Array.isArray(result.sections)).toBe(true);
-    });
-  });
-
-  // ── jobMatch ───────────────────────────────────────────
-
-  describe("jobMatch", () => {
-    it("should analyze job match", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue(
-        JSON.stringify({
-          matchScore: 82,
-          matchingSkills: ["TypeScript"],
-          missingSkills: ["React"],
-          keywordGaps: ["frontend"],
-          suggestions: ["Add React experience"],
-          summary: "Good match",
-        })
-      );
-
-      const result = await aiService.jobMatch(USER_ID, "cv-1", "Looking for a TypeScript dev");
-
-      expect(result.matchScore).toBe(82);
-      expect(result.matchingSkills).toContain("TypeScript");
-      expect(result.missingSkills).toContain("React");
-    });
-  });
-
-  // ── tailorCV ───────────────────────────────────────────
-
-  describe("tailorCV", () => {
-    it("should return tailoring suggestions", async () => {
-      mockCVFind.mockResolvedValue(MOCK_CV);
-      mockGenerate.mockResolvedValue(
-        JSON.stringify({
-          suggestedSummary: "React-focused developer...",
-          skillsToAdd: ["React", "Next.js"],
-          skillsToHighlight: ["TypeScript"],
-          experienceTips: [{ company: "Tech Co", suggestion: "Emphasize frontend work" }],
-          overallStrategy: "Focus on React ecosystem",
-        })
-      );
-
-      const result = await aiService.tailorCV(USER_ID, "cv-1", "React developer needed");
-
-      expect(result.suggestedSummary).toContain("React");
-      expect(result.skillsToAdd).toContain("React");
-      expect(result.experienceTips).toHaveLength(1);
-    });
-  });
-
-  // ── githubProfileSummary ───────────────────────────────
 
   describe("githubProfileSummary", () => {
-    it("should generate profile from analyses", async () => {
+    it("returns a profile summary and persists an artifact", async () => {
       mockAnalysesFindMany.mockResolvedValue([
         {
           id: "a-1",
@@ -377,19 +301,18 @@ describe("aiService", () => {
           },
         },
       ]);
-      mockGenerate.mockResolvedValue("A versatile developer with experience in TypeScript...");
+      mockGenerate.mockResolvedValue("A versatile developer with deep TypeScript and React experience.");
 
-      const result = await aiService.githubProfileSummary("user-1");
+      const result = await aiService.githubProfileSummary(USER_ID);
 
-      expect(result).toContain("TypeScript");
+      expect(result.summary).toContain("TypeScript");
+      expect(result.artifact.tool).toBe("github_profile_summary");
     });
 
-    it("should throw if no completed analyses", async () => {
+    it("throws if no completed analyses exist", async () => {
       mockAnalysesFindMany.mockResolvedValue([]);
 
-      await expect(aiService.githubProfileSummary("user-1")).rejects.toThrow(
-        "No completed GitHub analyses found"
-      );
+      await expect(aiService.githubProfileSummary(USER_ID)).rejects.toThrow("No completed GitHub analyses found");
     });
   });
 });

@@ -2,6 +2,14 @@
 // GitHub Service — Token management & repo listing
 // ═══════════════════════════════════════════════════════════
 
+import type {
+  DeepAnalysisResult,
+  GitHubProjectImportDraft,
+  GitHubProjectImportOverrides,
+  GitHubProjectImportPreview,
+  GitHubRepoData,
+  GitHubProjectType,
+} from "@cvbuilder/shared";
 import { prisma } from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { ApiError } from "../../utils/api-error";
@@ -12,6 +20,321 @@ import { cacheDelete } from "../../lib/redis";
 
 function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
+}
+
+const MAX_IMPORT_TECHNOLOGIES = 8;
+const MAX_IMPORT_HIGHLIGHTS = 4;
+
+function hasText(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function compactText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizeListItem(value: string): string | null {
+  const normalized = compactText(value).replace(/\s+([,.;!?])/g, "$1");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function uniqueStrings(values: Array<string | null | undefined>, limit = Number.POSITIVE_INFINITY): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    if (!hasText(value)) continue;
+    const normalized = compactText(value);
+    const key = normalized.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(normalized);
+    if (result.length >= limit) break;
+  }
+
+  return result;
+}
+
+function truncateSentences(value: string, sentenceCount: number): string {
+  const normalized = compactText(value);
+  const sentences = normalized.match(/[^.!?]+[.!?]?/g)?.map((item) => item.trim()).filter(Boolean) ?? [];
+  if (sentences.length <= sentenceCount) {
+    return normalized;
+  }
+
+  return sentences.slice(0, sentenceCount).join(" ").trim();
+}
+
+function inferProjectRole(projectType: GitHubProjectType, contributorCount: number): string {
+  if (projectType === "frontend") return "Frontend Developer";
+  if (projectType === "backend") return "Backend Developer";
+  if (projectType === "mobile") return "Mobile Developer";
+  if (projectType === "library" || projectType === "cli") return "Software Engineer";
+  if (projectType === "monorepo" && contributorCount > 1) return "Full-Stack Developer";
+  if (projectType === "fullstack" || projectType === "monorepo") return "Full-Stack Developer";
+  return "Software Developer";
+}
+
+function buildTechnologyList(result: DeepAnalysisResult): string[] {
+  const dependencyInfo = result.dependencyInfo;
+  const languagePriority = [...result.languages]
+    .sort((left, right) => right.percentage - left.percentage)
+    .slice(0, 3)
+    .map((language) => language.language);
+
+  return uniqueStrings(
+    [
+      result.primaryLanguage,
+      ...languagePriority,
+      ...(dependencyInfo?.frameworks ?? []),
+      ...(dependencyInfo?.databases ?? []),
+      ...(dependencyInfo?.uiLibraries ?? []),
+      ...(dependencyInfo?.testingTools ?? []).slice(0, 2),
+      ...(dependencyInfo?.buildTools ?? []).slice(0, 1),
+      ...(result.technologies ?? []),
+    ],
+    MAX_IMPORT_TECHNOLOGIES
+  );
+}
+
+function buildProjectDescription(result: DeepAnalysisResult): string {
+  const ai = result.aiInsights;
+  const preferred = ai?.cvReadyDescription ?? ai?.projectSummary ?? result.description ?? "";
+
+  if (hasText(preferred)) {
+    return truncateSentences(preferred, ai?.cvReadyDescription ? 2 : 3);
+  }
+
+  const projectType = result.fileTree?.projectType ?? "unknown";
+  const stack = buildTechnologyList(result).slice(0, 4).join(", ");
+  const typeLabel = projectType === "unknown" ? "software" : projectType;
+
+  if (hasText(stack)) {
+    return `Built and maintained a ${typeLabel} project using ${stack}.`;
+  }
+
+  return `Built and maintained a ${typeLabel} project with a production-focused engineering setup.`;
+}
+
+function buildArchitectureHighlight(projectType: GitHubProjectType): string | null {
+  if (projectType === "fullstack") {
+    return "Structured as a full-stack codebase with clear frontend, API, and shared-service boundaries.";
+  }
+  if (projectType === "monorepo") {
+    return "Organized as a monorepo with separate applications and shared package boundaries.";
+  }
+  if (projectType === "frontend") {
+    return "Frontend architecture emphasizes reusable UI structure, routing, and state-driven flows.";
+  }
+  if (projectType === "backend") {
+    return "Backend architecture separates API, data access, and deployment concerns cleanly.";
+  }
+  if (projectType === "mobile") {
+    return "Mobile-oriented repository includes platform-specific structure and shared application logic.";
+  }
+  if (projectType === "library" || projectType === "cli") {
+    return "Reusable tooling structure keeps commands and modules isolated for maintainability.";
+  }
+
+  return null;
+}
+
+function buildQualityHighlight(result: DeepAnalysisResult): string | null {
+  const quality = result.codeQuality;
+  const signals = uniqueStrings([
+    quality?.hasTests ? "automated tests" : null,
+    quality?.hasCI ? "CI/CD workflows" : null,
+    quality?.hasDocker ? "containerized deployment" : null,
+    quality?.hasTypeScript ? "TypeScript" : null,
+  ]);
+
+  if (signals.length === 0) {
+    return null;
+  }
+
+  if (signals.length === 1) {
+    return `Engineering setup includes ${signals[0]}.`;
+  }
+
+  if (signals.length === 2) {
+    return `Engineering setup includes ${signals[0]} and ${signals[1]}.`;
+  }
+
+  return `Engineering setup includes ${signals.slice(0, -1).join(", ")}, and ${signals.at(-1)}.`;
+}
+
+function buildDeliveryHighlight(result: DeepAnalysisResult): string | null {
+  const contributorCount = result.contributors?.length ?? 0;
+  const activeDays = result.commitAnalytics?.activeDays ?? 0;
+
+  if (result.totalCommits > 0 && contributorCount > 1) {
+    return `Maintained through ${result.totalCommits} commits in collaboration with ${contributorCount} contributors.`;
+  }
+
+  if (result.totalCommits > 0 && activeDays > 0) {
+    return `Maintained through ${result.totalCommits} commits over ${activeDays} active development days.`;
+  }
+
+  if (result.totalCommits > 0) {
+    return `Maintained through ${result.totalCommits} documented commits.`;
+  }
+
+  return null;
+}
+
+function buildAdoptionHighlight(result: DeepAnalysisResult): string | null {
+  if (result.stars > 0 && hasText(result.license)) {
+    return `Open-source repository with ${result.stars} GitHub stars and ${result.license} licensing.`;
+  }
+
+  if (result.stars > 0) {
+    return `Open-source repository with ${result.stars} GitHub stars.`;
+  }
+
+  if ((result.commitAnalytics?.recentActivityCount ?? 0) >= 5) {
+    return `${result.commitAnalytics?.recentActivityCount ?? 0} recent commits indicate active ongoing development.`;
+  }
+
+  return null;
+}
+
+function buildHighlights(result: DeepAnalysisResult): string[] {
+  const aiStrengths = (result.aiInsights?.strengths ?? [])
+    .map(normalizeListItem)
+    .filter((value): value is string => value !== null)
+    .slice(0, 2);
+  const projectType = result.fileTree?.projectType ?? "unknown";
+
+  return uniqueStrings(
+    [
+      ...aiStrengths,
+      buildArchitectureHighlight(projectType),
+      buildQualityHighlight(result),
+      buildDeliveryHighlight(result),
+      buildAdoptionHighlight(result),
+    ],
+    MAX_IMPORT_HIGHLIGHTS
+  );
+}
+
+function buildGitHubRepoData(result: DeepAnalysisResult): GitHubRepoData {
+  return {
+    stars: result.stars ?? 0,
+    forks: result.forks ?? 0,
+    watchers: result.watchers ?? 0,
+    language: result.primaryLanguage ?? "",
+    languageStats: Object.fromEntries(
+      (result.languages ?? []).map((language) => [language.language, language.percentage])
+    ),
+    commitCount: result.totalCommits ?? 0,
+    userCommitCount: result.totalCommits ?? 0,
+    openIssues: result.openIssues ?? 0,
+    topics: result.topics ?? [],
+    license: result.license ?? null,
+    projectType: result.fileTree?.projectType ?? null,
+    qualityScore: result.codeQuality?.qualityScore ?? null,
+    complexityLevel: result.aiInsights?.complexityLevel ?? null,
+    projectSummary: result.aiInsights?.projectSummary ?? null,
+    architectureAnalysis: result.aiInsights?.architectureAnalysis ?? null,
+    techStackAssessment: result.aiInsights?.techStackAssessment ?? null,
+    detectedSkills: result.aiInsights?.detectedSkills ?? [],
+    strengths: result.aiInsights?.strengths ?? [],
+    contributorCount: result.contributors?.length ?? 0,
+    topContributors: (result.contributors ?? []).slice(0, 3),
+    lastCommitDate: result.commitAnalytics?.lastCommitDate ?? null,
+    recentActivityCount: result.commitAnalytics?.recentActivityCount ?? null,
+    averagePerWeek: result.commitAnalytics?.averagePerWeek ?? null,
+    activeDays: result.commitAnalytics?.activeDays ?? null,
+    keyDirectories: result.fileTree?.keyDirectories ?? [],
+    frameworks: result.dependencyInfo?.frameworks ?? [],
+    databases: result.dependencyInfo?.databases ?? [],
+    uiLibraries: result.dependencyInfo?.uiLibraries ?? [],
+    testingTools: result.dependencyInfo?.testingTools ?? [],
+    buildTools: result.dependencyInfo?.buildTools ?? [],
+    linters: result.dependencyInfo?.linters ?? [],
+    hasTests: result.codeQuality?.hasTests ?? false,
+    hasCI: result.codeQuality?.hasCI ?? false,
+    hasDocker: result.codeQuality?.hasDocker ?? false,
+    hasTypeScript: result.codeQuality?.hasTypeScript ?? false,
+  };
+}
+
+function buildImportDraft(result: DeepAnalysisResult): GitHubProjectImportDraft {
+  const isPrivate = result.isPrivate === true;
+  const repoUrl = isPrivate ? null : (result.url ?? null);
+  const contributorCount = result.contributors?.length ?? 0;
+
+  return {
+    name: result.name ?? result.repoFullName,
+    description: buildProjectDescription(result),
+    role: inferProjectRole(result.fileTree?.projectType ?? "unknown", contributorCount),
+    technologies: buildTechnologyList(result),
+    url: repoUrl,
+    githubUrl: repoUrl,
+    startDate: result.createdAt ?? new Date().toISOString(),
+    endDate: result.updatedAt ?? null,
+    highlights: buildHighlights(result),
+    isFromGitHub: true,
+    githubRepoData: buildGitHubRepoData(result),
+  };
+}
+
+function applyImportOverrides(
+  draft: GitHubProjectImportDraft,
+  overrides?: GitHubProjectImportOverrides
+): GitHubProjectImportDraft {
+  if (!overrides) {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    name: overrides.name !== undefined && hasText(overrides.name) ? compactText(overrides.name) : draft.name,
+    description: overrides.description !== undefined ? overrides.description.trim() : draft.description,
+    role: overrides.role !== undefined ? (hasText(overrides.role) ? compactText(overrides.role) : null) : draft.role,
+    technologies: overrides.technologies !== undefined
+      ? uniqueStrings(overrides.technologies, MAX_IMPORT_TECHNOLOGIES)
+      : draft.technologies,
+    highlights: overrides.highlights !== undefined
+      ? uniqueStrings(
+          overrides.highlights
+            .map(normalizeListItem)
+            .filter((value): value is string => value !== null),
+          MAX_IMPORT_HIGHLIGHTS
+        )
+      : draft.highlights,
+  };
+}
+
+function getCompletedAnalysisResult(analysis: { status: string; result: Prisma.JsonValue | null }): DeepAnalysisResult {
+  if (analysis.status !== "COMPLETED") {
+    throw ApiError.badRequest("Analysis is not completed yet");
+  }
+
+  const result = analysis.result as DeepAnalysisResult | null;
+  if (!result?.repoFullName) {
+    throw ApiError.badRequest("Analysis has no result data");
+  }
+
+  return result;
+}
+
+function buildImportPreviewPayload(analysisId: string, result: DeepAnalysisResult): GitHubProjectImportPreview {
+  return {
+    analysisId,
+    repoFullName: result.repoFullName,
+    draft: buildImportDraft(result),
+    dependencyInfo: result.dependencyInfo
+      ? {
+          frameworks: result.dependencyInfo.frameworks,
+          databases: result.dependencyInfo.databases,
+          uiLibraries: result.dependencyInfo.uiLibraries,
+          testingTools: result.dependencyInfo.testingTools,
+          buildTools: result.dependencyInfo.buildTools,
+          linters: result.dependencyInfo.linters,
+        }
+      : null,
+  };
 }
 
 export const githubService = {
@@ -192,121 +515,45 @@ export const githubService = {
     return analysis;
   },
 
+  async getImportPreview(userId: string, analysisId: string) {
+    const analysis = await this.getAnalysis(userId, analysisId);
+    const result = getCompletedAnalysisResult(analysis);
+
+    return buildImportPreviewPayload(analysis.id, result);
+  },
+
   // ── Import to CV ─────────────────────────────────────────
 
-  async importToCV(userId: string, cvId: string, analysisId: string) {
+  async importToCV(userId: string, cvId: string, analysisId: string, projectOverrides?: GitHubProjectImportOverrides) {
     // Verify CV exists
     const cv = await prisma.cV.findFirst({ where: { id: cvId, userId } });
     if (!cv) throw ApiError.notFound("CV");
 
-    // Get completed analysis
     const analysis = await this.getAnalysis(userId, analysisId);
-    if (analysis.status !== "COMPLETED") {
-      throw ApiError.badRequest("Analysis is not completed yet");
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = analysis.result as any;
-    if (!result?.repoFullName) {
-      throw ApiError.badRequest("Analysis has no result data");
-    }
+    const result = getCompletedAnalysisResult(analysis);
 
     // Get current project count for orderIndex
     const projectCount = await prisma.project.count({ where: { cvId } });
 
-    // Extract AI insights if available
-    const ai = result.aiInsights as {
-      projectSummary?: string;
-      cvReadyDescription?: string;
-      detectedSkills?: string[];
-      strengths?: string[];
-      architectureAnalysis?: string;
-      techStackAssessment?: string;
-      complexityLevel?: string;
-    } | null;
-
-    // Use AI-generated description if available, fallback to repo description
-    const description = ai?.cvReadyDescription ?? ai?.projectSummary ?? result.description ?? "";
-
-    // Build richer technologies list from analysis data
-    const depInfo = result.dependencyInfo as {
-      frameworks?: string[];
-      databases?: string[];
-      uiLibraries?: string[];
-      testingTools?: string[];
-      buildTools?: string[];
-    } | null;
-
-    // Combine all tech sources for a comprehensive list
-    const techSet = new Set<string>(result.technologies ?? []);
-    if (depInfo?.frameworks) depInfo.frameworks.forEach((f: string) => techSet.add(f));
-    if (depInfo?.databases) depInfo.databases.forEach((d: string) => techSet.add(d));
-    if (depInfo?.uiLibraries) depInfo.uiLibraries.forEach((u: string) => techSet.add(u));
-    const technologies = [...techSet];
-
-    // Build meaningful highlights from analysis data
-    const highlights: string[] = [];
-    if (ai?.strengths?.length) {
-      for (const s of ai.strengths) highlights.push(s);
-    }
-    if (result.stars > 0) highlights.push(`${result.stars} stars on GitHub`);
-    if (result.totalCommits > 0) highlights.push(`${result.totalCommits} commits`);
-    if (result.fileTree?.totalFiles) highlights.push(`${result.fileTree.totalFiles} files across ${result.fileTree.totalDirectories} directories`);
-    if (result.codeQuality?.hasTests) highlights.push("Includes unit/integration tests");
-    if (result.codeQuality?.hasCI) highlights.push("CI/CD pipeline configured");
-    if (result.codeQuality?.hasDocker) highlights.push("Dockerized deployment");
-    if (result.codeQuality?.hasTypeScript) highlights.push("Full TypeScript implementation");
-    if (result.contributors?.length > 1) highlights.push(`${result.contributors.length} contributors`);
-    if (result.license) highlights.push(`${result.license} licensed`);
-
-    // Determine role from project type
-    const projectType = result.fileTree?.projectType as string | undefined;
-    const role = projectType === "fullstack" ? "Full-Stack Developer"
-      : projectType === "frontend" ? "Frontend Developer"
-      : projectType === "backend" ? "Backend Developer"
-      : projectType === "monorepo" ? "Lead Developer"
-      : projectType === "mobile" ? "Mobile Developer"
-      : "Developer";
-
-    // For private repos, omit URLs to avoid exposing private links
-    const isPrivate = result.isPrivate === true;
-    const repoUrl = isPrivate ? null : (result.url ?? null);
+    const draft = applyImportOverrides(buildImportDraft(result), projectOverrides);
 
     // Map analysis result → Project
     const project = await prisma.project.create({
       data: {
         cvId,
-        name: result.name ?? result.repoFullName,
-        description,
-        role,
-        technologies,
-        url: repoUrl,
-        githubUrl: repoUrl,
-        startDate: result.createdAt ?? new Date().toISOString(),
-        endDate: result.updatedAt ?? null,
-        highlights,
-        isFromGitHub: true,
-        githubRepoData: {
-          stars: result.stars ?? 0,
-          forks: result.forks ?? 0,
-          watchers: result.watchers ?? 0,
-          language: result.primaryLanguage ?? "",
-          languageStats: Object.fromEntries(
-            (result.languages ?? []).map((l: { language: string; percentage: number }) => [l.language, l.percentage])
-          ),
-          commitCount: result.totalCommits ?? 0,
-          userCommitCount: result.totalCommits ?? 0,
-          openIssues: result.openIssues ?? 0,
-          topics: result.topics ?? [],
-          license: result.license ?? null,
-          // Extra deep analysis data
-          projectType: projectType ?? "unknown",
-          qualityScore: result.codeQuality?.qualityScore ?? null,
-          detectedSkills: ai?.detectedSkills ?? [],
-          architectureAnalysis: ai?.architectureAnalysis ?? null,
-          techStackAssessment: ai?.techStackAssessment ?? null,
-          complexityLevel: ai?.complexityLevel ?? null,
-        } as Prisma.InputJsonValue,
+        name: draft.name,
+        description: draft.description,
+        role: draft.role,
+        technologies: draft.technologies,
+        url: draft.url,
+        githubUrl: draft.githubUrl,
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+        highlights: draft.highlights,
+        isFromGitHub: draft.isFromGitHub,
+        githubRepoData: draft.githubRepoData === null
+          ? Prisma.JsonNull
+          : (draft.githubRepoData as unknown as Prisma.InputJsonValue),
         orderIndex: projectCount,
       },
     });

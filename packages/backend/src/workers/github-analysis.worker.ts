@@ -123,39 +123,63 @@ function detectProjectType(tree: { path: string; type: string }[]): {
 
 // ── Helper: select key source files to feed to AI ──
 
-const PRIORITY_FILES = [
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".kt", ".swift"]);
+const EXACT_PRIORITY_FILES = new Set([
   "src/index.ts", "src/index.tsx", "src/main.ts", "src/main.tsx",
-  "src/app.ts", "src/app.tsx", "src/server.ts",
+  "src/app.ts", "src/app.tsx", "src/server.ts", "src/server.js",
   "index.ts", "index.js", "main.ts", "main.go", "main.py", "app.py",
   "src/index.js", "src/main.js", "src/app.js",
-  "package.json", "tsconfig.json",
+  "package.json", "tsconfig.json", "Dockerfile", "README.md",
+]);
+const PRIORITY_FILE_PATTERNS = [
+  /^src\/(routes|route|controllers|controller|services|service|modules|workers|hooks|stores|components)\//,
+  /^packages\/[^/]+\/src\//,
+  /^apps\/[^/]+\/src\//,
+  /^app\//,
+  /^pages\//,
+  /^src\/app\//,
+  /^src\/pages\//,
+  /prisma\/schema\.prisma$/,
+  /vite\.config\.(ts|js|mjs)$/,
+  /next\.config\.(ts|js|mjs)$/,
+  /eslint\.config\.(js|mjs)$/,
+  /tailwind\.config\.(ts|js)$/,
+  /docker-compose\.(ya?ml)$/,
+  /^\.github\/workflows\//,
+  /\.(test|spec)\.(ts|tsx|js|jsx|py|go)$/,
 ];
 
+function scoreKeyFile(path: string, size = 0): number {
+  if (path.includes("node_modules/") || path.includes("dist/") || path.includes("coverage/") || path.includes(".min.")) {
+    return -1;
+  }
+
+  const ext = path.includes(".") ? "." + path.split(".").pop() : "";
+  const isSourceLike = SOURCE_EXTENSIONS.has(ext) || EXACT_PRIORITY_FILES.has(path) || PRIORITY_FILE_PATTERNS.some((pattern) => pattern.test(path));
+  if (!isSourceLike) {
+    return -1;
+  }
+
+  let score = 0;
+  if (EXACT_PRIORITY_FILES.has(path)) score += 80;
+  if (PRIORITY_FILE_PATTERNS.some((pattern) => pattern.test(path))) score += 40;
+  if (path.includes("package.json") || path.endsWith("schema.prisma")) score += 20;
+  if (path.includes("components") || path.includes("routes") || path.includes("services") || path.includes("modules")) score += 10;
+  if (path.includes(".test.") || path.includes(".spec.")) score += 8;
+  if (size > 0 && size <= 16384) score += 5;
+  if (size > 16384) score -= 10;
+
+  return score - path.split("/").length;
+}
+
 function selectKeyFiles(tree: { path: string; type: string; size?: number }[]): string[] {
-  const files: string[] = [];
-  const fileSet = new Set(tree.filter((t) => t.type === "blob").map((t) => t.path));
-
-  // First add priority files that exist
-  for (const pf of PRIORITY_FILES) {
-    if (fileSet.has(pf) && files.length < 5) files.push(pf);
-  }
-
-  // Then look for other interesting source files
-  if (files.length < 5) {
-    const sourceExts = new Set([".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java"]);
-    for (const item of tree) {
-      if (files.length >= 5) break;
-      if (item.type !== "blob") continue;
-      if (files.includes(item.path)) continue;
-      const ext = "." + item.path.split(".").pop();
-      if (!sourceExts.has(ext)) continue;
-      if ((item.size ?? 0) > 10240) continue; // skip files > 10KB
-      if (item.path.includes("node_modules/") || item.path.includes("dist/") || item.path.includes(".min.")) continue;
-      files.push(item.path);
-    }
-  }
-
-  return files;
+  return tree
+    .filter((item) => item.type === "blob")
+    .map((item) => ({ path: item.path, score: scoreKeyFile(item.path, item.size ?? 0) }))
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || left.path.localeCompare(right.path))
+    .slice(0, 8)
+    .map((item) => item.path);
 }
 
 // ── Dependency manifest detection ──
@@ -543,7 +567,7 @@ export function startGitHubAnalysisWorker() {
         let totalSourceBytes = 0;
 
         for (const filePath of keyFilePaths) {
-          if (totalSourceBytes > 40960) break; // Max 40KB total
+          if (totalSourceBytes > 57344) break; // Max 56KB total
           // Skip package.json if we already parsed it as dependency
           if (filePath === "package.json" && dependencyInfo) continue;
 
@@ -556,11 +580,12 @@ export function startGitHubAnalysisWorker() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const fileData = (await fileRes.json()) as any;
             if (fileData.encoding === "base64" && fileData.content) {
-              const content = Buffer.from(fileData.content, "base64").toString("utf-8");
-              if (content.length <= 10240) {
-                sourceSnippets.push({ path: filePath, content });
-                totalSourceBytes += content.length;
-              }
+              const rawContent = Buffer.from(fileData.content, "base64").toString("utf-8");
+              const content = rawContent.length > 12288
+                ? rawContent.slice(0, 12288) + "\n...(truncated)"
+                : rawContent;
+              sourceSnippets.push({ path: filePath, content });
+              totalSourceBytes += content.length;
             }
           } catch {
             // Skip files that fail to fetch
@@ -647,9 +672,22 @@ export function startGitHubAnalysisWorker() {
             commitCount: commits.length,
             contributors: contributors.length,
             stars: repo.stargazers_count ?? 0,
+            qualityScore: codeQuality.qualityScore,
             hasTests: codeQuality.hasTests,
             hasCI: codeQuality.hasCI,
             hasDocker: codeQuality.hasDocker,
+            hasTypeScript: codeQuality.hasTypeScript,
+            recentActivityCount: commitAnalytics.recentActivityCount,
+            activeDays: commitAnalytics.activeDays,
+            recentCommits: commits.slice(0, 5).map((commit) => commit.commit?.message?.split("\n")[0]).filter(Boolean),
+            dependencySignals: dependencyInfo ? {
+              frameworks: dependencyInfo.frameworks,
+              databases: dependencyInfo.databases,
+              uiLibraries: dependencyInfo.uiLibraries,
+              testingTools: dependencyInfo.testingTools,
+              buildTools: dependencyInfo.buildTools,
+              linters: dependencyInfo.linters,
+            } : null,
           }, locale);
         } catch (aiError) {
           logger.error("AI deep analysis failed", {
@@ -684,9 +722,22 @@ export function startGitHubAnalysisWorker() {
               commitCount: commits.length,
               contributors: contributors.length,
               stars: repo.stargazers_count ?? 0,
+              qualityScore: codeQuality.qualityScore,
               hasTests: codeQuality.hasTests,
               hasCI: codeQuality.hasCI,
               hasDocker: codeQuality.hasDocker,
+              hasTypeScript: codeQuality.hasTypeScript,
+              recentActivityCount: commitAnalytics.recentActivityCount,
+              activeDays: commitAnalytics.activeDays,
+              recentCommits: commits.slice(0, 5).map((commit) => commit.commit?.message?.split("\n")[0]).filter(Boolean),
+              dependencySignals: dependencyInfo ? {
+                frameworks: dependencyInfo.frameworks,
+                databases: dependencyInfo.databases,
+                uiLibraries: dependencyInfo.uiLibraries,
+                testingTools: dependencyInfo.testingTools,
+                buildTools: dependencyInfo.buildTools,
+                linters: dependencyInfo.linters,
+              } : null,
             }, locale);
           } catch (retryError) {
             logger.error("AI retry also failed", { repoFullName, error: retryError instanceof Error ? retryError.message : String(retryError) });

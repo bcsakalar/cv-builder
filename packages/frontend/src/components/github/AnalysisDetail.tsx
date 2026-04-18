@@ -1,3 +1,4 @@
+import type { DeepAnalysisResult } from "@cvbuilder/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -115,29 +116,9 @@ interface AIAnalysisInsight {
   cvReadyDescription: string;
 }
 
-interface AnalysisResult {
-  repoFullName: string;
-  name: string;
-  description: string | null;
-  stars: number;
-  forks: number;
-  watchers: number;
-  openIssues: number;
-  license: string | null;
-  createdAt: string;
-  updatedAt: string;
-  topics: string[];
+type AnalysisResult = DeepAnalysisResult & {
   languages: LanguageBreakdown[];
-  primaryLanguage: string | null;
-  technologies: string[];
-  totalCommits: number;
   recentCommits: RecentCommit[];
-  hasReadme: boolean;
-  url: string;
-  defaultBranch: string;
-  isArchived: boolean;
-  isFork: boolean;
-  // Deep analysis
   fileTree?: FileTreeInfo;
   dependencyInfo?: DependencyInfo | null;
   contributors?: ContributorInfo[];
@@ -146,19 +127,19 @@ interface AnalysisResult {
   codeQuality?: CodeQualityMetrics;
   aiInsights?: AIAnalysisInsight | null;
   readmeContent?: string | null;
-}
+};
 
 type TabId = "overview" | "techstack" | "quality" | "activity" | "insights" | "devops";
 
 interface AnalysisDetailProps {
-  result: Record<string, unknown>;
+  result: DeepAnalysisResult;
   analysisId: string;
   onClose?: () => void;
 }
 
 export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailProps) {
   const { t, i18n } = useTranslation();
-  const data = result as unknown as AnalysisResult;
+  const data = result as AnalysisResult;
   const hasDeepData = !!data.fileTree;
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [copied, setCopied] = useState(false);
