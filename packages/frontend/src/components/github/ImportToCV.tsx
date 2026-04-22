@@ -12,7 +12,6 @@ interface ImportToCVProps {
 
 interface ReviewDraftState {
   name: string;
-  role: string;
   description: string;
   technologiesText: string;
   highlightsText: string;
@@ -21,7 +20,6 @@ interface ReviewDraftState {
 function buildReviewDraft(preview: GitHubProjectImportPreview): ReviewDraftState {
   return {
     name: preview.draft.name,
-    role: preview.draft.role ?? "",
     description: preview.draft.description,
     technologiesText: preview.draft.technologies.join(", "),
     highlightsText: preview.draft.highlights.join("\n"),
@@ -109,7 +107,6 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
         analysisId: analysisIds[0]!,
         projectOverrides: {
           name: reviewDraft.name.trim(),
-          role: reviewDraft.role.trim() || null,
           description: reviewDraft.description.trim(),
           technologies: parseCommaSeparatedList(reviewDraft.technologiesText),
           highlights: parseLineSeparatedList(reviewDraft.highlightsText),
@@ -228,25 +225,14 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
                   </div>
                 )}
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label htmlFor="github-import-name" className="mb-1 block text-xs font-medium">{t("github.projectName")}</label>
-                    <input
-                      id="github-import-name"
-                      value={reviewDraft.name}
-                      onChange={(event) => updateReviewDraft((current) => ({ ...current, name: event.target.value }))}
-                      className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="github-import-role" className="mb-1 block text-xs font-medium">{t("github.projectRole")}</label>
-                    <input
-                      id="github-import-role"
-                      value={reviewDraft.role}
-                      onChange={(event) => updateReviewDraft((current) => ({ ...current, role: event.target.value }))}
-                      className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground"
-                    />
-                  </div>
+                <div>
+                  <label htmlFor="github-import-name" className="mb-1 block text-xs font-medium">{t("github.projectName")}</label>
+                  <input
+                    id="github-import-name"
+                    value={reviewDraft.name}
+                    onChange={(event) => updateReviewDraft((current) => ({ ...current, name: event.target.value }))}
+                    className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground"
+                  />
                 </div>
 
                 <div className="mt-4">

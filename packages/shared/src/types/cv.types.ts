@@ -243,6 +243,7 @@ export interface GitHubRepoData {
   techStackAssessment?: string | null;
   detectedSkills?: string[];
   strengths?: string[];
+  cvHighlights?: string[];
   contributorCount?: number | null;
   topContributors?: ContributorInfo[];
   lastCommitDate?: string | null;

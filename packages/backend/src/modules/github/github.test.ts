@@ -21,6 +21,7 @@ jest.mock("../../lib/prisma", () => ({
       create: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      delete: jest.fn(),
     },
   },
 }));
@@ -66,7 +67,7 @@ const CV_ID = "03d5953f-4341-4935-9e64-3831e40fb2f7";
 const mockUser = (prisma as unknown as { user: { findUnique: jest.Mock; update: jest.Mock } }).user;
 const mockCV = (prisma as unknown as { cV: { findFirst: jest.Mock } }).cV;
 const mockProject = (prisma as unknown as { project: { count: jest.Mock; create: jest.Mock } }).project;
-const mockAnalysis = (prisma as unknown as { gitHubAnalysis: { findMany: jest.Mock; findFirst: jest.Mock } }).gitHubAnalysis;
+const mockAnalysis = (prisma as unknown as { gitHubAnalysis: { findMany: jest.Mock; findFirst: jest.Mock; delete: jest.Mock } }).gitHubAnalysis;
 const mockCacheDelete = cacheDelete as jest.MockedFunction<typeof cacheDelete>;
 const mockCacheGet = cacheGet as jest.MockedFunction<typeof cacheGet>;
 const mockCacheSet = cacheSet as jest.MockedFunction<typeof cacheSet>;
@@ -143,6 +144,11 @@ function buildCompletedAnalysisResult(overrides?: Record<string, unknown>) {
       detectedSkills: ["TypeScript", "React", "Node.js", "Testing"],
       complexityLevel: "complex",
       cvReadyDescription: "Built a full-stack workflow platform with React, TypeScript, PostgreSQL, and Playwright. Focused on maintainable architecture, automated testing, and delivery quality.",
+      cvHighlights: [
+        "Built a full-stack workflow platform spanning React frontends, Node.js APIs, and shared packages.",
+        "Implemented automated quality gates with Playwright, Vitest, and CI workflows.",
+        "Structured the codebase for maintainable delivery across frontend, backend, and shared contracts.",
+      ],
     },
     ...overrides,
   };
@@ -387,7 +393,7 @@ describe("githubService", () => {
         repoFullName: "mock-dev/platform-repo",
         draft: {
           name: "platform-repo",
-          role: "Full-Stack Developer",
+          role: null,
           githubRepoData: expect.objectContaining({
             projectType: "fullstack",
             qualityScore: 84,
@@ -402,10 +408,10 @@ describe("githubService", () => {
         },
       });
 
-      expect(result.draft.technologies).toEqual(expect.arrayContaining(["TypeScript", "React", "PostgreSQL", "Playwright"]));
+      expect(result.draft.technologies).toEqual(expect.arrayContaining(["Node.js", "React", "PostgreSQL", "Playwright", "Express", "Tailwind CSS", "Vitest", "Vite"]));
       expect(result.draft.highlights).toEqual(expect.arrayContaining([
-        expect.stringContaining("full-stack codebase"),
-        expect.stringContaining("CI/CD workflows"),
+        expect.stringContaining("full-stack workflow platform"),
+        expect.stringContaining("automated quality gates"),
       ]));
     });
 
@@ -437,6 +443,24 @@ describe("githubService", () => {
         }),
       });
       expect(mockCacheDelete).toHaveBeenCalledWith(`cv:${USER_ID}:${CV_ID}`);
+    });
+
+    it("allows completed analyses to be removed from history", async () => {
+      mockAnalysis.findFirst.mockResolvedValue(buildCompletedAnalysis());
+      mockAnalysis.delete.mockResolvedValue({ id: "analysis-1" });
+
+      const result = await githubService.deleteAnalysis(USER_ID, "analysis-1");
+
+      expect(mockAnalysis.delete).toHaveBeenCalledWith({ where: { id: "analysis-1" } });
+      expect(result).toEqual({ id: "analysis-1", deleted: true });
+    });
+
+    it("blocks removal while an analysis is still processing", async () => {
+      mockAnalysis.findFirst.mockResolvedValue({ id: "analysis-1", status: "PROCESSING" });
+
+      await expect(githubService.deleteAnalysis(USER_ID, "analysis-1")).rejects.toThrow(
+        "Active analyses cannot be removed until processing finishes"
+      );
     });
   });
 });

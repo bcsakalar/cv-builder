@@ -104,6 +104,11 @@ export const githubApi = {
     return res.data.data;
   },
 
+  async deleteAnalysis(id: string): Promise<{ id: string; deleted: true }> {
+    const res = await api.delete(`/github/analyses/${id}`);
+    return res.data.data;
+  },
+
   async getImportPreview(analysisId: string): Promise<GitHubProjectImportPreview> {
     const res = await api.post("/github/import-preview", { analysisId });
     return res.data.data;

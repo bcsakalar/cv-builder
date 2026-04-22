@@ -23,6 +23,7 @@ router.get("/repos/:owner/:repo", asyncHandler(githubController.repoDetails));
 router.post("/analyze", asyncHandler(githubController.analyze));
 router.get("/analyses", asyncHandler(githubController.getAnalyses));
 router.get("/analyses/:id", asyncHandler(githubController.getAnalysis));
+router.delete("/analyses/:id", asyncHandler(githubController.deleteAnalysis));
 router.get("/analyses/:id/stream", asyncHandler(githubController.streamAnalysis));
 
 // Import to CV

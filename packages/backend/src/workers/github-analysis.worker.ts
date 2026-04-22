@@ -269,6 +269,157 @@ function categorizeDeps(deps: Record<string, string>) {
   return { frameworks, testingTools, buildTools, linters, databases, uiLibraries };
 }
 
+const IMPORTANT_TECH_ALIASES: Record<string, string> = {
+  react: "React",
+  next: "Next.js",
+  vue: "Vue",
+  nuxt: "Nuxt",
+  angular: "Angular",
+  svelte: "Svelte",
+  express: "Express",
+  fastify: "Fastify",
+  nestjs: "NestJS",
+  "@nestjs/core": "NestJS",
+  koa: "Koa",
+  hono: "Hono",
+  django: "Django",
+  flask: "Flask",
+  fastapi: "FastAPI",
+  rails: "Ruby on Rails",
+  laravel: "Laravel",
+  astro: "Astro",
+  remix: "Remix",
+  "@remix-run/react": "Remix",
+  "@tanstack/react-router": "TanStack Router",
+  "@tanstack/react-query": "TanStack Query",
+  zustand: "Zustand",
+  redux: "Redux",
+  "@reduxjs/toolkit": "Redux Toolkit",
+  "react-hook-form": "React Hook Form",
+  zod: "Zod",
+  axios: "Axios",
+  bullmq: "BullMQ",
+  bull: "Bull",
+  prisma: "Prisma",
+  "@prisma/client": "Prisma",
+  mongoose: "Mongoose",
+  sequelize: "Sequelize",
+  typeorm: "TypeORM",
+  "drizzle-orm": "Drizzle ORM",
+  knex: "Knex",
+  pg: "PostgreSQL",
+  postgres: "PostgreSQL",
+  redis: "Redis",
+  ioredis: "Redis",
+  mongodb: "MongoDB",
+  mysql2: "MySQL",
+  sqlite3: "SQLite",
+  "better-sqlite3": "SQLite",
+  tailwindcss: "Tailwind CSS",
+  "@tailwindcss/vite": "Tailwind CSS",
+  "@mui/material": "MUI",
+  antd: "Ant Design",
+  "styled-components": "Styled Components",
+  "@emotion/react": "Emotion",
+  "@playwright/test": "Playwright",
+  playwright: "Playwright",
+  vitest: "Vitest",
+  jest: "Jest",
+  cypress: "Cypress",
+  vite: "Vite",
+  webpack: "Webpack",
+  turbo: "Turborepo",
+  nx: "Nx",
+  eslint: "ESLint",
+  prettier: "Prettier",
+  biome: "Biome",
+  "@biomejs/biome": "Biome",
+  puppeteer: "Puppeteer",
+  "socket.io": "Socket.IO",
+};
+
+function canonicalTechnologyName(name: string, allowRaw = false): string | null {
+  const normalized = name.trim();
+  if (!normalized) return null;
+
+  const lower = normalized.toLowerCase();
+  if (IMPORTANT_TECH_ALIASES[lower]) {
+    return IMPORTANT_TECH_ALIASES[lower];
+  }
+
+  if (lower.startsWith("@radix-ui/")) {
+    return "Radix UI";
+  }
+
+  return allowRaw ? normalized : null;
+}
+
+function uniqueTechnologyList(values: Array<string | null | undefined>, limit = Number.POSITIVE_INFINITY): string[] {
+  const technologies: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    if (!value) continue;
+    const canonical = canonicalTechnologyName(value, true);
+    if (!canonical) continue;
+
+    const key = canonical.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    technologies.push(canonical);
+
+    if (technologies.length >= limit) {
+      break;
+    }
+  }
+
+  return technologies;
+}
+
+function extractNotableTechnologies(options: {
+  languages: string[];
+  topics: string[];
+  dependencyInfo: {
+    dependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+    frameworks: string[];
+    testingTools: string[];
+    buildTools: string[];
+    linters: string[];
+    databases: string[];
+    uiLibraries: string[];
+  } | null;
+}): string[] {
+  const dependencyInfo = options.dependencyInfo;
+  const dependencyNames = dependencyInfo
+    ? [
+        ...Object.keys(dependencyInfo.dependencies),
+        ...Object.keys(dependencyInfo.devDependencies),
+      ]
+        .map((name) => canonicalTechnologyName(name))
+        .filter((name): name is string => Boolean(name))
+    : [];
+  const technologyTopics = options.topics
+    .map((topic) => canonicalTechnologyName(topic))
+    .filter((topic): topic is string => Boolean(topic));
+
+  return uniqueTechnologyList(
+    [
+      ...dependencyNames,
+      ...(dependencyInfo?.frameworks ?? []),
+      ...(dependencyInfo?.databases ?? []),
+      ...(dependencyInfo?.uiLibraries ?? []),
+      ...(dependencyInfo?.testingTools ?? []),
+      ...(dependencyInfo?.buildTools ?? []),
+      ...(dependencyInfo?.linters ?? []),
+      ...technologyTopics,
+      ...options.languages,
+    ],
+    18,
+  );
+}
+
 type ManifestSource =
   | "npm"
   | "pip"
@@ -1215,6 +1366,7 @@ export function startGitHubAnalysisWorker() {
           strengths: string[];
           improvements: string[];
           cvReadyDescription: string;
+          cvHighlights: string[];
         } | null = null;
 
         try {
@@ -1338,18 +1490,16 @@ export function startGitHubAnalysisWorker() {
           bytes,
         }));
 
-        // Extract technologies from languages + topics + dependencies
-        const allTechs = [
-          ...Object.keys(languages),
-          ...(repo.topics ?? []),
-        ];
-        if (dependencyInfo) {
-          allTechs.push(
-            ...dependencyInfo.frameworks,
-            ...dependencyInfo.databases,
-            ...dependencyInfo.uiLibraries,
-          );
-        }
+        const prioritizedLanguages = languageBreakdown
+          .sort((left, right) => right.percentage - left.percentage)
+          .slice(0, 4)
+          .map((language) => language.language);
+
+        const allTechs = extractNotableTechnologies({
+          languages: prioritizedLanguages,
+          topics: repo.topics ?? [],
+          dependencyInfo,
+        });
 
         const result = {
           // Original fields
@@ -1366,7 +1516,7 @@ export function startGitHubAnalysisWorker() {
           topics: repo.topics ?? [],
           languages: languageBreakdown,
           primaryLanguage: languageBreakdown[0]?.language ?? null,
-          technologies: [...new Set(allTechs)],
+          technologies: allTechs,
           totalCommits: commits.length,
           recentCommits: commits.slice(0, 10).map(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

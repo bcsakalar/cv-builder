@@ -23,6 +23,12 @@ export const importPreviewSchema = z.object({
 
 export type ImportPreviewInput = z.infer<typeof importPreviewSchema>;
 
+export const analysisIdParamsSchema = z.object({
+  id: z.string().uuid("Invalid analysis ID"),
+});
+
+export type AnalysisIdParamsInput = z.infer<typeof analysisIdParamsSchema>;
+
 const projectImportOverridesSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(5000).optional(),

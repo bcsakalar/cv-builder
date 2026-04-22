@@ -50,6 +50,20 @@ export function useGitHubAnalyses(cvId?: string) {
   });
 }
 
+export function useDeleteGitHubAnalysis(cvId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => githubApi.deleteAnalysis(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ghKeys.analyses(cvId) });
+      qc.invalidateQueries({ queryKey: ghKeys.all });
+      toast.success(translate("toasts.github.analysisRemoved"));
+    },
+    onError: () => toast.error(translate("toasts.github.removeAnalysisFailed")),
+  });
+}
+
 export function useGitHubOAuthAuthorize() {
   return useMutation({
     mutationFn: () => githubApi.authorizeOAuth(),

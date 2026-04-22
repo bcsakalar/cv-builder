@@ -25,7 +25,7 @@ function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
 }
 
-const MAX_IMPORT_TECHNOLOGIES = 8;
+const MAX_IMPORT_TECHNOLOGIES = 12;
 const MAX_IMPORT_HIGHLIGHTS = 4;
 const GITHUB_OAUTH_SCOPE = "read:user repo";
 const GITHUB_OAUTH_STATE_TTL_SECONDS = 600;
@@ -70,14 +70,16 @@ function truncateSentences(value: string, sentenceCount: number): string {
   return sentences.slice(0, sentenceCount).join(" ").trim();
 }
 
-function inferProjectRole(projectType: GitHubProjectType, contributorCount: number): string {
-  if (projectType === "frontend") return "Frontend Developer";
-  if (projectType === "backend") return "Backend Developer";
-  if (projectType === "mobile") return "Mobile Developer";
-  if (projectType === "library" || projectType === "cli") return "Software Engineer";
-  if (projectType === "monorepo" && contributorCount > 1) return "Full-Stack Developer";
-  if (projectType === "fullstack" || projectType === "monorepo") return "Full-Stack Developer";
-  return "Software Developer";
+function normalizeProjectDate(value: string | null | undefined): string | null {
+  if (!hasText(value)) return null;
+
+  const normalized = value.trim();
+  const isoDateMatch = normalized.match(/^(\d{4}-\d{2})/);
+  if (isoDateMatch?.[1]) {
+    return isoDateMatch[1];
+  }
+
+  return normalized;
 }
 
 function buildTechnologyList(result: DeepAnalysisResult): string[] {
@@ -86,17 +88,19 @@ function buildTechnologyList(result: DeepAnalysisResult): string[] {
     .sort((left, right) => right.percentage - left.percentage)
     .slice(0, 3)
     .map((language) => language.language);
+  const curatedTechnologies = result.technologies ?? [];
 
   return uniqueStrings(
     [
-      result.primaryLanguage,
-      ...languagePriority,
+      ...curatedTechnologies,
       ...(dependencyInfo?.frameworks ?? []),
       ...(dependencyInfo?.databases ?? []),
       ...(dependencyInfo?.uiLibraries ?? []),
-      ...(dependencyInfo?.testingTools ?? []).slice(0, 2),
-      ...(dependencyInfo?.buildTools ?? []).slice(0, 1),
-      ...(result.technologies ?? []),
+      ...(dependencyInfo?.testingTools ?? []),
+      ...(dependencyInfo?.buildTools ?? []),
+      ...(dependencyInfo?.linters ?? []),
+      result.primaryLanguage,
+      ...languagePriority,
     ],
     MAX_IMPORT_TECHNOLOGIES
   );
@@ -169,6 +173,10 @@ function buildQualityHighlight(result: DeepAnalysisResult): string | null {
 }
 
 function buildHighlights(result: DeepAnalysisResult): string[] {
+  const aiHighlights = (result.aiInsights?.cvHighlights ?? [])
+    .map(normalizeListItem)
+    .filter((value): value is string => value !== null)
+    .slice(0, MAX_IMPORT_HIGHLIGHTS);
   const aiStrengths = (result.aiInsights?.strengths ?? [])
     .map(normalizeListItem)
     .filter((value): value is string => value !== null)
@@ -177,6 +185,7 @@ function buildHighlights(result: DeepAnalysisResult): string[] {
 
   return uniqueStrings(
     [
+      ...aiHighlights,
       ...aiStrengths,
       buildArchitectureHighlight(projectType),
       buildQualityHighlight(result),
@@ -207,6 +216,7 @@ function buildGitHubRepoData(result: DeepAnalysisResult): GitHubRepoData {
     techStackAssessment: result.aiInsights?.techStackAssessment ?? null,
     detectedSkills: result.aiInsights?.detectedSkills ?? [],
     strengths: result.aiInsights?.strengths ?? [],
+    cvHighlights: result.aiInsights?.cvHighlights ?? [],
     contributorCount: result.contributors?.length ?? 0,
     topContributors: (result.contributors ?? []).slice(0, 3),
     lastCommitDate: result.commitAnalytics?.lastCommitDate ?? null,
@@ -230,17 +240,16 @@ function buildGitHubRepoData(result: DeepAnalysisResult): GitHubRepoData {
 function buildImportDraft(result: DeepAnalysisResult): GitHubProjectImportDraft {
   const isPrivate = result.isPrivate === true;
   const repoUrl = isPrivate ? null : (result.url ?? null);
-  const contributorCount = result.contributors?.length ?? 0;
 
   return {
     name: result.name ?? result.repoFullName,
     description: buildProjectDescription(result),
-    role: inferProjectRole(result.fileTree?.projectType ?? "unknown", contributorCount),
+    role: null,
     technologies: buildTechnologyList(result),
     url: repoUrl,
     githubUrl: repoUrl,
-    startDate: result.createdAt ?? new Date().toISOString(),
-    endDate: result.updatedAt ?? null,
+    startDate: normalizeProjectDate(result.createdAt) ?? new Date().toISOString().slice(0, 7),
+    endDate: null,
     highlights: buildHighlights(result),
     isFromGitHub: true,
     githubRepoData: buildGitHubRepoData(result),
@@ -629,6 +638,20 @@ export const githubService = {
     const result = getCompletedAnalysisResult(analysis);
 
     return buildImportPreviewPayload(analysis.id, result);
+  },
+
+  async deleteAnalysis(userId: string, id: string) {
+    const analysis = await prisma.gitHubAnalysis.findFirst({ where: { id, userId } });
+    if (!analysis) {
+      throw ApiError.notFound("Analysis not found");
+    }
+
+    if (analysis.status === "PENDING" || analysis.status === "PROCESSING") {
+      throw ApiError.badRequest("Active analyses cannot be removed until processing finishes");
+    }
+
+    await prisma.gitHubAnalysis.delete({ where: { id: analysis.id } });
+    return { id: analysis.id, deleted: true };
   },
 
   // ── Import to CV ─────────────────────────────────────────

@@ -1080,6 +1080,7 @@ export const aiService = {
     strengths: string[];
     improvements: string[];
     cvReadyDescription: string;
+    cvHighlights: string[];
   }> {
     const { system, buildPrompt } = AI_PROMPTS.deepRepoAnalysis;
 
@@ -1104,6 +1105,7 @@ export const aiService = {
       strengths: Array.isArray(parsed.strengths) ? parsed.strengths.filter((strength): strength is string => typeof strength === "string") : [],
       improvements: Array.isArray(parsed.improvements) ? parsed.improvements.filter((improvement): improvement is string => typeof improvement === "string") : [],
       cvReadyDescription: typeof parsed.cvReadyDescription === "string" ? parsed.cvReadyDescription : "",
+      cvHighlights: Array.isArray(parsed.cvHighlights) ? parsed.cvHighlights.filter((highlight): highlight is string => typeof highlight === "string") : [],
     };
   },
 };

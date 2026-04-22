@@ -99,10 +99,6 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
     technologyLimit: expanded ? Math.max(project.technologies.length, 8) : 8,
     highlightLimit: expanded ? Math.max(allHighlights.length, 2) : 2,
   });
-  const ghData = previewProject.githubRepoData;
-  const projectTypeLabel = ghData?.projectType
-    ? t(`github.projectTypes.${ghData.projectType}`, { defaultValue: ghData.projectType })
-    : null;
   const hasHiddenHighlights = allHighlights.length > previewProject.highlights.length;
 
   return (
@@ -115,11 +111,6 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
             {project.isFromGitHub && (
               <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
                 <Github size={10} /> {t("nav.github")}
-              </span>
-            )}
-            {projectTypeLabel && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-                {projectTypeLabel}
               </span>
             )}
           </div>

@@ -191,6 +191,7 @@ export interface AIAnalysisInsight {
   strengths: string[];
   improvements: string[];
   cvReadyDescription: string;
+  cvHighlights: string[];
 }
 
 export interface GitHubImpactScoreBreakdown {

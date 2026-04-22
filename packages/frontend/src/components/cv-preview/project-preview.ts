@@ -1,5 +1,4 @@
 import type { GitHubRepoData } from "@cvbuilder/shared";
-import { translateForLocale } from "@/i18n/helpers";
 import { formatPreviewDateRange } from "./date-range";
 
 interface BuildPreviewProjectOptions {
@@ -47,15 +46,13 @@ export function buildPreviewProject(
   const githubRepoData = asGitHubRepoData(project.githubRepoData);
   const technologies = asStringArray(project.technologies);
   const highlights = asStringArray(project.highlights).slice(0, highlightLimit);
-  const projectTypeLabel = githubRepoData?.projectType
-    ? translateForLocale(locale, `github.projectTypes.${githubRepoData.projectType}`)
-    : null;
+  const isFromGitHub = project.isFromGitHub === true;
   const dateRange = formatPreviewDateRange(project.startDate, project.endDate, false, locale);
 
   return {
     name: asText(project.name) ?? "",
     description: asText(project.description),
-    metaLine: joinParts([asText(project.role), projectTypeLabel, dateRange || null]),
+    metaLine: joinParts([asText(project.role), isFromGitHub ? null : (dateRange || null)]),
     signalLine: null,
     technologies: technologies.slice(0, technologyLimit),
     extraTechnologyCount: Math.max(0, technologies.length - technologyLimit),

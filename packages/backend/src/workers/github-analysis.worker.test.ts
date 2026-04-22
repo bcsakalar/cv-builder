@@ -196,6 +196,11 @@ describe("github-analysis.worker manifest handling", () => {
       strengths: ["Readable code"],
       improvements: [],
       cvReadyDescription: "Built a public TypeScript project.",
+      cvHighlights: [
+        "Built a lightweight public TypeScript project.",
+        "Kept the codebase simple and readable.",
+        "Documented the project with a clear README.",
+      ],
     });
 
     mockFetch.mockImplementation((url: string, init?: { headers?: Record<string, string> }) => {

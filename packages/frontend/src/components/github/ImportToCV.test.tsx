@@ -40,7 +40,7 @@ const importPreview: GitHubProjectImportPreview = {
   draft: {
     name: "platform-repo",
     description: "Built a full-stack workflow platform with a strong testing and delivery setup.",
-    role: "Full-Stack Developer",
+    role: null,
     technologies: ["TypeScript", "React", "PostgreSQL", "Playwright"],
     url: "https://github.com/mock-dev/platform-repo",
     githubUrl: "https://github.com/mock-dev/platform-repo",
@@ -119,8 +119,6 @@ describe("ImportToCV", () => {
 
     await user.clear(screen.getByLabelText("Project Name"));
     await user.type(screen.getByLabelText("Project Name"), "Reviewed Platform");
-    await user.clear(screen.getByLabelText("Role"));
-    await user.type(screen.getByLabelText("Role"), "Lead Full-Stack Developer");
     await user.clear(screen.getByLabelText("Project Description"));
     await user.type(screen.getByLabelText("Project Description"), "Balanced project summary for recruiter and CTO review.");
     await user.clear(screen.getByLabelText("Technologies"));
@@ -135,7 +133,6 @@ describe("ImportToCV", () => {
       analysisId: "analysis-1",
       projectOverrides: {
         name: "Reviewed Platform",
-        role: "Lead Full-Stack Developer",
         description: "Balanced project summary for recruiter and CTO review.",
         technologies: ["TypeScript", "React", "PostgreSQL"],
         highlights: ["Led architecture across modules", "Shipped CI/CD automation"],

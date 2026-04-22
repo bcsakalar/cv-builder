@@ -202,40 +202,51 @@ Example output:
   },
 
   githubProfileSummary: {
-    system: `You are a tech recruiter writing a developer profile summary. Based on the GitHub analysis results, generate a professional developer profile. Rules:
-- 2-3 paragraph narrative
-- Highlight key technologies, frameworks, and architectural patterns
-- Mention notable projects, their complexity, and impact
-- Reference specific skills demonstrated across repositories
-- Professional and engaging tone
+    system: `You are an expert technical recruiter and engineering brand strategist. Based on the GitHub analysis results, generate a polished developer profile summary.
+
+Rules:
+- Write 2 concise paragraphs in a natural, professional voice.
+- Write as if the developer is introducing their engineering profile to a recruiter or hiring manager.
+- Synthesize across repositories instead of listing them one by one.
+- Emphasize what kinds of systems were built, the level of ownership, engineering quality, and notable stack depth.
+- Mention concrete technologies only when they support a clear capability or area of expertise.
+- Do NOT mention dates, raw repository stats, guessed job titles, or raw labels like "backend", "frontend", or "monorepo" as standalone descriptors.
+- Do NOT copy repository metadata verbatim; turn it into smooth narrative.
+- Keep it recruiter-readable and technically credible.
 - Output ONLY the profile text, nothing else`,
     buildPrompt: (analyses: Record<string, unknown>[]) => {
-      const lines: string[] = ["Analyzed GitHub Repositories:\n"];
+      const lines: string[] = ["Create a polished developer profile summary from the following repository evidence:\n"];
       for (const a of analyses) {
         const result = a.result as Record<string, unknown> | undefined;
         if (!result) continue;
-        lines.push(`- ${result.name}: ${result.description ?? "No description"}`);
-        if (result.primaryLanguage) lines.push(`  Primary: ${result.primaryLanguage}`);
+        lines.push(`## ${result.name}`);
+        if (result.description) lines.push(`Repository description: ${result.description}`);
         const techs = result.technologies as string[] | undefined;
-        if (techs?.length) lines.push(`  Technologies: ${techs.join(", ")}`);
-        lines.push(`  Stars: ${result.stars ?? 0}, Forks: ${result.forks ?? 0}`);
+        if (techs?.length) lines.push(`Core technologies: ${techs.join(", ")}`);
 
-        // Deep analysis data
         const depInfo = result.dependencyInfo as Record<string, unknown> | undefined;
         if (depInfo) {
           const fw = depInfo.frameworks as string[] | undefined;
-          if (fw?.length) lines.push(`  Frameworks: ${fw.join(", ")}`);
+          if (fw?.length) lines.push(`Frameworks: ${fw.join(", ")}`);
           const db = depInfo.databases as string[] | undefined;
-          if (db?.length) lines.push(`  Databases: ${db.join(", ")}`);
+          if (db?.length) lines.push(`Data and storage: ${db.join(", ")}`);
+          const ui = depInfo.uiLibraries as string[] | undefined;
+          if (ui?.length) lines.push(`UI and product layer: ${ui.join(", ")}`);
         }
         const ai = result.aiInsights as Record<string, unknown> | undefined;
         if (ai) {
-          if (ai.complexityLevel) lines.push(`  Complexity: ${ai.complexityLevel}`);
+          if (typeof ai.projectSummary === "string" && ai.projectSummary.trim()) {
+            lines.push(`Project summary: ${ai.projectSummary}`);
+          }
+          if (typeof ai.cvReadyDescription === "string" && ai.cvReadyDescription.trim()) {
+            lines.push(`CV-ready narrative: ${ai.cvReadyDescription}`);
+          }
           const skills = ai.detectedSkills as string[] | undefined;
-          if (skills?.length) lines.push(`  Skills Demonstrated: ${skills.join(", ")}`);
+          if (skills?.length) lines.push(`Demonstrated capabilities: ${skills.join(", ")}`);
+          const highlights = ai.cvHighlights as string[] | undefined;
+          if (highlights?.length) lines.push(`Project highlights: ${highlights.join(" | ")}`);
+          if (ai.complexityLevel) lines.push(`Complexity signal: ${ai.complexityLevel}`);
         }
-        const ft = result.fileTree as Record<string, unknown> | undefined;
-        if (ft?.projectType) lines.push(`  Project Type: ${ft.projectType}`);
         const cq = result.codeQuality as Record<string, unknown> | undefined;
         if (cq) {
           const flags: string[] = [];
@@ -243,27 +254,39 @@ Example output:
           if (cq.hasCI) flags.push("CI/CD");
           if (cq.hasTypeScript) flags.push("TypeScript");
           if (cq.hasDocker) flags.push("Docker");
-          if (flags.length) lines.push(`  Quality: ${flags.join(", ")}`);
+          if (flags.length) lines.push(`Engineering signals: ${flags.join(", ")}`);
         }
+
+        const impact = result.impactAnalysis as Record<string, unknown> | undefined;
+        const impactReasons = impact?.reasons as string[] | undefined;
+        if (impactReasons?.length) {
+          lines.push(`Impact signals: ${impactReasons.join(" | ")}`);
+        }
+
+        lines.push("");
       }
       return lines.join("\n");
     },
   },
 
   deepRepoAnalysis: {
-    system: `You are a SENIOR software architect and tech lead with 15+ years of experience reviewing code for hiring decisions. You are analyzing a GitHub repository to help a developer present this project on their CV/resume.
+    system: `You are a SENIOR software architect and tech lead with 15+ years of experience reviewing code for hiring decisions. You are analyzing a GitHub repository to help a developer present this project professionally on their CV/resume.
 
 Your analysis must be DEEP, SPECIFIC, and EXPERT-LEVEL. Do NOT give generic or surface-level observations. Actually look at the code structure, dependencies, and patterns to provide insights a hiring manager would find impressive.
 
 CRITICAL RULES:
 - Respond with ONLY a valid JSON object. No markdown fences, no explanation text.
-- "cvReadyDescription" MUST be in FIRST PERSON ("I developed...", "I built...", "I designed..."). This goes directly on the developer's CV.
+- "projectSummary" should explain what the system does and why the implementation is notable in recruiter-friendly language.
+- "cvReadyDescription" MUST be written in action-oriented CV language without first-person pronouns. Good examples: "Built...", "Designed...", "Implemented...".
+- "cvHighlights" MUST contain exactly 3 or 4 short bullet-ready items suitable for a CV project section.
 - Be SPECIFIC — mention actual framework names, versions, patterns, and architecture decisions you observe.
 - Prioritize the signals that matter in hiring reviews: business/problem scope, ownership, engineering quality, architecture maturity, collaboration, and operational readiness.
 - Do NOT invent scale, users, or performance metrics that are not explicitly supported by the repository evidence.
 - "detectedSkills" must be concrete technical skills (e.g. "React 19 with Server Components", "PostgreSQL with pgvector", "BullMQ job queues", "JWT authentication") NOT generic ones like "JavaScript" or "coding".
 - "strengths" should highlight things that would impress a hiring manager.
 - "improvements" should be actionable senior-level suggestions, not obvious things.
+- Avoid raw labels like "backend", "frontend", or "monorepo" as standalone CV wording. If those concepts matter, explain them naturally as architecture choices.
+- Do NOT turn repository metadata into fake roles, date ranges, or exaggerated ownership.
 
 Required JSON shape:
 {
@@ -274,7 +297,8 @@ Required JSON shape:
   "detectedSkills": ["List 10-20 SPECIFIC technical skills demonstrated. Include framework names with versions if detectable, specific libraries, patterns (e.g. 'Repository Pattern', 'Event-driven architecture'), cloud services, databases, protocols, etc."],
   "strengths": ["4-6 short, high-value points: architecture decisions, code quality practices, advanced integrations, delivery discipline, collaboration signals, documentation or operational maturity"],
   "improvements": ["4-6 senior-level actionable suggestions: performance optimizations, security hardening, scalability improvements, code quality enhancements, missing best practices"],
-  "cvReadyDescription": "2-4 sentences in FIRST PERSON that would look excellent on a strong software engineer CV. Emphasize ownership, problem scope, notable architecture/engineering quality, and concrete stack choices. Keep it recruiter-readable and CTO-legible."
+  "cvReadyDescription": "2-4 sentences in polished CV language that would look excellent in a software engineer project section. Emphasize ownership, problem scope, architecture quality, and concrete stack choices. Keep it recruiter-readable and CTO-legible.",
+  "cvHighlights": ["Exactly 3 or 4 concise bullet-ready highlights for the CV project section. Each item should describe a meaningful implementation, system capability, or engineering quality signal without dates or fake titles."]
 }`,
     buildPrompt: (repoData: {
       name: string;

@@ -7,7 +7,7 @@ import Redis from "ioredis";
 import { env } from "../../config/env";
 import { requireAuthUser } from "../../middleware/auth";
 import { githubService } from "./github.service";
-import { connectGitHubSchema, analyzeRepoSchema, importPreviewSchema, importToCVSchema, bulkImportToCVSchema } from "./github.schema";
+import { connectGitHubSchema, analyzeRepoSchema, importPreviewSchema, importToCVSchema, bulkImportToCVSchema, analysisIdParamsSchema } from "./github.schema";
 import { sendCreated, sendSuccess } from "../../utils/api-response";
 import { ApiError } from "../../utils/api-error";
 import { progressChannel } from "../../workers/github-analysis.worker";
@@ -96,12 +96,17 @@ export const githubController = {
   },
 
   async getAnalysis(req: Request, res: Response) {
-    const id = req.params.id as string;
-    if (!id) throw ApiError.badRequest("id is required");
+    const { id } = analysisIdParamsSchema.parse(req.params);
     const cvId = typeof req.query.cvId === "string" ? req.query.cvId : undefined;
 
     const analysis = await githubService.getAnalysis(currentUserId(req), id, cvId);
     sendSuccess(res, analysis);
+  },
+
+  async deleteAnalysis(req: Request, res: Response) {
+    const { id } = analysisIdParamsSchema.parse(req.params);
+    const result = await githubService.deleteAnalysis(currentUserId(req), id);
+    sendSuccess(res, result);
   },
 
   async importPreview(req: Request, res: Response) {
@@ -131,8 +136,7 @@ export const githubController = {
    * Uses Redis Pub/Sub to receive events from the BullMQ worker.
    */
   async streamAnalysis(req: Request, res: Response) {
-    const id = req.params.id as string;
-    if (!id) throw ApiError.badRequest("id is required");
+    const { id } = analysisIdParamsSchema.parse(req.params);
 
     // Verify analysis exists
     const analysis = await githubService.getAnalysis(currentUserId(req), id);

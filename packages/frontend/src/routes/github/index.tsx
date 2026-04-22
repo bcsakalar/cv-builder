@@ -3,10 +3,10 @@ import { createRoute } from "@tanstack/react-router";
 import { rootRoute } from "../__root";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { useGitHubStatus, useGitHubAnalyses } from "@/hooks/useGitHub";
+import { useGitHubStatus, useGitHubAnalyses, useDeleteGitHubAnalysis } from "@/hooks/useGitHub";
 import { useGetCVs } from "@/hooks/useCV";
 import { useQueryClient } from "@tanstack/react-query";
-import { Github, Clock, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Github, Clock, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getDateLocale, getStatusLabel } from "@/i18n/helpers";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ function GitHubPage() {
   const { data: cvs = [] } = useGetCVs();
   const [selectedCvId, setSelectedCvId] = useState<string>("");
   const { data: analyses } = useGitHubAnalyses(selectedCvId || undefined);
+  const deleteAnalysisMutation = useDeleteGitHubAnalysis(selectedCvId || undefined);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const dateLocale = getDateLocale(i18n.language);
 
@@ -143,6 +144,42 @@ function GitHubPage() {
                               <p className="mt-0.5 text-xs text-red-500">{a.error}</p>
                             )}
                           </div>
+                          {(a.status === "COMPLETED" || a.status === "FAILED") && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const confirmed = window.confirm(
+                                  t("github.removeAnalysisConfirm", {
+                                    repoName: repoName ?? a.username,
+                                    defaultValue: `Remove analysis for ${repoName ?? a.username}?`,
+                                  })
+                                );
+
+                                if (!confirmed) {
+                                  return;
+                                }
+
+                                deleteAnalysisMutation.mutate(a.id, {
+                                  onSuccess: () => {
+                                    if (expandedId === a.id) {
+                                      setExpandedId(null);
+                                    }
+                                  },
+                                });
+                              }}
+                              disabled={deleteAnalysisMutation.isPending && deleteAnalysisMutation.variables === a.id}
+                              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive disabled:opacity-50"
+                              aria-label={t("github.removeAnalysis", { defaultValue: "Remove analysis" })}
+                              title={t("github.removeAnalysis", { defaultValue: "Remove analysis" })}
+                            >
+                              {deleteAnalysisMutation.isPending && deleteAnalysisMutation.variables === a.id ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                            </button>
+                          )}
                           {a.status === "COMPLETED" && a.result && (
                             <span className="text-muted-foreground">
                               {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
