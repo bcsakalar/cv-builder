@@ -44,6 +44,11 @@ export const cvController = {
     sendNoContent(res);
   },
 
+  async clone(req: Request, res: Response) {
+    const cv = await cvService.clone(currentUserId(req), param(req, "id"), req.body);
+    sendCreated(res, cv, "CV variant created successfully");
+  },
+
   async updateSectionOrder(req: Request, res: Response) {
     const cv = await cvService.updateSectionOrder(currentUserId(req), param(req, "id"), req.body.sectionOrder);
     sendSuccess(res, cv, "Section order updated");
@@ -66,6 +71,11 @@ export const cvController = {
   async upsertSummary(req: Request, res: Response) {
     const result = await cvService.upsertSummary(currentUserId(req), param(req, "cvId"), req.body);
     sendSuccess(res, result, "Summary saved");
+  },
+
+  async upsertCoverLetter(req: Request, res: Response) {
+    const result = await cvService.upsertCoverLetter(currentUserId(req), param(req, "cvId"), req.body);
+    sendSuccess(res, result, "Cover letter saved");
   },
 
   // ── Experience ─────────────────────────────────────────

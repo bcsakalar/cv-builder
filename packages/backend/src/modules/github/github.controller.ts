@@ -17,6 +17,16 @@ function currentUserId(req: Request): string {
   return requireAuthUser(req).userId;
 }
 
+function resolveAnalysisLocale(req: Request, requestedLocale?: string): "en" | "tr" {
+  if (requestedLocale === "tr" || requestedLocale === "en") {
+    return requestedLocale;
+  }
+
+  const header = req.headers["accept-language"];
+  const locale = typeof header === "string" ? header.split(",")[0]?.split("-")[0]?.trim() : undefined;
+  return locale === "tr" ? "tr" : "en";
+}
+
 export const githubController = {
   async connect(req: Request, res: Response) {
     const { token } = connectGitHubSchema.parse(req.body);
@@ -34,10 +44,32 @@ export const githubController = {
     sendSuccess(res, result);
   },
 
+  async oauthAuthorize(req: Request, res: Response) {
+    const result = await githubService.getOAuthAuthorizeUrl(currentUserId(req));
+    sendSuccess(res, result);
+  },
+
+  async oauthCallback(req: Request, res: Response) {
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+
+    try {
+      const redirectUrl = await githubService.completeOAuthCallback(code, state);
+      res.redirect(302, redirectUrl);
+    } catch (error) {
+      logger.warn("GitHub OAuth callback failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      const message = encodeURIComponent(error instanceof Error ? error.message : "GitHub OAuth failed");
+      res.redirect(302, `${env.CORS_ORIGIN.replace(/\/$/, "")}/github?github_oauth=error&message=${message}`);
+    }
+  },
+
   async repos(req: Request, res: Response) {
     const page = Number(req.query.page) || 1;
     const perPage = Number(req.query.perPage) || 30;
-    const repos = await githubService.getRepos(currentUserId(req), page, perPage);
+    const cvId = typeof req.query.cvId === "string" ? req.query.cvId : undefined;
+    const repos = await githubService.getRepos(currentUserId(req), page, perPage, cvId);
     sendSuccess(res, repos);
   },
 
@@ -51,23 +83,24 @@ export const githubController = {
   },
 
   async analyze(req: Request, res: Response) {
-    const { repoFullName } = analyzeRepoSchema.parse(req.body);
-    const header = req.headers["accept-language"];
-    const locale = typeof header === "string" ? header.split(",")[0]?.split("-")[0]?.trim() : "en";
+    const { repoFullName, locale: requestedLocale } = analyzeRepoSchema.parse(req.body);
+    const locale = resolveAnalysisLocale(req, requestedLocale);
     const analysis = await githubService.createAnalysis(currentUserId(req), repoFullName, locale);
     sendCreated(res, analysis);
   },
 
   async getAnalyses(req: Request, res: Response) {
-    const analyses = await githubService.getAnalyses(currentUserId(req));
+    const cvId = typeof req.query.cvId === "string" ? req.query.cvId : undefined;
+    const analyses = await githubService.getAnalyses(currentUserId(req), cvId);
     sendSuccess(res, analyses);
   },
 
   async getAnalysis(req: Request, res: Response) {
     const id = req.params.id as string;
     if (!id) throw ApiError.badRequest("id is required");
+    const cvId = typeof req.query.cvId === "string" ? req.query.cvId : undefined;
 
-    const analysis = await githubService.getAnalysis(currentUserId(req), id);
+    const analysis = await githubService.getAnalysis(currentUserId(req), id, cvId);
     sendSuccess(res, analysis);
   },
 

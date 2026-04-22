@@ -4,7 +4,7 @@ import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
-import { getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
+import { getLanguageProficiencyLabelForLocale, getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
 
 interface TemplateProps {
   cv: CVDetail;
@@ -15,6 +15,8 @@ export function MinimalTemplate({ cv, theme }: TemplateProps) {
   const pi = cv.personalInfo as Record<string, string> | null;
   const photoUrl = resolveProfilePhotoUrl(pi);
   const sectionLabel = (sectionKey: string) => getSectionLabelForLocale(sectionKey, cv.locale);
+  const languageProficiencyLabel = (value: unknown) =>
+    getLanguageProficiencyLabelForLocale(typeof value === "string" ? value : undefined, cv.locale);
 
   const heading = (title: string) => (
     <h2 className="mb-4 text-xs font-medium uppercase tracking-[0.3em]" style={{ color: theme.secondaryColor }}>
@@ -59,6 +61,13 @@ export function MinimalTemplate({ cv, theme }: TemplateProps) {
       {cv.summary?.content && (
         <section className="mb-8">
           <p className="whitespace-pre-line font-light">{cv.summary.content}</p>
+        </section>
+      )}
+
+      {cv.coverLetter?.content && (
+        <section className="mb-8">
+          {heading(sectionLabel("coverLetter"))}
+          <p className="whitespace-pre-line font-light">{cv.coverLetter.content}</p>
         </section>
       )}
 
@@ -144,7 +153,7 @@ export function MinimalTemplate({ cv, theme }: TemplateProps) {
         <section className="mb-8">
           {heading(sectionLabel("languages"))}
           <p className="font-light">
-            {cv.languages.map((l: Record<string, unknown>) => `${String(l.name)} (${String(l.proficiency)})`).join(" · ")}
+            {cv.languages.map((l: Record<string, unknown>) => `${String(l.name)} (${languageProficiencyLabel(l.proficiency)})`).join(" · ")}
           </p>
         </section>
       )}

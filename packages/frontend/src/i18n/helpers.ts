@@ -24,6 +24,14 @@ export function getSectionLabelForLocale(sectionKey: string, locale?: string): s
   });
 }
 
+export function getLanguageProficiencyLabelForLocale(proficiency?: string, locale?: string): string {
+  if (!proficiency) return "";
+
+  return translateForLocale(locale, languageProficiencyLabelKeys[proficiency] ?? "", {
+    defaultValue: proficiency,
+  });
+}
+
 const templateNameKeys: Record<string, string> = {
   "classic-professional": "templates.templateNames.classicProfessional",
   "modern-minimal": "templates.templateNames.modernMinimal",

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -27,10 +28,14 @@ export function SummarySection({ cv }: { cv: CVDetail }) {
     resolver: zodResolver(schema),
     defaultValues: cv.summary ?? { content: "", aiGenerated: false },
   });
+
+  useEffect(() => {
+    form.reset(cv.summary ?? { content: "", aiGenerated: false });
+  }, [cv.summary, form]);
   const content = useWatch({ control: form.control, name: "content" }) ?? "";
 
   useAutoSave(form.watch, (data) => {
-    upsertSummary.mutate(data);
+    return upsertSummary.mutateAsync(data);
   });
 
   const handleGenerate = () => {

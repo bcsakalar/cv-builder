@@ -8,6 +8,7 @@ import type { Prisma } from "@prisma/client";
 const CV_WITH_RELATIONS = {
   personalInfo: true,
   summary: true,
+  coverLetter: true,
   experiences: { orderBy: { orderIndex: "asc" as const } },
   educations: { orderBy: { orderIndex: "asc" as const } },
   skills: { orderBy: { orderIndex: "asc" as const } },
@@ -121,6 +122,18 @@ export const cvRepository = {
 
   async getSummary(cvId: string) {
     return prisma.summary.findUnique({ where: { cvId } });
+  },
+
+  async upsertCoverLetter(cvId: string, data: { content: string; aiGenerated: boolean }) {
+    return prisma.coverLetter.upsert({
+      where: { cvId },
+      create: { ...data, cv: { connect: { id: cvId } } },
+      update: data,
+    });
+  },
+
+  async getCoverLetter(cvId: string) {
+    return prisma.coverLetter.findUnique({ where: { cvId } });
   },
 
   // ── Experience ───────────────────────────────────────

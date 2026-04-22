@@ -6,6 +6,7 @@ import type { DeepAnalysisResult, GitHubProjectImportOverrides, GitHubProjectImp
 import { api } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/constants";
 import { createAuthenticatedEventSource } from "@/lib/authenticated-event-source";
+import type { AppLocale } from "@/i18n/locale";
 
 export interface GitHubRepo {
   id: number;
@@ -18,6 +19,9 @@ export interface GitHubRepo {
   url: string;
   updatedAt: string;
   topics: string[];
+  fitScore?: number | null;
+  fitReasons?: string[];
+  recommended?: boolean;
 }
 
 export interface RepoDetails {
@@ -46,6 +50,7 @@ export interface GitHubAnalysis {
 export interface ConnectionStatus {
   connected: boolean;
   username: string | null;
+  oauthConfigured: boolean;
 }
 
 export interface AnalysisProgressEvent {
@@ -69,8 +74,13 @@ export const githubApi = {
     return res.data.data;
   },
 
-  async getRepos(page = 1): Promise<GitHubRepo[]> {
-    const res = await api.get(`/github/repos?page=${page}`);
+  async authorizeOAuth(): Promise<{ authUrl: string }> {
+    const res = await api.get("/github/oauth/authorize");
+    return res.data.data;
+  },
+
+  async getRepos(page = 1, cvId?: string): Promise<GitHubRepo[]> {
+    const res = await api.get("/github/repos", { params: { page, ...(cvId ? { cvId } : {}) } });
     return res.data.data;
   },
 
@@ -79,18 +89,18 @@ export const githubApi = {
     return res.data.data;
   },
 
-  async analyze(repoFullName: string): Promise<GitHubAnalysis> {
-    const res = await api.post("/github/analyze", { repoFullName });
+  async analyze(input: { repoFullName: string; locale?: AppLocale }): Promise<GitHubAnalysis> {
+    const res = await api.post("/github/analyze", input);
     return res.data.data;
   },
 
-  async getAnalyses(): Promise<GitHubAnalysis[]> {
-    const res = await api.get("/github/analyses");
+  async getAnalyses(cvId?: string): Promise<GitHubAnalysis[]> {
+    const res = await api.get("/github/analyses", { params: cvId ? { cvId } : undefined });
     return res.data.data;
   },
 
-  async getAnalysis(id: string): Promise<GitHubAnalysis> {
-    const res = await api.get(`/github/analyses/${id}`);
+  async getAnalysis(id: string, cvId?: string): Promise<GitHubAnalysis> {
+    const res = await api.get(`/github/analyses/${id}`, { params: cvId ? { cvId } : undefined });
     return res.data.data;
   },
 

@@ -46,35 +46,40 @@ vi.mock("@/hooks/useCV", () => ({
   }),
 }));
 
-const buildCv = (overrides?: Partial<CVDetail>): CVDetail => ({
-  id: "cv-1",
-  title: "Test CV",
-  slug: "test-cv",
-  status: "DRAFT",
-  locale: "en",
-  isAtsOptimized: false,
-  sectionOrder: [],
-  themeConfig: {},
-  templateId: "template-1",
-  createdAt: "2026-04-12T00:00:00.000Z",
-  updatedAt: "2026-04-12T00:00:00.000Z",
-  template: { id: "template-1", name: "Modern", slug: "modern-minimal" },
-  personalInfo: null,
-  summary: null,
-  experiences: [],
-  educations: [],
-  skills: [],
-  projects: [],
-  certifications: [],
-  languages: [],
-  volunteerExperiences: [],
-  publications: [],
-  awards: [],
-  references: [],
-  hobbies: [],
-  customSections: [],
-  ...overrides,
-});
+const buildCv = (overrides?: Partial<CVDetail>): CVDetail => {
+  const { coverLetter, ...restOverrides } = overrides ?? {};
+
+  return {
+    id: "cv-1",
+    title: "Test CV",
+    slug: "test-cv",
+    status: "DRAFT",
+    locale: "en",
+    isAtsOptimized: false,
+    sectionOrder: [],
+    themeConfig: {},
+    templateId: "template-1",
+    createdAt: "2026-04-12T00:00:00.000Z",
+    updatedAt: "2026-04-12T00:00:00.000Z",
+    template: { id: "template-1", name: "Modern", slug: "modern-minimal" },
+    personalInfo: null,
+    summary: null,
+    coverLetter: coverLetter ?? null,
+    experiences: [],
+    educations: [],
+    skills: [],
+    projects: [],
+    certifications: [],
+    languages: [],
+    volunteerExperiences: [],
+    publications: [],
+    awards: [],
+    references: [],
+    hobbies: [],
+    customSections: [],
+    ...restOverrides,
+  };
+};
 
 describe("CV section contract alignment", () => {
   beforeEach(() => {

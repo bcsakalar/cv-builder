@@ -16,9 +16,9 @@ export type AIToolKind =
 
 export type AIArtifactStatus = "ready" | "applied" | "dismissed" | "failed";
 
-export type AITargetSection = "summary" | "skills" | "experience" | "projects" | "github" | "general";
+export type AITargetSection = "summary" | "coverLetter" | "skills" | "experience" | "projects" | "github" | "general";
 
-export const AI_AUTO_APPLY_TOOLS = ["summary", "skills", "tailor"] as const satisfies readonly AIToolKind[];
+export const AI_AUTO_APPLY_TOOLS = ["summary", "skills", "tailor", "cover_letter"] as const satisfies readonly AIToolKind[];
 
 export interface AIHealthResult {
   provider: "ollama";
@@ -30,10 +30,37 @@ export interface AIHealthResult {
   availableModels: string[];
 }
 
+export interface AIATSSectionScore {
+  sectionId: string;
+  score: number;
+  reason: string;
+}
+
+export interface AIATSFixChecklistItem {
+  id: string;
+  label: string;
+  reason: string;
+  priority: "high" | "medium" | "low";
+  sectionId?: string;
+}
+
+export interface AIRecruiterReadabilityMetrics {
+  score: number;
+  averageSentenceLength: number;
+  metricCoverage: number;
+  actionVerbUsage: number;
+  notes: string[];
+}
+
 export interface AIATSResult {
   score: number;
   issues: string[];
   suggestions: string[];
+  keywordGaps: string[];
+  hardSkillGaps: string[];
+  sectionScores: AIATSSectionScore[];
+  recruiterReadability: AIRecruiterReadabilityMetrics;
+  fixChecklist: AIATSFixChecklistItem[];
 }
 
 export interface AIReviewSectionResult {

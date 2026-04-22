@@ -30,9 +30,19 @@ const envSchema = z.object({
   // CORS
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
 
+  // GitHub OAuth
+  GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
+  GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GITHUB_OAUTH_REDIRECT_URI: z.string().url().optional(),
+
   // Upload
   UPLOAD_DIR: z.string().default("./uploads"),
   MAX_FILE_SIZE: z.coerce.number().int().positive().default(5242880),
+  RECRUITER_MAX_BATCH_FILES: z.coerce.number().int().positive().default(100),
+  RECRUITER_MAX_PDF_SIZE: z.coerce.number().int().positive().default(10485760),
+  RECRUITER_LINK_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  RECRUITER_LINK_MAX_REDIRECTS: z.coerce.number().int().min(0).max(10).default(3),
+  RECRUITER_BATCH_CONCURRENCY: z.coerce.number().int().positive().default(2),
 
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),

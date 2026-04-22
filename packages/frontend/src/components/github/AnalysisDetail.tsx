@@ -27,6 +27,7 @@ import {
   Lightbulb,
   TrendingUp,
   Gauge,
+  Target,
 } from "lucide-react";
 import { ImportToCV } from "./ImportToCV";
 import { normalizeAppLocale } from "@/i18n/locale";
@@ -268,6 +269,44 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
         {/* ── OVERVIEW TAB ── */}
         {activeTab === "overview" && (
           <div className="space-y-4">
+            {data.impactAnalysis && (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <InsightStatCard
+                  label={t("github.impactScore", { defaultValue: "Impact score" })}
+                  value={`${data.impactAnalysis.impactScore}`}
+                  icon={<TrendingUp size={14} className="text-emerald-500" />}
+                />
+                <InsightStatCard
+                  label={t("github.fitScore", { defaultValue: "CV fit score" })}
+                  value={data.impactAnalysis.fitScore !== null ? `${data.impactAnalysis.fitScore}` : "—"}
+                  icon={<Target size={14} className="text-blue-500" />}
+                />
+                <InsightStatCard
+                  label={t("github.documentation", { defaultValue: "Documentation" })}
+                  value={`${data.impactAnalysis.breakdown.documentation}`}
+                  icon={<FileText size={14} className="text-purple-500" />}
+                />
+                <InsightStatCard
+                  label={t("github.engineering", { defaultValue: "Engineering" })}
+                  value={`${data.impactAnalysis.breakdown.engineering}`}
+                  icon={<Shield size={14} className="text-amber-500" />}
+                />
+              </div>
+            )}
+
+            {data.impactAnalysis?.reasons && data.impactAnalysis.reasons.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-sm font-medium">{t("github.impactHighlights", { defaultValue: "Impact highlights" })}</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.impactAnalysis.reasons.map((reason) => (
+                    <span key={reason} className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
+                      {reason}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Languages */}
             {data.languages.length > 0 && (
               <div>
@@ -760,3 +799,23 @@ const LANG_COLORS: Record<string, string> = {
 };
 
 const FALLBACK_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4", "#ef4444"];
+
+function InsightStatCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        {icon}
+      </div>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}

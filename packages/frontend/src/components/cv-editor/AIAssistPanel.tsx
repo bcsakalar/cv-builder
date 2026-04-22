@@ -1,8 +1,11 @@
 import type {
   AIArtifact,
+  AIATSFixChecklistItem,
   AIATSResult,
+  AIATSSectionScore,
   AICVReviewResult,
   AIJobMatchResult,
+  AIRecruiterReadabilityMetrics,
   AITailorResult,
   AIToolKind,
 } from "@cvbuilder/shared";
@@ -83,12 +86,69 @@ function asStringArray(value: unknown): string[] {
     : [];
 }
 
+function asNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function asChecklistItems(value: unknown): AIATSFixChecklistItem[] {
+  return Array.isArray(value)
+    ? value
+        .filter(isRecord)
+        .map((item): AIATSFixChecklistItem => ({
+          id: asString(item.id) || crypto.randomUUID(),
+          label: asString(item.label),
+          reason: asString(item.reason),
+          priority: item.priority === "high" || item.priority === "medium" || item.priority === "low" ? item.priority : "medium",
+          sectionId: asString(item.sectionId) || undefined,
+        }))
+        .filter((item) => item.label.length > 0)
+    : [];
+}
+
+function asSectionScores(value: unknown): AIATSSectionScore[] {
+  return Array.isArray(value)
+    ? value
+        .filter(isRecord)
+        .map((item) => ({
+          sectionId: asString(item.sectionId),
+          score: asNumber(item.score),
+          reason: asString(item.reason),
+        }))
+        .filter((item) => item.sectionId.length > 0)
+    : [];
+}
+
+function asReadabilityMetrics(value: unknown): AIRecruiterReadabilityMetrics {
+  if (!isRecord(value)) {
+    return {
+      score: 0,
+      averageSentenceLength: 0,
+      metricCoverage: 0,
+      actionVerbUsage: 0,
+      notes: [],
+    };
+  }
+
+  return {
+    score: asNumber(value.score),
+    averageSentenceLength: asNumber(value.averageSentenceLength),
+    metricCoverage: asNumber(value.metricCoverage),
+    actionVerbUsage: asNumber(value.actionVerbUsage),
+    notes: asStringArray(value.notes),
+  };
+}
+
 function asAtsResult(value: unknown): AIATSResult | null {
   if (!isRecord(value) || typeof value.score !== "number") return null;
   return {
     score: value.score,
     issues: asStringArray(value.issues),
     suggestions: asStringArray(value.suggestions),
+    keywordGaps: asStringArray(value.keywordGaps),
+    hardSkillGaps: asStringArray(value.hardSkillGaps),
+    sectionScores: asSectionScores(value.sectionScores),
+    recruiterReadability: asReadabilityMetrics(value.recruiterReadability),
+    fixChecklist: asChecklistItems(value.fixChecklist),
   };
 }
 
@@ -222,7 +282,7 @@ function ResultActions({
           type="button"
           onClick={onApply}
           disabled={applyPending}
-          className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs text-white hover:bg-primary/90 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {applyPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           {t("ai.actions.apply")}
@@ -259,6 +319,7 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
   const [matchJobDescription, setMatchJobDescription] = useState("");
   const [tailorJobDescription, setTailorJobDescription] = useState("");
   const [coverJobDescription, setCoverJobDescription] = useState("");
+  const [atsJobDescription, setAtsJobDescription] = useState("");
 
   const summaryMut = useGenerateSummary();
   const skillsMut = useSuggestSkills();
@@ -272,7 +333,9 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
   const applyMut = useApplyAIArtifact();
   const dismissMut = useDismissAIArtifact();
 
-  const artifacts = historyQuery.data ?? [];
+  const artifacts = [...(historyQuery.data ?? [])].sort(
+    (left, right) => new Date(right.updatedAt ?? right.createdAt).getTime() - new Date(left.updatedAt ?? left.createdAt).getTime()
+  );
   const selectedArtifact = selectedArtifactId ? artifacts.find((artifact) => artifact.id === selectedArtifactId) ?? null : null;
 
   const getLatestArtifact = (tool: AIToolKind) => {
@@ -291,15 +354,44 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
     (activeTab === "match" ? jobMatchMut.data?.artifact : null) ||
     (activeTab === "tailor" ? tailorMut.data?.artifact : null) ||
     (activeTab === "cover" ? coverMut.data?.artifact : null);
-  const currentArtifact = getLatestArtifact(currentTool) ?? currentMutationArtifact;
+  const currentStatusOverrideArtifact =
+    (applyMut.data?.artifact.tool === currentTool ? applyMut.data.artifact : null) ||
+    (dismissMut.data?.tool === currentTool ? dismissMut.data : null);
+  const selectedArtifactWithLatestStatus =
+    selectedArtifact && currentStatusOverrideArtifact?.id === selectedArtifact.id
+      ? currentStatusOverrideArtifact
+      : selectedArtifact;
+  const currentMutationArtifactWithLatestStatus = currentMutationArtifact
+    ? currentStatusOverrideArtifact?.id === currentMutationArtifact.id
+      ? currentStatusOverrideArtifact
+      : artifacts.find((artifact) => artifact.id === currentMutationArtifact.id) ?? currentMutationArtifact
+    : null;
+  const currentArtifact =
+    (selectedArtifactWithLatestStatus?.tool === currentTool ? selectedArtifactWithLatestStatus : null) ??
+    currentMutationArtifactWithLatestStatus ??
+    getLatestArtifact(currentTool);
 
-  const summaryText = summaryMut.data?.summary ?? asString(getLatestArtifact("summary")?.output);
-  const suggestedSkills = skillsMut.data?.skills ?? asStringArray(getLatestArtifact("skills")?.output);
-  const atsResult = atsMut.data ?? asAtsResult(getLatestArtifact("ats")?.output);
-  const reviewResult = reviewMut.data ?? asReviewResult(getLatestArtifact("review")?.output);
-  const matchResult = jobMatchMut.data ?? asJobMatchResult(getLatestArtifact("job_match")?.output);
-  const tailorResult = tailorMut.data ?? asTailorResult(getLatestArtifact("tailor")?.output);
-  const coverLetterText = coverMut.data?.coverLetter ?? asString(getLatestArtifact("cover_letter")?.output);
+  const summaryText =
+    summaryMut.data?.summary ??
+    (selectedArtifact?.tool === "summary" ? asString(selectedArtifact.output) : asString(getLatestArtifact("summary")?.output));
+  const suggestedSkills =
+    skillsMut.data?.skills ??
+    (selectedArtifact?.tool === "skills" ? asStringArray(selectedArtifact.output) : asStringArray(getLatestArtifact("skills")?.output));
+  const atsResult =
+    atsMut.data ??
+    (selectedArtifact?.tool === "ats" ? asAtsResult(selectedArtifact.output) : asAtsResult(getLatestArtifact("ats")?.output));
+  const reviewResult =
+    reviewMut.data ??
+    (selectedArtifact?.tool === "review" ? asReviewResult(selectedArtifact.output) : asReviewResult(getLatestArtifact("review")?.output));
+  const matchResult =
+    jobMatchMut.data ??
+    (selectedArtifact?.tool === "job_match" ? asJobMatchResult(selectedArtifact.output) : asJobMatchResult(getLatestArtifact("job_match")?.output));
+  const tailorResult =
+    tailorMut.data ??
+    (selectedArtifact?.tool === "tailor" ? asTailorResult(selectedArtifact.output) : asTailorResult(getLatestArtifact("tailor")?.output));
+  const coverLetterText =
+    coverMut.data?.coverLetter ??
+    (selectedArtifact?.tool === "cover_letter" ? asString(selectedArtifact.output) : asString(getLatestArtifact("cover_letter")?.output));
 
   const aiUnavailable = healthQuery.data ? !healthQuery.data.ready : false;
 
@@ -397,7 +489,7 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
                 }}
                 className={cn(
                   "rounded px-2 py-1 text-xs transition-colors",
-                  activeTab === tab.id ? "bg-primary text-white" : "hover:bg-accent"
+                  activeTab === tab.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                 )}
               >
                 {tab.label}
@@ -410,7 +502,10 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
               <button
                 data-testid="ai-review-submit"
                 type="button"
-                onClick={() => reviewMut.mutate(cvId)}
+                onClick={() => {
+                  setSelectedArtifactId(null);
+                  reviewMut.mutate(cvId);
+                }}
                 disabled={reviewMut.isPending || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
               >
@@ -496,7 +591,10 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
               <button
                 data-testid="ai-match-submit"
                 type="button"
-                onClick={() => jobMatchMut.mutate({ cvId, jobDescription: matchJobDescription })}
+                onClick={() => {
+                  setSelectedArtifactId(null);
+                  jobMatchMut.mutate({ cvId, jobDescription: matchJobDescription });
+                }}
                 disabled={jobMatchMut.isPending || !matchJobDescription.trim() || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm text-white hover:bg-cyan-700 disabled:opacity-50"
               >
@@ -557,7 +655,10 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
               <button
                 data-testid="ai-tailor-submit"
                 type="button"
-                onClick={() => tailorMut.mutate({ cvId, jobDescription: tailorJobDescription })}
+                onClick={() => {
+                  setSelectedArtifactId(null);
+                  tailorMut.mutate({ cvId, jobDescription: tailorJobDescription });
+                }}
                 disabled={tailorMut.isPending || !tailorJobDescription.trim() || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-700 disabled:opacity-50"
               >
@@ -622,7 +723,10 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
               <button
                 data-testid="ai-summary-submit"
                 type="button"
-                onClick={() => summaryMut.mutate(cvId)}
+                onClick={() => {
+                  setSelectedArtifactId(null);
+                  summaryMut.mutate(cvId);
+                }}
                 disabled={summaryMut.isPending || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50"
               >
@@ -653,7 +757,10 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
               <button
                 data-testid="ai-skills-submit"
                 type="button"
-                onClick={() => skillsMut.mutate(cvId)}
+                onClick={() => {
+                  setSelectedArtifactId(null);
+                  skillsMut.mutate(cvId);
+                }}
                 disabled={skillsMut.isPending || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
@@ -685,10 +792,23 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
 
           {activeTab === "ats" && (
             <div className="space-y-3">
+              <textarea
+                data-testid="ai-ats-job-description"
+                value={atsJobDescription}
+                onChange={(event) => setAtsJobDescription(event.target.value)}
+                placeholder={t("ai.placeholders.atsJobDescription", {
+                  defaultValue: "Paste a target job description to unlock keyword gaps, hard-skill gaps, and a fix checklist.",
+                })}
+                className="w-full rounded-lg border p-2 text-xs"
+                rows={4}
+              />
               <button
                 data-testid="ai-ats-submit"
                 type="button"
-                onClick={() => atsMut.mutate(cvId)}
+                onClick={() => {
+                  setSelectedArtifactId(null);
+                  atsMut.mutate({ cvId, jobDescription: atsJobDescription || undefined });
+                }}
                 disabled={atsMut.isPending || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
               >
@@ -698,18 +818,65 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
 
               {atsResult ? (
                 <div data-testid="ai-ats-result" className="space-y-3 rounded-lg border bg-card p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl font-bold" style={{ color: atsResult.score >= 70 ? "#16a34a" : atsResult.score >= 40 ? "#ca8a04" : "#dc2626" }}>
-                      {atsResult.score}
-                    </div>
-                    <span className="text-sm text-muted-foreground">/ 100</span>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <MetricCard
+                      label={t("ai.ats.overallScore", { defaultValue: "ATS score" })}
+                      value={`${atsResult.score}/100`}
+                      tone={atsResult.score >= 70 ? "green" : atsResult.score >= 40 ? "amber" : "red"}
+                    />
+                    <MetricCard
+                      label={t("ai.ats.readability", { defaultValue: "Recruiter readability" })}
+                      value={`${atsResult.recruiterReadability.score}/100`}
+                      tone={atsResult.recruiterReadability.score >= 70 ? "green" : atsResult.recruiterReadability.score >= 40 ? "amber" : "red"}
+                      meta={`${atsResult.recruiterReadability.averageSentenceLength.toFixed(1)} ${t("ai.ats.wordsPerSentence", { defaultValue: "avg words/sentence" })}`}
+                    />
                   </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <MetricCard
+                      label={t("ai.ats.metricCoverage", { defaultValue: "Measured bullet coverage" })}
+                      value={`${atsResult.recruiterReadability.metricCoverage}%`}
+                      tone={atsResult.recruiterReadability.metricCoverage >= 50 ? "green" : atsResult.recruiterReadability.metricCoverage >= 25 ? "amber" : "red"}
+                    />
+                    <MetricCard
+                      label={t("ai.ats.actionVerbUsage", { defaultValue: "Action verb usage" })}
+                      value={`${atsResult.recruiterReadability.actionVerbUsage}%`}
+                      tone={atsResult.recruiterReadability.actionVerbUsage >= 50 ? "green" : atsResult.recruiterReadability.actionVerbUsage >= 25 ? "amber" : "red"}
+                    />
+                  </div>
+
+                  {atsResult.sectionScores.length > 0 && (
+                    <SectionScoreList
+                      title={t("ai.ats.sectionScores", { defaultValue: "Section scores" })}
+                      items={atsResult.sectionScores}
+                    />
+                  )}
+
+                  {atsResult.keywordGaps.length > 0 && (
+                    <TagGroup title={t("ai.ats.keywordGaps", { defaultValue: "Keyword gaps" })} tone="amber" items={atsResult.keywordGaps} />
+                  )}
+                  {atsResult.hardSkillGaps.length > 0 && (
+                    <TagGroup title={t("ai.ats.hardSkillGaps", { defaultValue: "Missing hard skills" })} tone="red" items={atsResult.hardSkillGaps} />
+                  )}
 
                   {atsResult.issues.length > 0 && (
                     <SimpleList title={t("ai.ats.issues")} items={atsResult.issues} prefix="•" tone="red" />
                   )}
                   {atsResult.suggestions.length > 0 && (
                     <SimpleList title={t("ai.ats.suggestions")} items={atsResult.suggestions} prefix="✓" tone="green" />
+                  )}
+                  {atsResult.recruiterReadability.notes.length > 0 && (
+                    <SimpleList
+                      title={t("ai.ats.readabilityNotes", { defaultValue: "Readability notes" })}
+                      items={atsResult.recruiterReadability.notes}
+                      prefix="→"
+                    />
+                  )}
+                  {atsResult.fixChecklist.length > 0 && (
+                    <FixChecklistList
+                      title={t("ai.ats.fixChecklist", { defaultValue: "Fix this checklist" })}
+                      items={atsResult.fixChecklist}
+                    />
                   )}
 
                   <ResultActions
@@ -738,7 +905,10 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
               <button
                 data-testid="ai-cover-submit"
                 type="button"
-                onClick={() => coverMut.mutate({ cvId, jobDescription: coverJobDescription || undefined })}
+                onClick={() => {
+                  setSelectedArtifactId(null);
+                  coverMut.mutate({ cvId, jobDescription: coverJobDescription || undefined });
+                }}
                 disabled={coverMut.isPending || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
               >
@@ -848,6 +1018,90 @@ function SimpleList({
           <li key={item} className={cn("text-xs", toneClass)}>{prefix} {item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone,
+  meta,
+}: {
+  label: string;
+  value: string;
+  tone: "green" | "amber" | "red";
+  meta?: string;
+}) {
+  const toneClass = {
+    green: "border-green-200 bg-green-50 text-green-900 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-200",
+    amber: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200",
+    red: "border-red-200 bg-red-50 text-red-900 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200",
+  }[tone];
+
+  return (
+    <div className={cn("rounded-lg border p-3", toneClass)}>
+      <p className="text-[11px] font-medium uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      {meta && <p className="mt-1 text-xs opacity-80">{meta}</p>}
+    </div>
+  );
+}
+
+function SectionScoreList({ title, items }: { title: string; items: AIATSSectionScore[] }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium">{title}</p>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.sectionId} className="rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium capitalize">{item.sectionId}</span>
+              <span className="text-xs font-semibold">{item.score}/100</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  item.score >= 70 ? "bg-green-500" : item.score >= 40 ? "bg-amber-500" : "bg-red-500"
+                )}
+                style={{ width: `${Math.max(6, item.score)}%` }}
+              />
+            </div>
+            {item.reason && <p className="mt-2 text-xs text-muted-foreground">{item.reason}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FixChecklistList({ title, items }: { title: string; items: AIATSFixChecklistItem[] }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium">{title}</p>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.id} className="rounded-lg border p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium">{item.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
+              </div>
+              <span className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide",
+                item.priority === "high"
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                  : item.priority === "medium"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              )}>
+                {item.priority}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

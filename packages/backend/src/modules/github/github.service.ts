@@ -16,7 +16,10 @@ import { ApiError } from "../../utils/api-error";
 import { encrypt, decrypt } from "../../utils/helpers";
 import { logger } from "../../lib/logger";
 import { getQueue, QUEUE_NAMES } from "../../lib/queue";
-import { cacheDelete } from "../../lib/redis";
+import { cacheDelete, cacheGet, cacheSet } from "../../lib/redis";
+import { env } from "../../config/env";
+import { attachImpactAnalysis, buildQuickRepoRecommendation } from "./github.scoring";
+import crypto from "node:crypto";
 
 function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
@@ -24,6 +27,8 @@ function cvCacheKey(userId: string, cvId: string): string {
 
 const MAX_IMPORT_TECHNOLOGIES = 8;
 const MAX_IMPORT_HIGHLIGHTS = 4;
+const GITHUB_OAUTH_SCOPE = "read:user repo";
+const GITHUB_OAUTH_STATE_TTL_SECONDS = 600;
 
 function hasText(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -163,41 +168,6 @@ function buildQualityHighlight(result: DeepAnalysisResult): string | null {
   return `Engineering setup includes ${signals.slice(0, -1).join(", ")}, and ${signals.at(-1)}.`;
 }
 
-function buildDeliveryHighlight(result: DeepAnalysisResult): string | null {
-  const contributorCount = result.contributors?.length ?? 0;
-  const activeDays = result.commitAnalytics?.activeDays ?? 0;
-
-  if (result.totalCommits > 0 && contributorCount > 1) {
-    return `Maintained through ${result.totalCommits} commits in collaboration with ${contributorCount} contributors.`;
-  }
-
-  if (result.totalCommits > 0 && activeDays > 0) {
-    return `Maintained through ${result.totalCommits} commits over ${activeDays} active development days.`;
-  }
-
-  if (result.totalCommits > 0) {
-    return `Maintained through ${result.totalCommits} documented commits.`;
-  }
-
-  return null;
-}
-
-function buildAdoptionHighlight(result: DeepAnalysisResult): string | null {
-  if (result.stars > 0 && hasText(result.license)) {
-    return `Open-source repository with ${result.stars} GitHub stars and ${result.license} licensing.`;
-  }
-
-  if (result.stars > 0) {
-    return `Open-source repository with ${result.stars} GitHub stars.`;
-  }
-
-  if ((result.commitAnalytics?.recentActivityCount ?? 0) >= 5) {
-    return `${result.commitAnalytics?.recentActivityCount ?? 0} recent commits indicate active ongoing development.`;
-  }
-
-  return null;
-}
-
 function buildHighlights(result: DeepAnalysisResult): string[] {
   const aiStrengths = (result.aiInsights?.strengths ?? [])
     .map(normalizeListItem)
@@ -210,8 +180,6 @@ function buildHighlights(result: DeepAnalysisResult): string[] {
       ...aiStrengths,
       buildArchitectureHighlight(projectType),
       buildQualityHighlight(result),
-      buildDeliveryHighlight(result),
-      buildAdoptionHighlight(result),
     ],
     MAX_IMPORT_HIGHLIGHTS
   );
@@ -306,17 +274,70 @@ function applyImportOverrides(
   };
 }
 
-function getCompletedAnalysisResult(analysis: { status: string; result: Prisma.JsonValue | null }): DeepAnalysisResult {
+function getCompletedAnalysisResult(analysis: { status: string; result: Prisma.JsonValue | DeepAnalysisResult | null }): DeepAnalysisResult {
   if (analysis.status !== "COMPLETED") {
     throw ApiError.badRequest("Analysis is not completed yet");
   }
 
-  const result = analysis.result as DeepAnalysisResult | null;
+  const result = analysis.result as unknown as DeepAnalysisResult | null;
   if (!result?.repoFullName) {
     throw ApiError.badRequest("Analysis has no result data");
   }
 
   return result;
+}
+
+function oauthStateKey(state: string): string {
+  return `github-oauth:${state}`;
+}
+
+function ensureGitHubOAuthConfigured() {
+  if (!env.GITHUB_OAUTH_CLIENT_ID || !env.GITHUB_OAUTH_CLIENT_SECRET || !env.GITHUB_OAUTH_REDIRECT_URI) {
+    throw ApiError.badRequest("GitHub OAuth is not configured for this environment");
+  }
+
+  return {
+    clientId: env.GITHUB_OAUTH_CLIENT_ID,
+    clientSecret: env.GITHUB_OAUTH_CLIENT_SECRET,
+    redirectUri: env.GITHUB_OAUTH_REDIRECT_URI,
+  };
+}
+
+async function fetchGitHubProfile(token: string) {
+  const response = await fetch("https://api.github.com/user", {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.v3+json" },
+  });
+
+  if (!response.ok) {
+    throw ApiError.badRequest("Invalid GitHub token");
+  }
+
+  return response.json() as Promise<{ login: string; avatar_url: string; name: string }>;
+}
+
+async function getCvSignals(userId: string, cvId?: string) {
+  if (!cvId) return null;
+
+  const cv = await prisma.cV.findFirst({
+    where: { id: cvId, userId },
+    include: {
+      personalInfo: true,
+      summary: true,
+      experiences: true,
+      skills: true,
+      projects: true,
+    },
+  });
+
+  if (!cv) {
+    throw ApiError.notFound("CV");
+  }
+
+  return cv as unknown as Record<string, unknown>;
+}
+
+function decorateAnalysisResult(result: DeepAnalysisResult, cv: Record<string, unknown> | null) {
+  return attachImpactAnalysis(result, cv);
 }
 
 function buildImportPreviewPayload(analysisId: string, result: DeepAnalysisResult): GitHubProjectImportPreview {
@@ -339,15 +360,7 @@ function buildImportPreviewPayload(analysisId: string, result: DeepAnalysisResul
 
 export const githubService = {
   async connect(userId: string, token: string) {
-    // Validate token against GitHub API
-    const response = await fetch("https://api.github.com/user", {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.v3+json" },
-    });
-    if (!response.ok) {
-      throw ApiError.badRequest("Invalid GitHub token");
-    }
-
-    const user = (await response.json()) as { login: string; avatar_url: string; name: string };
+    const user = await fetchGitHubProfile(token);
 
     // Encrypt and store token
     const encryptedToken = encrypt(token);
@@ -369,11 +382,72 @@ export const githubService = {
     });
   },
 
-  async getRepos(userId: string, page = 1, perPage = 30) {
+  async getOAuthAuthorizeUrl(userId: string) {
+    const { clientId, redirectUri } = ensureGitHubOAuthConfigured();
+    const state = crypto.randomBytes(24).toString("hex");
+    await cacheSet(oauthStateKey(state), { userId }, GITHUB_OAUTH_STATE_TTL_SECONDS);
+
+    const authUrl = new URL("https://github.com/login/oauth/authorize");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("scope", GITHUB_OAUTH_SCOPE);
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("allow_signup", "true");
+
+    return { authUrl: authUrl.toString() };
+  },
+
+  async completeOAuthCallback(code: string, state: string) {
+    if (!code || !state) {
+      throw ApiError.badRequest("Missing GitHub OAuth callback parameters");
+    }
+
+    const statePayload = await cacheGet<{ userId: string }>(oauthStateKey(state));
+    if (!statePayload?.userId) {
+      throw ApiError.badRequest("GitHub OAuth session expired or is invalid");
+    }
+
+    const { clientId, clientSecret, redirectUri } = ensureGitHubOAuthConfigured();
+    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: redirectUri,
+        state,
+      }),
+    });
+
+    const tokenPayload = await tokenResponse.json() as { access_token?: string; error?: string; error_description?: string };
+    if (!tokenResponse.ok || !tokenPayload.access_token) {
+      throw ApiError.badRequest(tokenPayload.error_description || tokenPayload.error || "GitHub OAuth token exchange failed");
+    }
+
+    const githubUser = await fetchGitHubProfile(tokenPayload.access_token);
+    await prisma.user.update({
+      where: { id: statePayload.userId },
+      data: {
+        githubToken: encrypt(tokenPayload.access_token),
+        githubUsername: githubUser.login,
+      },
+    });
+
+    await cacheDelete(oauthStateKey(state));
+
+    return `${env.CORS_ORIGIN.replace(/\/$/, "")}/github?github_oauth=success`;
+  },
+
+  async getRepos(userId: string, page = 1, perPage = 30, cvId?: string) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.githubToken) throw ApiError.badRequest("GitHub not connected");
 
     const token = decrypt(user.githubToken);
+    const cvSignals = await getCvSignals(userId, cvId);
 
     const response = await fetch(
       `https://api.github.com/user/repos?sort=updated&direction=desc&per_page=${perPage}&page=${page}&type=owner`,
@@ -396,7 +470,7 @@ export const githubService = {
       private: boolean;
     }>;
 
-    return repos.map((r) => ({
+    const mappedRepos = repos.map((r) => ({
       id: r.id,
       fullName: r.full_name,
       name: r.name,
@@ -408,7 +482,20 @@ export const githubService = {
       updatedAt: r.updated_at,
       topics: r.topics ?? [],
       isPrivate: r.private,
+      ...buildQuickRepoRecommendation({
+        name: r.name,
+        description: r.description,
+        language: r.language,
+        topics: r.topics ?? [],
+        stargazersCount: r.stargazers_count,
+        forksCount: r.forks_count,
+        updatedAt: r.updated_at,
+      }, cvSignals),
     }));
+
+    return cvSignals
+      ? mappedRepos.sort((left, right) => (right.fitScore ?? 0) - (left.fitScore ?? 0) || left.name.localeCompare(right.name))
+      : mappedRepos;
   },
 
   async getRepoDetails(userId: string, repoFullName: string) {
@@ -472,24 +559,46 @@ export const githubService = {
     return {
       connected: !!user?.githubToken,
       username: user?.githubUsername ?? null,
+      oauthConfigured: Boolean(env.GITHUB_OAUTH_CLIENT_ID && env.GITHUB_OAUTH_CLIENT_SECRET && env.GITHUB_OAUTH_REDIRECT_URI),
     };
   },
 
-  async getAnalyses(userId: string) {
-    return prisma.gitHubAnalysis.findMany({
+  async getAnalyses(userId: string, cvId?: string) {
+    const cvSignals = await getCvSignals(userId, cvId);
+    const analyses = await prisma.gitHubAnalysis.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
     });
+
+    return analyses.map((analysis) => {
+      const result = analysis.status === "COMPLETED" && analysis.result
+        ? decorateAnalysisResult(analysis.result as unknown as DeepAnalysisResult, cvSignals)
+        : analysis.result;
+
+      return {
+        ...analysis,
+        result,
+      };
+    });
   },
 
-  async getAnalysis(userId: string, id: string) {
+  async getAnalysis(userId: string, id: string, cvId?: string) {
     const analysis = await prisma.gitHubAnalysis.findFirst({ where: { id, userId } });
     if (!analysis) throw ApiError.notFound("Analysis not found");
-    return analysis;
+    if (analysis.status !== "COMPLETED" || !analysis.result) {
+      return analysis;
+    }
+
+    const cvSignals = await getCvSignals(userId, cvId);
+    return {
+      ...analysis,
+      result: decorateAnalysisResult(analysis.result as unknown as DeepAnalysisResult, cvSignals),
+    };
   },
 
   async createAnalysis(userId: string, repoFullName: string, locale?: string) {
     const username = repoFullName.split("/")[0]!;
+    const analysisLocale = locale === "tr" ? "tr" : "en";
 
     logger.info("Creating GitHub analysis", { repoFullName });
 
@@ -507,7 +616,7 @@ export const githubService = {
       analysisId: analysis.id,
       repoFullName,
       userId,
-      locale: locale ?? "en",
+      locale: analysisLocale,
     });
 
     logger.info("GitHub analysis job enqueued", { analysisId: analysis.id, repoFullName });

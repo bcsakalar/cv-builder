@@ -106,7 +106,7 @@ export function useATSCheck() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (cvId: string) => aiApi.atsCheck(cvId),
+    mutationFn: ({ cvId, jobDescription }: { cvId: string; jobDescription?: string }) => aiApi.atsCheck(cvId, jobDescription),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
     },

@@ -72,6 +72,14 @@ function parseNumber(value: unknown, fallback: number): number {
   return fallback;
 }
 
+function parseFontSize(value: unknown, customFontSize: unknown): number {
+  if (value === "small") return 10;
+  if (value === "medium") return 11;
+  if (value === "large") return 12;
+  if (value === "custom") return parseNumber(customFontSize, DEFAULT_THEME.fontSize);
+  return parseNumber(value, DEFAULT_THEME.fontSize);
+}
+
 export function normalizeThemeConfig(themeConfig?: Record<string, unknown> | null): ThemeConfig {
   const config = themeConfig ?? {};
 
@@ -80,10 +88,10 @@ export function normalizeThemeConfig(themeConfig?: Record<string, unknown> | nul
     secondaryColor: parseString(config.secondaryColor, DEFAULT_THEME.secondaryColor),
     accentColor: parseString(config.accentColor, DEFAULT_THEME.accentColor),
     textColor: parseString(config.textColor, DEFAULT_THEME.textColor),
-    bgColor: parseString(config.bgColor, DEFAULT_THEME.bgColor),
+    bgColor: parseString(config.bgColor ?? config.backgroundColor, DEFAULT_THEME.bgColor),
     headingFont: parseString(config.headingFont, DEFAULT_THEME.headingFont),
     bodyFont: parseString(config.bodyFont, DEFAULT_THEME.bodyFont),
-    fontSize: parseNumber(config.fontSize, DEFAULT_THEME.fontSize),
+    fontSize: parseFontSize(config.fontSize, config.customFontSize),
     layout: parseLayout(config.layout),
   };
 }

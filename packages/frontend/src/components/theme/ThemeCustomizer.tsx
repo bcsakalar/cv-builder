@@ -82,7 +82,7 @@ export function ThemeCustomizer({ cvId, defaultThemeConfig }: ThemeCustomizerPro
                 data-testid={`theme-color-${key}`}
                 value={theme[key]}
                 onChange={(e) => handleChange({ [key]: e.target.value })}
-                className="h-8 w-12 cursor-pointer rounded border"
+                className="h-8 w-12 cursor-pointer rounded border border-input bg-transparent p-1"
               />
             </div>
           ))}
@@ -99,7 +99,7 @@ export function ThemeCustomizer({ cvId, defaultThemeConfig }: ThemeCustomizerPro
               data-testid="theme-heading-font"
               value={theme.headingFont}
               onChange={(e) => handleChange({ headingFont: e.target.value })}
-              className="w-full rounded-md border px-2 py-1.5 text-sm"
+              className="w-full rounded-md border border-input bg-card px-2 py-1.5 text-sm text-foreground shadow-sm"
             >
               {FONTS.map((f) => (
                 <option key={f} value={f}>{f}</option>
@@ -112,7 +112,7 @@ export function ThemeCustomizer({ cvId, defaultThemeConfig }: ThemeCustomizerPro
               data-testid="theme-body-font"
               value={theme.bodyFont}
               onChange={(e) => handleChange({ bodyFont: e.target.value })}
-              className="w-full rounded-md border px-2 py-1.5 text-sm"
+              className="w-full rounded-md border border-input bg-card px-2 py-1.5 text-sm text-foreground shadow-sm"
             >
               {FONTS.map((f) => (
                 <option key={f} value={f}>{f}</option>
@@ -125,7 +125,7 @@ export function ThemeCustomizer({ cvId, defaultThemeConfig }: ThemeCustomizerPro
               data-testid="theme-font-size"
               value={theme.fontSize}
               onChange={(e) => handleChange({ fontSize: Number(e.target.value) })}
-              className="w-full rounded-md border px-2 py-1.5 text-sm"
+              className="w-full rounded-md border border-input bg-card px-2 py-1.5 text-sm text-foreground shadow-sm"
             >
               {FONT_SIZES.map((s) => (
                 <option key={s} value={s}>{s}pt</option>

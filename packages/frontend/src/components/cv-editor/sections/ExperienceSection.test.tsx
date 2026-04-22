@@ -44,6 +44,7 @@ const cv: CVDetail = {
   template: { id: "template-1", name: "Modern", slug: "modern-minimal" },
   personalInfo: null,
   summary: null,
+  coverLetter: null,
   experiences: [
     {
       id: "exp-1",

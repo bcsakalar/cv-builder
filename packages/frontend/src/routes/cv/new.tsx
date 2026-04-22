@@ -86,7 +86,7 @@ function NewCVPage() {
             <select {...register("templateId")} className="w-full rounded-md border px-3 py-2 text-sm">
               <option value="">{t("cvNew.selectTemplate")}</option>
               {templates?.map((tmpl: { id: string; name: string; slug: string }) => (
-                <option key={tmpl.id} value={tmpl.slug}>{getTemplateName(tmpl.slug, tmpl.name)}</option>
+                <option key={tmpl.id} value={tmpl.id}>{getTemplateName(tmpl.slug, tmpl.name)}</option>
               ))}
             </select>
             {errors.templateId && (

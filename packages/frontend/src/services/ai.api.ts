@@ -62,8 +62,8 @@ export const aiApi = {
     return res.data.data;
   },
 
-  async atsCheck(cvId: string): Promise<AIATSCheckResponse> {
-    const res = await api.post(`/ai/ats-check/${cvId}`);
+  async atsCheck(cvId: string, jobDescription?: string): Promise<AIATSCheckResponse> {
+    const res = await api.post(`/ai/ats-check/${cvId}`, { jobDescription });
     return res.data.data;
   },
 

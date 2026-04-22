@@ -200,6 +200,30 @@ describe("aiService", () => {
     });
   });
 
+  describe("atsCheck", () => {
+    it("enriches ATS output with keyword gaps, section scores, and checklist items", async () => {
+      mockGenerate.mockResolvedValue(
+        JSON.stringify({
+          score: 72,
+          issues: ["Summary could be more targeted"],
+          suggestions: ["Add stronger project outcomes"],
+        })
+      );
+
+      const result = await aiService.atsCheck(USER_ID, CV_ID, {
+        locale: "en",
+        jobDescription: "Senior TypeScript backend engineer with PostgreSQL, Docker, CI/CD, and Playwright experience.",
+      });
+
+      expect(result.score).toBeGreaterThan(0);
+      expect(result.sectionScores.length).toBeGreaterThan(0);
+      expect(result.fixChecklist.length).toBeGreaterThan(0);
+      expect(result.keywordGaps).toEqual(expect.arrayContaining([expect.any(String)]));
+      expect(result.hardSkillGaps).toEqual(expect.arrayContaining([expect.any(String)]));
+      expect(result.artifact.tool).toBe("ats");
+    });
+  });
+
   describe("listArtifacts", () => {
     it("maps persisted artifacts back to API contracts", async () => {
       mockAiArtifactFindMany.mockResolvedValue([

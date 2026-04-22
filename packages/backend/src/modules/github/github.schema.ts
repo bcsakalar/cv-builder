@@ -12,6 +12,7 @@ export type ConnectGitHubInput = z.infer<typeof connectGitHubSchema>;
 
 export const analyzeRepoSchema = z.object({
   repoFullName: z.string().regex(/^[^/]+\/[^/]+$/, "Must be owner/repo format"),
+  locale: z.enum(["en", "tr"]).optional(),
 });
 
 export type AnalyzeRepoInput = z.infer<typeof analyzeRepoSchema>;

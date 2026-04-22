@@ -37,6 +37,14 @@ export const CV_SECTIONS: Record<string, SectionDefinition> = {
     isRequired: false,
     isRepeatable: false,
   },
+  coverLetter: {
+    key: "coverLetter",
+    label: "Cover Letter",
+    icon: "Mail",
+    description: "A tailored introduction or cover letter for your target role",
+    isRequired: false,
+    isRepeatable: false,
+  },
   experience: {
     key: "experience",
     label: "Work Experience",
@@ -138,6 +146,7 @@ export const CV_SECTIONS: Record<string, SectionDefinition> = {
 export const DEFAULT_SECTION_ORDER: string[] = [
   "personalInfo",
   "summary",
+  "coverLetter",
   "experience",
   "education",
   "skills",

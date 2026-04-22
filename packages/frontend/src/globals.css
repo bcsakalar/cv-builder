@@ -30,6 +30,10 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
   * {
     @apply border-border;
   }
@@ -41,6 +45,7 @@
 
   /* Dark mode overrides */
   .dark {
+    color-scheme: dark;
     --color-background: #0a0a0a;
     --color-foreground: #fafafa;
     --color-card: #171717;
@@ -60,6 +65,24 @@
     --color-border: #262626;
     --color-input: #262626;
     --color-ring: #d4d4d4;
+  }
+
+  input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    background-color: var(--color-card);
+    color: var(--color-foreground);
+    border-color: var(--color-input);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-muted-foreground);
+  }
+
+  option {
+    background-color: var(--color-card);
+    color: var(--color-foreground);
   }
 }
 

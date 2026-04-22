@@ -101,7 +101,10 @@ describe("ImportToCV", () => {
     await user.selectOptions(screen.getByTestId("github-import-cv-select"), "cv-1");
     await user.click(screen.getByTestId("github-import-review-button"));
 
-    expect(previewMutate).toHaveBeenCalledWith("analysis-1");
+    expect(previewMutate).toHaveBeenCalledWith(
+      "analysis-1",
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    );
   });
 
   it("submits reviewed project overrides from the import panel", async () => {

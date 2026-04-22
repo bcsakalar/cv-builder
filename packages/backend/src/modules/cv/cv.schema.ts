@@ -37,10 +37,11 @@ export const cvIdParamSchema = z.object({
 export const createCVSchema = z.object({
   title: z
     .string()
+    .trim()
     .min(1, "Title is required")
     .max(200, "Title must be 200 characters or less"),
-  templateId: z.string().min(1, "Template is required"),
-  locale: z.string().min(2).max(5).default("en"),
+  templateId: z.string().trim().min(1, "Template is required"),
+  locale: z.string().trim().min(2).max(5).default("en"),
 });
 
 export const updateCVSchema = z.object({
@@ -80,6 +81,12 @@ export const updateSectionOrderSchema = z.object({
   sectionOrder: z.array(z.string()).min(1, "At least one section is required"),
 });
 
+export const cloneCVSchema = z.object({
+  locale: z.string().min(2).max(5).optional(),
+  targetRole: z.string().trim().max(120).optional(),
+  title: z.string().trim().min(1).max(200).optional(),
+});
+
 // ── Section Schemas ──────────────────────────────────────
 
 export const personalInfoSchema = z.object({
@@ -107,6 +114,11 @@ export const personalInfoSchema = z.object({
 
 export const summarySchema = z.object({
   content: z.string().max(5000).default(""),
+  aiGenerated: z.boolean().default(false),
+});
+
+export const coverLetterSchema = z.object({
+  content: z.string().max(10000).default(""),
   aiGenerated: z.boolean().default(false),
 });
 
@@ -295,8 +307,10 @@ export type CreateCVInput = z.infer<typeof createCVSchema>;
 export type UpdateCVInput = z.infer<typeof updateCVSchema>;
 export type UpdateThemeInput = z.infer<typeof updateThemeSchema>;
 export type UpdateSectionOrderInput = z.infer<typeof updateSectionOrderSchema>;
+export type CloneCVInput = z.infer<typeof cloneCVSchema>;
 export type PersonalInfoInput = z.infer<typeof personalInfoSchema>;
 export type SummaryInput = z.infer<typeof summarySchema>;
+export type CoverLetterInput = z.infer<typeof coverLetterSchema>;
 export type ExperienceInput = z.infer<typeof experienceSchema>;
 export type EducationInput = z.infer<typeof educationSchema>;
 export type SkillInput = z.infer<typeof skillSchema>;

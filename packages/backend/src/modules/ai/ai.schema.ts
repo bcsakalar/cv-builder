@@ -41,6 +41,10 @@ export const coverLetterBodySchema = z.object({
   jobDescription: z.string().trim().min(1).optional(),
 });
 
+export const atsCheckBodySchema = z.object({
+  jobDescription: z.string().trim().min(10).optional(),
+});
+
 export const jobMatchBodySchema = z.object({
   jobDescription: z.string().trim().min(10, "Job description must be at least 10 characters"),
 });
@@ -58,6 +62,7 @@ export const artifactListQuerySchema = z.object({
 export type ImproveExperienceBody = z.infer<typeof improveExperienceBodySchema>;
 export type ImproveProjectBody = z.infer<typeof improveProjectBodySchema>;
 export type CoverLetterBody = z.infer<typeof coverLetterBodySchema>;
+export type AtsCheckBody = z.infer<typeof atsCheckBodySchema>;
 export type JobMatchBody = z.infer<typeof jobMatchBodySchema>;
 export type TailorBody = z.infer<typeof tailorBodySchema>;
 export type ArtifactListQuery = z.infer<typeof artifactListQuerySchema>;

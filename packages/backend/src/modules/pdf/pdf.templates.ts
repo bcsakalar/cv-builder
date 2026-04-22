@@ -14,6 +14,12 @@ interface ThemeConfig {
   layout: string;
 }
 
+type ThemeOverride = Partial<ThemeConfig> & {
+  backgroundColor?: string;
+  customFontSize?: number;
+  fontSize?: number | "small" | "medium" | "large" | "custom";
+};
+
 const DEFAULT_THEME: ThemeConfig = {
   primaryColor: "#2563eb",
   secondaryColor: "#64748b",
@@ -35,10 +41,78 @@ function esc(str: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
+function resolveFontSize(fontSize: unknown, customFontSize?: unknown): number {
+  if (typeof fontSize === "number" && Number.isFinite(fontSize)) {
+    return fontSize;
+  }
+
+  if (fontSize === "small") return 10;
+  if (fontSize === "large") return 12;
+  if (fontSize === "custom" && typeof customFontSize === "number" && Number.isFinite(customFontSize)) {
+    return customFontSize;
+  }
+
+  return DEFAULT_THEME.fontSize;
+}
+
+function resolveTheme(themeOverride?: ThemeOverride): ThemeConfig {
+  if (!themeOverride) {
+    return DEFAULT_THEME;
+  }
+
+  return {
+    ...DEFAULT_THEME,
+    ...themeOverride,
+    bgColor:
+      typeof themeOverride.bgColor === "string" && themeOverride.bgColor.trim().length > 0
+        ? themeOverride.bgColor
+        : typeof themeOverride.backgroundColor === "string" && themeOverride.backgroundColor.trim().length > 0
+        ? themeOverride.backgroundColor
+        : DEFAULT_THEME.bgColor,
+    fontSize: resolveFontSize(themeOverride.fontSize, themeOverride.customFontSize),
+  };
+}
+
+function getPdfLocale(cv: { locale?: string | null }): "tr" | "en" {
+  return String(cv.locale ?? "en").toLowerCase().startsWith("tr") ? "tr" : "en";
+}
+
+function getPdfLabels(locale: "tr" | "en") {
+  if (locale === "tr") {
+    return {
+      summary: "Profesyonel Özet",
+      coverLetter: "Ön Yazı",
+      experience: "Deneyim",
+      education: "Eğitim",
+      skills: "Yetenekler",
+      projects: "Projeler",
+      certifications: "Sertifikalar",
+      languages: "Diller",
+      technologies: "Teknolojiler",
+      present: "Devam Ediyor",
+    };
+  }
+
+  return {
+    summary: "Professional Summary",
+    coverLetter: "Cover Letter",
+    experience: "Work Experience",
+    education: "Education",
+    skills: "Skills",
+    projects: "Projects",
+    certifications: "Certifications",
+    languages: "Languages",
+    technologies: "Technologies",
+    present: "Present",
+  };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function renderCVToHTML(cv: any, _templateName: string, themeOverride?: Partial<ThemeConfig>): string {
-  const theme = { ...DEFAULT_THEME, ...themeOverride };
+export function renderCVToHTML(cv: any, _templateName: string, themeOverride?: ThemeOverride): string {
+  const theme = resolveTheme(themeOverride);
   const pi = cv.personalInfo ?? {};
+  const locale = getPdfLocale(cv);
+  const labels = getPdfLabels(locale);
 
   const sections: string[] = [];
 
@@ -57,7 +131,12 @@ export function renderCVToHTML(cv: any, _templateName: string, themeOverride?: P
 
   // Summary
   if (cv.summary?.content) {
-    sections.push(sectionBlock("Professional Summary", cv.summary.content, theme));
+    sections.push(sectionBlock(labels.summary, cv.summary.content, theme));
+  }
+
+  // Cover Letter
+  if (cv.coverLetter?.content) {
+    sections.push(sectionBlock(labels.coverLetter, cv.coverLetter.content, theme));
   }
 
   // Experience
@@ -69,14 +148,14 @@ export function renderCVToHTML(cv: any, _templateName: string, themeOverride?: P
       <div style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <strong>${esc(e.jobTitle)}</strong>
-          <span style="font-size:10px;color:${theme.secondaryColor}">${esc(e.startDate)} – ${e.isCurrent ? "Present" : esc(e.endDate)}</span>
+          <span style="font-size:10px;color:${theme.secondaryColor}">${esc(e.startDate)} – ${e.isCurrent ? labels.present : esc(e.endDate)}</span>
         </div>
         <div style="color:${theme.primaryColor};font-size:12px">${esc(e.company)}${e.location ? ` | ${esc(e.location)}` : ""}</div>
         ${e.description ? `<p style="margin:4px 0 0;white-space:pre-line">${esc(e.description)}</p>` : ""}
       </div>`
       )
       .join("");
-    sections.push(sectionHeading("Work Experience", theme) + items);
+    sections.push(sectionHeading(labels.experience, theme) + items);
   }
 
   // Education
@@ -87,46 +166,46 @@ export function renderCVToHTML(cv: any, _templateName: string, themeOverride?: P
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (e: any) => `
       <div style="margin-bottom:8px">
-        <strong>${esc(e.degree)}${e.fieldOfStudy ? ` in ${esc(e.fieldOfStudy)}` : ""}</strong>
+        <strong>${esc(e.degree)}${e.fieldOfStudy ? ` — ${esc(e.fieldOfStudy)}` : ""}</strong>
         <div style="font-size:11px;color:${theme.secondaryColor}">${esc(e.institution)}</div>
       </div>`
       )
       .join("");
-    sections.push(sectionHeading("Education", theme) + items);
+    sections.push(sectionHeading(labels.education, theme) + items);
   }
 
   // Skills
   if (cv.skills?.length) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tags = cv.skills.map((s: any) => `<span style="display:inline-block;background:${theme.primaryColor}15;color:${theme.primaryColor};padding:2px 8px;border-radius:4px;margin:2px;font-size:10px">${esc(s.name)}</span>`).join("");
-    sections.push(sectionHeading("Skills", theme) + `<div>${tags}</div>`);
+    sections.push(sectionHeading(labels.skills, theme) + `<div>${tags}</div>`);
   }
 
   // Projects
   if (cv.projects?.length) {
     const items = cv.projects
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((p: any) => `<div style="margin-bottom:8px"><strong>${esc(p.name)}</strong>${p.description ? `<p style="margin:2px 0">${esc(p.description)}</p>` : ""}</div>`)
+      .map((p: any) => `<div style="margin-bottom:10px"><strong>${esc(p.name)}</strong>${p.description ? `<p style="margin:2px 0">${esc(p.description)}</p>` : ""}${Array.isArray(p.technologies) && p.technologies.length > 0 ? `<p style="margin:4px 0 0;font-size:10px;color:${theme.secondaryColor}">${labels.technologies}: ${p.technologies.map(esc).join(", ")}</p>` : ""}</div>`)
       .join("");
-    sections.push(sectionHeading("Projects", theme) + items);
+    sections.push(sectionHeading(labels.projects, theme) + items);
   }
 
   // Certifications
   if (cv.certifications?.length) {
     const items = cv.certifications
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((c: any) => `<div>${esc(c.name)}${c.issuer ? ` — <span style="color:${theme.secondaryColor}">${esc(c.issuer)}</span>` : ""}</div>`)
+      .map((c: any) => `<div>${esc(c.name)}${c.issuingOrganization ? ` — <span style="color:${theme.secondaryColor}">${esc(c.issuingOrganization)}</span>` : ""}</div>`)
       .join("");
-    sections.push(sectionHeading("Certifications", theme) + items);
+    sections.push(sectionHeading(labels.certifications, theme) + items);
   }
 
   // Languages
   if (cv.languages?.length) {
     const items = cv.languages
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((l: any) => `${esc(l.language)}${l.proficiency ? ` (${esc(l.proficiency)})` : ""}`)
+      .map((l: any) => `${esc(l.name)}${l.proficiency ? ` (${esc(l.proficiency)})` : ""}`)
       .join(" &bull; ");
-    sections.push(sectionHeading("Languages", theme) + `<p>${items}</p>`);
+    sections.push(sectionHeading(labels.languages, theme) + `<p>${items}</p>`);
   }
 
   const body = sections.join("");

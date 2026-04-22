@@ -22,6 +22,7 @@ import { pdfRoutes } from "./modules/pdf/pdf.routes";
 import { githubRoutes } from "./modules/github/github.routes";
 import { aiRoutes } from "./modules/ai/ai.routes";
 import { uploadRoutes } from "./modules/upload/upload.routes";
+import { recruiterRoutes } from "./modules/recruiter/recruiter.routes";
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use("/api/pdf", requireAuth, pdfRoutes);
 app.use("/api/github", requireAuth, githubRoutes);
 app.use("/api/ai", requireAuth, aiRoutes);
 app.use("/api/upload", requireAuth, uploadRoutes);
+app.use("/api/recruiter", requireAuth, recruiterRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────
 app.use((_req, res) => {

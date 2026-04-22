@@ -82,7 +82,8 @@ export interface GitHubConnectInput {
 
 export interface GitHubAnalyzeInput {
   repoFullName: string;
-  cvId: string;
+  cvId?: string;
+  locale?: "en" | "tr";
 }
 
 export interface GitHubImportInput {
@@ -192,6 +193,21 @@ export interface AIAnalysisInsight {
   cvReadyDescription: string;
 }
 
+export interface GitHubImpactScoreBreakdown {
+  documentation: number;
+  engineering: number;
+  activity: number;
+  community: number;
+  relevance: number | null;
+}
+
+export interface GitHubImpactAnalysis {
+  impactScore: number;
+  fitScore: number | null;
+  breakdown: GitHubImpactScoreBreakdown;
+  reasons: string[];
+}
+
 export interface DeepAnalysisResult {
   // ── Original fields ──
   repoFullName: string;
@@ -226,4 +242,5 @@ export interface DeepAnalysisResult {
   codeQuality: CodeQualityMetrics;
   aiInsights: AIAnalysisInsight | null;
   readmeContent: string | null;
+  impactAnalysis?: GitHubImpactAnalysis | null;
 }

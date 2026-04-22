@@ -2,6 +2,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "myCvs": "My CVs",
+    "recruiter": "Recruiter Hub",
     "github": "GitHub",
     "templates": "Templates",
     "settings": "Settings"
@@ -94,6 +95,10 @@
       "label": "Professional Summary",
       "description": "A concise introduction tailored to your target role"
     },
+    "coverLetter": {
+      "label": "Cover Letter",
+      "description": "A tailored introduction or cover letter for your target role"
+    },
     "experience": {
       "label": "Work Experience",
       "description": "Employment history and measurable achievements"
@@ -180,6 +185,15 @@
       "stream": "Stream",
       "apply": "Apply to summary",
       "placeholder": "Write a brief professional summary...",
+      "count": "{{count}} / {{max}} characters"
+    },
+    "coverLetter": {
+      "title": "Cover Letter",
+      "generate": "AI Generate Cover Letter",
+      "jobDescription": "Job Description (Optional)",
+      "jobDescriptionPlaceholder": "Paste the target job description here to tailor the cover letter...",
+      "hint": "Use this space for a tailored introduction, application letter, or recruiter-facing message. AI generation can use the optional job description above.",
+      "placeholder": "Write or generate a tailored cover letter...",
       "count": "{{count}} / {{max}} characters"
     },
     "experience": {
@@ -476,11 +490,13 @@
     "integrationActive": "GitHub integration active",
     "disconnect": "Disconnect",
     "connectGithub": "Connect GitHub",
-    "tokenDescription": "Enter your GitHub Personal Access Token (PAT) with repo scope to import projects.",
+    "tokenDescription": "Enter a GitHub token that can read the repositories you want to analyze. Classic PAT: repo scope. Fine-grained PAT: repository Metadata (read) + Contents (read).",
     "tokenPlaceholder": "ghp_...",
     "connect": "Connect",
     "loadingRepos": "Loading repositories...",
     "searchRepos": "Search repositories...",
+    "analysisLanguage": "Analysis language",
+    "analysisLanguageHint": "AI will write repository insights in the language you choose here.",
     "overview": "Overview",
     "techStack": "Tech Stack",
     "codeQuality": "Code Quality",
@@ -612,6 +628,164 @@
       "failed": "Analysis failed"
     }
   },
+  "recruiter": {
+    "kicker": "Recruiter workflow",
+    "title": "High-volume candidate review workspace",
+    "subtitle": "Create a role, upload candidate PDFs in bulk, inspect detected links, and rank applicants with deterministic 0–100 scoring.",
+    "features": {
+      "bulkUpload": "Bulk PDF intake",
+      "linkInspection": "Safe link inspection",
+      "dynamicScoring": "Dynamic scoring"
+    },
+    "stats": {
+      "totalCandidates": "Candidates",
+      "totalBatches": "Batches",
+      "latestBatch": "Latest batch",
+      "minExperience": "Min years"
+    },
+    "createJob": {
+      "title": "Create recruiter job",
+      "subtitle": "Paste the role context once, then keep evaluating incoming CV batches against the same benchmark."
+    },
+    "fields": {
+      "title": "Role title",
+      "company": "Company",
+      "location": "Location",
+      "locale": "Language",
+      "minimumYearsExperience": "Minimum experience",
+      "description": "Job description",
+      "mustHaveSkills": "Must-have skills",
+      "niceToHaveSkills": "Nice-to-have skills"
+    },
+    "placeholders": {
+      "jobTitle": "e.g. Senior Backend Engineer",
+      "company": "e.g. CvBuilder",
+      "location": "e.g. Remote / Istanbul",
+      "description": "Paste the job description, expectations, tooling, and any subtle requirements recruiters care about.",
+      "skills": "One per line or comma-separated",
+      "searchCandidates": "Search by name, email, headline, or resume text"
+    },
+    "actions": {
+      "createJob": "Create benchmark",
+      "creatingJob": "Creating benchmark...",
+      "uploadBatch": "Upload candidate batch",
+      "uploading": "Uploading PDFs...",
+      "reEvaluate": "Re-score candidate",
+      "reevaluating": "Re-scoring..."
+    },
+    "jobs": {
+      "title": "Saved role benchmarks",
+      "subtitle": "Switch between recruiter jobs to compare different candidate pools.",
+      "candidateCount": "{{count}} candidates",
+      "batchCount": "{{count}} batches",
+      "empty": "No recruiter job yet. Create the first benchmark on the left to begin bulk CV analysis."
+    },
+    "upload": {
+      "title": "Bulk PDF intake",
+      "subtitle": "Upload recruiter-facing PDFs. Each file is parsed, link-checked, and scored in the background.",
+      "dropzoneTitle": "Choose one or many PDF files",
+      "dropzoneHint": "Multiple resumes supported. Best results come from text-based PDFs.",
+      "selectedFiles": "{{count}} file selected",
+      "noFiles": "No files selected yet"
+    },
+    "filters": {
+      "title": "Candidate filters",
+      "subtitle": "Slice the queue by score, recommendation, broken links, and freshness.",
+      "search": "Search",
+      "recommendation": "Recommendation",
+      "allRecommendations": "All recommendations",
+      "minScore": "Minimum score",
+      "sorting": "Sorting",
+      "brokenLinksOnly": "Only show candidates with broken or blocked links"
+    },
+    "sort": {
+      "overallScore": "Overall score",
+      "updatedAt": "Recently updated",
+      "yearsOfExperience": "Years of experience",
+      "completenessScore": "Completeness",
+      "desc": "Descending",
+      "asc": "Ascending"
+    },
+    "recommendations": {
+      "STRONG_MATCH": "Strong match",
+      "POTENTIAL_MATCH": "Potential match",
+      "WEAK_MATCH": "Weak match"
+    },
+    "candidates": {
+      "title": "Ranked candidates",
+      "subtitle": "{{count}} candidates · page {{page}}",
+      "experienceYears": "{{count}} years experience",
+      "accessibleLinks": "{{count}} healthy links",
+      "brokenLinks": "{{count}} broken links",
+      "empty": "No candidates match the current filter set yet."
+    },
+    "table": {
+      "candidate": "Candidate",
+      "score": "Score",
+      "skills": "Skills",
+      "links": "Links",
+      "updatedAt": "Updated"
+    },
+    "pagination": {
+      "summary": "Page {{page}} / {{totalPages}} · {{total}} total candidates",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "candidateDetail": {
+      "title": "Candidate detail",
+      "emptySubtitle": "Select a candidate to inspect the parsed resume, links, and score rationale.",
+      "summary": "Evaluation summary",
+      "strengths": "Strengths",
+      "missingSkills": "Missing hard skills",
+      "riskFlags": "Risk flags",
+      "links": "Detected links",
+      "document": "Source document",
+      "documentStatus": "Document status: {{status}}",
+      "completeness": "Completeness score: {{score}}/100",
+      "rawPreview": "Extracted text preview",
+      "empty": "Pick a candidate from the left to see full analysis details."
+    },
+    "breakdown": {
+      "mustHaveScore": "Must-have fit",
+      "keywordScore": "Keyword coverage",
+      "experienceScore": "Experience alignment",
+      "readabilityScore": "Resume readability",
+      "linkQualityScore": "Link quality",
+      "riskPenalty": "Risk penalty"
+    },
+    "batchHistory": {
+      "title": "Batch history",
+      "subtitle": "Monitor how each upload wave performed.",
+      "totalFiles": "{{count}} files",
+      "processedFiles": "{{count}} processed",
+      "failedFiles": "{{count}} failed",
+      "empty": "No batch history yet."
+    },
+    "latestBatch": {
+      "title": "Latest batch documents",
+      "subtitle": "Recent extraction outcomes and parsing notes.",
+      "empty": "Upload a batch to see per-document extraction status."
+    },
+    "links": {
+      "ok": "Accessible",
+      "broken": "Needs review",
+      "empty": "No links detected in the resume."
+    },
+    "emptyState": {
+      "title": "Create the first recruiter benchmark",
+      "subtitle": "The recruiter workspace activates once a role benchmark exists.",
+      "description": "Define the role, must-have skills, and expectations first. Then the system can parse hundreds of incoming PDFs against a stable baseline."
+    },
+    "common": {
+      "unassignedCompany": "No company",
+      "remote": "Remote",
+      "noBatchYet": "No batch yet",
+      "unknownCandidate": "Unknown candidate",
+      "notAvailable": "Not available",
+      "pending": "Pending",
+      "moreCount": "+{{count}} more"
+    }
+  },
   "settings": {
     "title": "Settings",
     "subtitle": "Application preferences and configuration",
@@ -691,6 +865,11 @@
       "uploadFailed": "Failed to upload photo",
       "removed": "Photo removed",
       "removeFailed": "Failed to remove photo"
+    },
+    "recruiter": {
+      "jobCreated": "Recruiter benchmark created",
+      "batchUploaded": "Candidate batch uploaded. Background analysis has started.",
+      "reEvaluated": "Candidate scored again"
     }
   },
   "status": {

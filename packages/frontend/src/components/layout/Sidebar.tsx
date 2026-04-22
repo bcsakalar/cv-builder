@@ -7,6 +7,7 @@ import {
   Github,
   Palette,
   Settings,
+  UsersRound,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import {
 const NAV_ITEMS = [
   { to: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
   { to: "/cv", labelKey: "nav.myCvs", icon: FileText },
+  { to: "/recruiter", labelKey: "nav.recruiter", icon: UsersRound },
   { to: "/github", labelKey: "nav.github", icon: Github },
   { to: "/templates", labelKey: "nav.templates", icon: Palette },
   { to: "/settings", labelKey: "nav.settings", icon: Settings },

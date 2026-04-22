@@ -87,7 +87,7 @@ export function SkillsSection({ cv }: { cv: CVDetail }) {
           <p className="mb-2 text-xs font-medium text-purple-700 dark:text-purple-300">{t("editorSections.skills.suggestedInstructions")}</p>
           <div className="flex flex-wrap gap-2">
             {suggestedSkills.map((skill) => (
-              <div key={skill} className="flex items-center gap-1 rounded-full border border-purple-300 bg-white px-2.5 py-1 text-xs dark:border-purple-700 dark:bg-purple-900">
+              <div key={skill} className="flex items-center gap-1 rounded-full border border-purple-300 bg-background px-2.5 py-1 text-xs dark:border-purple-700 dark:bg-purple-900">
                 <span>{skill}</span>
                 <button onClick={() => handleAcceptSkill(skill)} className="rounded-full p-0.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900">
                   <Check size={12} />

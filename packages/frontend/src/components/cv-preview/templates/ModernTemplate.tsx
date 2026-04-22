@@ -4,7 +4,7 @@ import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
-import { getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
+import { getLanguageProficiencyLabelForLocale, getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
 
 interface TemplateProps {
   cv: CVDetail;
@@ -15,6 +15,8 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
   const pi = cv.personalInfo as Record<string, string> | null;
   const photoUrl = resolveProfilePhotoUrl(pi);
   const sectionLabel = (sectionKey: string) => getSectionLabelForLocale(sectionKey, cv.locale);
+  const languageProficiencyLabel = (value: unknown) =>
+    getLanguageProficiencyLabelForLocale(typeof value === "string" ? value : undefined, cv.locale);
 
   return (
     <div
@@ -54,6 +56,12 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
           {cv.summary?.content && (
             <Section title={sectionLabel("summary")} color={theme.primaryColor} font={theme.headingFont}>
               <p className="whitespace-pre-line">{cv.summary.content}</p>
+            </Section>
+          )}
+
+          {cv.coverLetter?.content && (
+            <Section title={sectionLabel("coverLetter")} color={theme.primaryColor} font={theme.headingFont}>
+              <p className="whitespace-pre-line">{cv.coverLetter.content}</p>
             </Section>
           )}
 
@@ -187,7 +195,7 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
             {cv.languages.length > 0 && (
               <Section title={sectionLabel("languages")} color={theme.primaryColor} font={theme.headingFont}>
                 {cv.languages.map((l: Record<string, unknown>, i: number) => (
-                  <p key={i}>{String(l.name)} <span className="text-xs" style={{ color: theme.secondaryColor }}>({String(l.proficiency)})</span></p>
+                  <p key={i}>{String(l.name)} <span className="text-xs" style={{ color: theme.secondaryColor }}>({languageProficiencyLabel(l.proficiency)})</span></p>
                 ))}
               </Section>
             )}
@@ -244,7 +252,7 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
 
             {cv.languages.length > 0 && (
               <Section title={sectionLabel("languages")} color={theme.primaryColor} font={theme.headingFont}>
-                <p>{cv.languages.map((l: Record<string, unknown>) => `${String(l.name)} (${String(l.proficiency)})`).join(", ")}</p>
+                <p>{cv.languages.map((l: Record<string, unknown>) => `${String(l.name)} (${languageProficiencyLabel(l.proficiency)})`).join(", ")}</p>
               </Section>
             )}
 

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { CV_SECTIONS } from "@cvbuilder/shared";
 import { useCVStore } from "@/stores/cv.store";
 import type { CVDetail } from "@/services/cv.api";
 import { PersonalInfoSection } from "./sections/PersonalInfoSection";
 import { SummarySection } from "./sections/SummarySection";
+import { CoverLetterSection } from "./sections/CoverLetterSection";
 import { ExperienceSection } from "./sections/ExperienceSection";
 import { EducationSection } from "./sections/EducationSection";
 import { SkillsSection } from "./sections/SkillsSection";
@@ -17,18 +18,23 @@ import { ReferencesSection } from "./sections/ReferencesSection";
 import { HobbiesSection } from "./sections/HobbiesSection";
 import { CustomSectionEditor } from "./sections/CustomSectionEditor";
 import { CVPreview } from "../cv-preview/CVPreview";
-import { ThemeCustomizer } from "../theme/ThemeCustomizer";
-import { PDFExportPanel } from "../pdf/PDFExportPanel";
-import { AIAssistPanel } from "./AIAssistPanel";
 import { ChevronRight, Palette, FileDown, Sparkles } from "lucide-react";
 import { resolveTemplatePreview, useThemeStore } from "@/stores/theme.store";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useUpdateCV } from "@/hooks/useCV";
 import { useTranslation } from "react-i18next";
-import { getSectionLabel, getTemplateName } from "@/i18n/helpers";
+import { getSectionLabelForLocale, getTemplateName } from "@/i18n/helpers";
 
 interface CVEditorLayoutProps {
   cv: CVDetail;
+}
+
+const LazyThemeCustomizer = lazy(() => import("../theme/ThemeCustomizer").then((module) => ({ default: module.ThemeCustomizer })));
+const LazyPDFExportPanel = lazy(() => import("../pdf/PDFExportPanel").then((module) => ({ default: module.PDFExportPanel })));
+const LazyAIAssistPanel = lazy(() => import("./AIAssistPanel").then((module) => ({ default: module.AIAssistPanel })));
+
+function PanelFallback({ label }: { label: string }) {
+  return <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">{label}</div>;
 }
 
 export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
@@ -93,7 +99,7 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
               }`}
             >
               <ChevronRight size={14} />
-              {getSectionLabel(key)}
+              {getSectionLabelForLocale(key, cv.locale)}
             </button>
           );
         })}
@@ -104,7 +110,7 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
         <div className="mx-auto max-w-2xl">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">
-              {getSectionLabel(activeSection)}
+              {getSectionLabelForLocale(activeSection, cv.locale)}
             </h2>
             <span className="text-xs text-muted-foreground">
               {saveStatus === "saving" && t("editor.saveStatus.saving")}
@@ -118,14 +124,14 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
 
       {/* Preview pane */}
       {showPreview && (
-        <div className="w-[45%] shrink-0 overflow-y-auto border-l bg-gray-50">
+        <div className="w-[45%] shrink-0 overflow-y-auto border-l bg-muted/30">
           {/* Template selector toolbar */}
-          <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-white/90 px-4 py-2 backdrop-blur-sm">
+          <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
             <select
               data-testid="editor-template-select"
               value={selectedTemplateId}
               onChange={(e) => handleTemplateChange(e.target.value)}
-              className="rounded border px-2 py-1 text-xs"
+              className="rounded border border-input bg-card px-2 py-1 text-xs text-foreground shadow-sm"
             >
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>{getTemplateName(template.slug, template.name)}</option>
@@ -135,7 +141,7 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
               type="button"
               data-testid="editor-theme-toggle"
               onClick={() => setShowTheme(!showTheme)}
-              className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${showTheme ? "bg-primary text-white" : "border hover:bg-accent"}`}
+              className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${showTheme ? "bg-primary text-primary-foreground" : "border hover:bg-accent"}`}
             >
               <Palette size={12} /> {t("editor.theme")}
             </button>
@@ -143,7 +149,7 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
               type="button"
               data-testid="editor-pdf-toggle"
               onClick={() => setShowPDF(!showPDF)}
-              className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${showPDF ? "bg-primary text-white" : "border hover:bg-accent"}`}
+              className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${showPDF ? "bg-primary text-primary-foreground" : "border hover:bg-accent"}`}
             >
               <FileDown size={12} /> {t("editor.pdf")}
             </button>
@@ -157,18 +163,24 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
             </button>
           </div>
           {showTheme && (
-            <div className="border-b bg-white p-4">
-              <ThemeCustomizer cvId={cv.id} defaultThemeConfig={selectedTemplate.defaultThemeConfig} />
+            <div className="border-b bg-card p-4">
+              <Suspense fallback={<PanelFallback label={t("editor.loadingThemePanel", { defaultValue: "Loading theme controls…" })} />}>
+                <LazyThemeCustomizer cvId={cv.id} defaultThemeConfig={selectedTemplate.defaultThemeConfig} />
+              </Suspense>
             </div>
           )}
           {showPDF && (
-            <div className="border-b bg-white p-4">
-              <PDFExportPanel cvId={cv.id} />
+            <div className="border-b bg-card p-4">
+              <Suspense fallback={<PanelFallback label={t("editor.loadingPdfPanel", { defaultValue: "Loading PDF tools…" })} />}>
+                <LazyPDFExportPanel cvId={cv.id} />
+              </Suspense>
             </div>
           )}
           {showAI && (
-            <div className="border-b bg-white p-4">
-              <AIAssistPanel cvId={cv.id} />
+            <div className="border-b bg-card p-4">
+              <Suspense fallback={<PanelFallback label={t("editor.loadingAiPanel", { defaultValue: "Loading AI assistant…" })} />}>
+                <LazyAIAssistPanel cvId={cv.id} />
+              </Suspense>
             </div>
           )}
           <div className="p-4">
@@ -198,6 +210,8 @@ function SectionEditor({ section, cv }: { section: string; cv: CVDetail }) {
       return <PersonalInfoSection cv={cv} />;
     case "summary":
       return <SummarySection cv={cv} />;
+    case "coverLetter":
+      return <CoverLetterSection cv={cv} />;
     case "experience":
       return <ExperienceSection cv={cv} />;
     case "education":
@@ -225,7 +239,7 @@ function SectionEditor({ section, cv }: { section: string; cv: CVDetail }) {
     default:
       return (
         <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          <p>{t("editor.comingSoon", { section: getSectionLabel(section) })}</p>
+          <p>{t("editor.comingSoon", { section: getSectionLabelForLocale(section, cv.locale) })}</p>
         </div>
       );
   }

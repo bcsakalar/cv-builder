@@ -1,6 +1,8 @@
 import { githubService } from "./github.service";
 import { prisma } from "../../lib/prisma";
-import { cacheDelete } from "../../lib/redis";
+import { cacheDelete, cacheGet, cacheSet } from "../../lib/redis";
+
+const mockQueueAdd = jest.fn();
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
@@ -25,6 +27,8 @@ jest.mock("../../lib/prisma", () => ({
 
 jest.mock("../../lib/redis", () => ({
   cacheDelete: jest.fn(),
+  cacheGet: jest.fn(),
+  cacheSet: jest.fn(),
 }));
 
 jest.mock("../../utils/helpers", () => ({
@@ -35,6 +39,10 @@ jest.mock("../../utils/helpers", () => ({
 jest.mock("../../config/env", () => ({
   env: {
     ENCRYPTION_KEY: "0".repeat(64),
+    CORS_ORIGIN: "http://localhost:5173",
+    GITHUB_OAUTH_CLIENT_ID: "github-client-id",
+    GITHUB_OAUTH_CLIENT_SECRET: "github-client-secret",
+    GITHUB_OAUTH_REDIRECT_URI: "http://localhost:3001/api/github/oauth/callback",
   },
 }));
 
@@ -46,7 +54,7 @@ jest.mock("../../lib/queue", () => ({
     GITHUB_ANALYSIS: "github-analysis",
   },
   getQueue: jest.fn(() => ({
-    add: jest.fn(),
+    add: mockQueueAdd,
   })),
 }));
 
@@ -60,6 +68,8 @@ const mockCV = (prisma as unknown as { cV: { findFirst: jest.Mock } }).cV;
 const mockProject = (prisma as unknown as { project: { count: jest.Mock; create: jest.Mock } }).project;
 const mockAnalysis = (prisma as unknown as { gitHubAnalysis: { findMany: jest.Mock; findFirst: jest.Mock } }).gitHubAnalysis;
 const mockCacheDelete = cacheDelete as jest.MockedFunction<typeof cacheDelete>;
+const mockCacheGet = cacheGet as jest.MockedFunction<typeof cacheGet>;
+const mockCacheSet = cacheSet as jest.MockedFunction<typeof cacheSet>;
 
 function buildCompletedAnalysisResult(overrides?: Record<string, unknown>) {
   return {
@@ -149,6 +159,8 @@ function buildCompletedAnalysis(overrides?: Record<string, unknown>) {
 describe("githubService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetch.mockReset();
+    mockQueueAdd.mockReset();
   });
 
   describe("getConnectionStatus", () => {
@@ -160,7 +172,7 @@ describe("githubService", () => {
 
       const result = await githubService.getConnectionStatus(USER_ID);
 
-      expect(result).toEqual({ connected: true, username: "testuser" });
+      expect(result).toEqual({ connected: true, username: "testuser", oauthConfigured: true });
     });
 
     it("should return not connected if no token", async () => {
@@ -168,7 +180,7 @@ describe("githubService", () => {
 
       const result = await githubService.getConnectionStatus(USER_ID);
 
-      expect(result).toEqual({ connected: false, username: null });
+      expect(result).toEqual({ connected: false, username: null, oauthConfigured: true });
     });
   });
 
@@ -192,6 +204,20 @@ describe("githubService", () => {
       const result = await githubService.getAnalyses(USER_ID);
 
       expect(result).toHaveLength(2);
+    });
+
+    it("adds impact analysis metadata to completed analyses", async () => {
+      mockAnalysis.findMany.mockResolvedValue([buildCompletedAnalysis()]);
+
+      const result = await githubService.getAnalyses(USER_ID);
+
+      expect(result[0]?.result).toEqual(
+        expect.objectContaining({
+          impactAnalysis: expect.objectContaining({
+            impactScore: expect.any(Number),
+          }),
+        })
+      );
     });
   });
 
@@ -237,6 +263,116 @@ describe("githubService", () => {
       mockFetch.mockResolvedValueOnce({ ok: false });
 
       await expect(githubService.connect(USER_ID, "invalid")).rejects.toThrow();
+    });
+  });
+
+  describe("OAuth", () => {
+    it("creates an OAuth authorize URL and stores state", async () => {
+      const result = await githubService.getOAuthAuthorizeUrl(USER_ID);
+
+      expect(result.authUrl).toContain("https://github.com/login/oauth/authorize");
+      expect(result.authUrl).toContain("client_id=github-client-id");
+      expect(mockCacheSet).toHaveBeenCalledWith(expect.stringContaining("github-oauth:"), { userId: USER_ID }, 600);
+    });
+
+    it("exchanges callback code for a token and redirects to the frontend", async () => {
+      mockCacheGet.mockResolvedValue({ userId: USER_ID });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ access_token: "gho_live_token" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ login: "oauth-user", avatar_url: "url", name: "OAuth User" }),
+        });
+      mockUser.update.mockResolvedValue({ githubUsername: "oauth-user" });
+
+      const redirectUrl = await githubService.completeOAuthCallback("code-123", "state-123");
+
+      expect(mockUser.update).toHaveBeenCalledWith({
+        where: { id: USER_ID },
+        data: expect.objectContaining({ githubUsername: "oauth-user" }),
+      });
+      expect(mockCacheDelete).toHaveBeenCalledWith("github-oauth:state-123");
+      expect(redirectUrl).toBe("http://localhost:5173/github?github_oauth=success");
+    });
+  });
+
+  describe("getRepos", () => {
+    it("returns CV-aware fit scores when a CV is selected", async () => {
+      mockUser.findUnique.mockResolvedValue({ githubToken: "encrypted-token" });
+      mockCV.findFirst.mockResolvedValue({
+        id: CV_ID,
+        userId: USER_ID,
+        personalInfo: { professionalTitle: "Full-Stack Developer" },
+        summary: { content: "TypeScript platform engineer" },
+        experiences: [],
+        skills: [{ name: "TypeScript" }, { name: "PostgreSQL" }],
+        projects: [{ technologies: ["React", "Playwright"] }],
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([
+          {
+            id: 1,
+            full_name: "mock-dev/platform-repo",
+            name: "platform-repo",
+            description: "TypeScript React platform repo",
+            language: "TypeScript",
+            stargazers_count: 22,
+            forks_count: 4,
+            html_url: "https://github.com/mock-dev/platform-repo",
+            updated_at: "2026-04-12T00:00:00.000Z",
+            topics: ["react", "platform"],
+            private: false,
+          },
+        ]),
+      });
+
+      const result = await githubService.getRepos(USER_ID, 1, 30, CV_ID);
+
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          name: "platform-repo",
+          fitScore: expect.any(Number),
+          fitReasons: expect.any(Array),
+        })
+      );
+    });
+  });
+
+  describe("createAnalysis", () => {
+    it("queues analysis jobs with the requested locale", async () => {
+      const createdAnalysis = {
+        id: "analysis-1",
+        username: "mock-dev",
+        status: "PENDING",
+        result: { repoFullName: "mock-dev/platform-repo" },
+        userId: USER_ID,
+      };
+      mockAnalysis.create.mockResolvedValue(createdAnalysis);
+
+      const result = await githubService.createAnalysis(USER_ID, "mock-dev/platform-repo", "tr");
+
+      expect(mockAnalysis.create).toHaveBeenCalledWith({
+        data: {
+          username: "mock-dev",
+          status: "PENDING",
+          result: { repoFullName: "mock-dev/platform-repo" },
+          userId: USER_ID,
+        },
+      });
+      expect(mockQueueAdd).toHaveBeenCalledWith(
+        "analyze",
+        expect.objectContaining({
+          analysisId: "analysis-1",
+          repoFullName: "mock-dev/platform-repo",
+          userId: USER_ID,
+          locale: "tr",
+        })
+      );
+      expect(result).toEqual(createdAnalysis);
     });
   });
 

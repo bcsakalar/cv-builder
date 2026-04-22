@@ -2,6 +2,7 @@
   "nav": {
     "dashboard": "Ana Sayfa",
     "myCvs": "CV'lerim",
+    "recruiter": "Recruiter Merkezi",
     "github": "GitHub",
     "templates": "Şablonlar",
     "settings": "Ayarlar"
@@ -94,6 +95,10 @@
       "label": "Profesyonel Özet",
       "description": "Hedef rolünüze uygun kısa bir tanıtım"
     },
+    "coverLetter": {
+      "label": "Ön Yazı",
+      "description": "Hedef rolünüz için özelleştirilmiş ön yazı veya giriş metni"
+    },
     "experience": {
       "label": "İş Deneyimi",
       "description": "Çalışma geçmişi ve ölçülebilir başarılar"
@@ -180,6 +185,15 @@
       "stream": "Akış",
       "apply": "Özete uygula",
       "placeholder": "Kısa bir profesyonel özet yazın...",
+      "count": "{{count}} / {{max}} karakter"
+    },
+    "coverLetter": {
+      "title": "Ön Yazı",
+      "generate": "AI ile Ön Yazı Oluştur",
+      "jobDescription": "İş İlanı (İsteğe Bağlı)",
+      "jobDescriptionPlaceholder": "Ön yazıyı hedef role göre uyarlamak için iş ilanını buraya yapıştırın...",
+      "hint": "Bu alanı özelleştirilmiş ön yazı, başvuru metni veya işe alım uzmanına yönelik giriş mesajı için kullanın. Üstteki isteğe bağlı iş ilanı metni AI üretimini daha doğru hale getirir.",
+      "placeholder": "Özelleştirilmiş bir ön yazı yazın veya üretin...",
       "count": "{{count}} / {{max}} karakter"
     },
     "experience": {
@@ -481,11 +495,13 @@
     "integrationActive": "GitHub entegrasyonu aktif",
     "disconnect": "Bağlantıyı Kes",
     "connectGithub": "GitHub Bağla",
-    "tokenDescription": "Projeleri içe aktarmak için repo kapsamına sahip GitHub Kişisel Erişim Belirtecinizi (PAT) girin.",
+    "tokenDescription": "Analiz etmek istediğiniz depoları okuyabilen bir GitHub token'ı girin. Classic PAT için repo scope gerekir. Fine-grained PAT için repository Metadata (read) + Contents (read) izinlerini verin.",
     "tokenPlaceholder": "ghp_...",
     "connect": "Bağlan",
     "loadingRepos": "Depolar yükleniyor...",
     "searchRepos": "Depo ara...",
+    "analysisLanguage": "Analiz dili",
+    "analysisLanguageHint": "AI depo içgörülerini burada seçtiğiniz dilde yazacak.",
     "overview": "Genel Bakış",
     "techStack": "Teknoloji Yığını",
     "codeQuality": "Kod Kalitesi",
@@ -617,6 +633,164 @@
       "failed": "Analiz başarısız oldu"
     }
   },
+  "recruiter": {
+    "kicker": "Recruiter workflow",
+    "title": "Yüksek hacimli aday değerlendirme alanı",
+    "subtitle": "Bir pozisyon benchmark'ı oluşturun, PDF CV'leri toplu yükleyin, tespit edilen linkleri güvenli şekilde kontrol edin ve adayları deterministik 0–100 puanla sıralayın.",
+    "features": {
+      "bulkUpload": "Toplu PDF alımı",
+      "linkInspection": "Güvenli link kontrolü",
+      "dynamicScoring": "Dinamik puanlama"
+    },
+    "stats": {
+      "totalCandidates": "Aday",
+      "totalBatches": "Batch",
+      "latestBatch": "Son batch",
+      "minExperience": "Min. yıl"
+    },
+    "createJob": {
+      "title": "Recruiter işi oluştur",
+      "subtitle": "Rol bağlamını bir kez tanımlayın; gelen tüm CV batch'lerini aynı benchmark'a göre otomatik değerlendirin."
+    },
+    "fields": {
+      "title": "Pozisyon adı",
+      "company": "Şirket",
+      "location": "Konum",
+      "locale": "Dil",
+      "minimumYearsExperience": "Minimum deneyim",
+      "description": "İş tanımı",
+      "mustHaveSkills": "Olmazsa olmaz yetenekler",
+      "niceToHaveSkills": "Artı puan yetenekler"
+    },
+    "placeholders": {
+      "jobTitle": "örn. Senior Backend Engineer",
+      "company": "örn. CvBuilder",
+      "location": "örn. Remote / İstanbul",
+      "description": "İş ilanını, beklentileri, kullanılan araçları ve recruiter'ın önemsediği küçük detayları buraya yapıştırın.",
+      "skills": "Her satıra bir tane veya virgülle ayırın",
+      "searchCandidates": "İsim, e-posta, başlık veya CV metninde ara"
+    },
+    "actions": {
+      "createJob": "Benchmark oluştur",
+      "creatingJob": "Benchmark oluşturuluyor...",
+      "uploadBatch": "Aday batch'i yükle",
+      "uploading": "PDF'ler yükleniyor...",
+      "reEvaluate": "Adayı tekrar puanla",
+      "reevaluating": "Tekrar puanlanıyor..."
+    },
+    "jobs": {
+      "title": "Kayıtlı rol benchmark'ları",
+      "subtitle": "Farklı aday havuzlarını karşılaştırmak için recruiter işleri arasında geçiş yapın.",
+      "candidateCount": "{{count}} aday",
+      "batchCount": "{{count}} batch",
+      "empty": "Henüz recruiter işi yok. Toplu CV analizine başlamak için soldan ilk benchmark'ı oluşturun."
+    },
+    "upload": {
+      "title": "Toplu PDF alımı",
+      "subtitle": "Recruiter'a gelen PDF CV'leri yükleyin. Her dosya arka planda parse edilir, linkleri kontrol edilir ve puanlanır.",
+      "dropzoneTitle": "Tek veya çoklu PDF seçin",
+      "dropzoneHint": "Birden fazla özgeçmiş desteklenir. Metin tabanlı PDF'lerde sonuçlar daha iyidir.",
+      "selectedFiles": "{{count}} dosya seçildi",
+      "noFiles": "Henüz dosya seçilmedi"
+    },
+    "filters": {
+      "title": "Aday filtreleri",
+      "subtitle": "Listeyi puan, öneri seviyesi, kırık link ve güncelliğe göre daraltın.",
+      "search": "Ara",
+      "recommendation": "Öneri seviyesi",
+      "allRecommendations": "Tüm öneriler",
+      "minScore": "Minimum puan",
+      "sorting": "Sıralama",
+      "brokenLinksOnly": "Sadece kırık veya bloklu linki olan adayları göster"
+    },
+    "sort": {
+      "overallScore": "Genel puan",
+      "updatedAt": "Son güncelleme",
+      "yearsOfExperience": "Deneyim yılı",
+      "completenessScore": "Doluluk",
+      "desc": "Azalan",
+      "asc": "Artan"
+    },
+    "recommendations": {
+      "STRONG_MATCH": "Güçlü eşleşme",
+      "POTENTIAL_MATCH": "Potansiyel eşleşme",
+      "WEAK_MATCH": "Zayıf eşleşme"
+    },
+    "candidates": {
+      "title": "Sıralanmış adaylar",
+      "subtitle": "{{count}} aday · sayfa {{page}}",
+      "experienceYears": "{{count}} yıl deneyim",
+      "accessibleLinks": "{{count}} sağlıklı link",
+      "brokenLinks": "{{count}} problemli link",
+      "empty": "Mevcut filtrelerle eşleşen aday bulunamadı."
+    },
+    "table": {
+      "candidate": "Aday",
+      "score": "Puan",
+      "skills": "Yetenekler",
+      "links": "Linkler",
+      "updatedAt": "Güncelleme"
+    },
+    "pagination": {
+      "summary": "Sayfa {{page}} / {{totalPages}} · toplam {{total}} aday",
+      "previous": "Önceki",
+      "next": "Sonraki"
+    },
+    "candidateDetail": {
+      "title": "Aday detayı",
+      "emptySubtitle": "Parse edilen CV, linkler ve puan gerekçesini görmek için bir aday seçin.",
+      "summary": "Değerlendirme özeti",
+      "strengths": "Güçlü yönler",
+      "missingSkills": "Eksik hard skill'ler",
+      "riskFlags": "Risk bayrakları",
+      "links": "Tespit edilen linkler",
+      "document": "Kaynak belge",
+      "documentStatus": "Belge durumu: {{status}}",
+      "completeness": "Doluluk puanı: {{score}}/100",
+      "rawPreview": "Çıkarılan metin önizlemesi",
+      "empty": "Tam analiz detaylarını görmek için soldan bir aday seçin."
+    },
+    "breakdown": {
+      "mustHaveScore": "Olmazsa olmaz uyumu",
+      "keywordScore": "Anahtar kelime kapsaması",
+      "experienceScore": "Deneyim uyumu",
+      "readabilityScore": "CV okunabilirliği",
+      "linkQualityScore": "Link kalitesi",
+      "riskPenalty": "Risk cezası"
+    },
+    "batchHistory": {
+      "title": "Batch geçmişi",
+      "subtitle": "Her yükleme dalgasının nasıl performans verdiğini izleyin.",
+      "totalFiles": "{{count}} dosya",
+      "processedFiles": "{{count}} işlendi",
+      "failedFiles": "{{count}} başarısız",
+      "empty": "Henüz batch geçmişi yok."
+    },
+    "latestBatch": {
+      "title": "Son batch belgeleri",
+      "subtitle": "Yakın tarihli extraction sonuçları ve parse notları.",
+      "empty": "Belge bazlı extraction durumunu görmek için bir batch yükleyin."
+    },
+    "links": {
+      "ok": "Erişilebilir",
+      "broken": "Kontrol gerekli",
+      "empty": "CV içinde link tespit edilmedi."
+    },
+    "emptyState": {
+      "title": "İlk recruiter benchmark'ını oluştur",
+      "subtitle": "Recruiter alanı, bir rol benchmark'ı oluşturulduğunda aktif olur.",
+      "description": "Önce rolü, olmazsa olmaz yetenekleri ve beklentileri tanımlayın. Sonra sistem yüzlerce gelen PDF'i aynı stabil baseline'a göre analiz eder."
+    },
+    "common": {
+      "unassignedCompany": "Şirket yok",
+      "remote": "Uzaktan",
+      "noBatchYet": "Henüz batch yok",
+      "unknownCandidate": "Bilinmeyen aday",
+      "notAvailable": "Yok",
+      "pending": "Bekliyor",
+      "moreCount": "+{{count}} daha"
+    }
+  },
   "settings": {
     "title": "Ayarlar",
     "subtitle": "Uygulama tercihleri ve yapılandırma",
@@ -696,6 +870,11 @@
       "uploadFailed": "Fotoğraf yüklenemedi",
       "removed": "Fotoğraf kaldırıldı",
       "removeFailed": "Fotoğraf kaldırılamadı"
+    },
+    "recruiter": {
+      "jobCreated": "Recruiter benchmark'ı oluşturuldu",
+      "batchUploaded": "Aday batch'i yüklendi. Arka plan analizi başladı.",
+      "reEvaluated": "Aday yeniden puanlandı"
     }
   },
   "status": {

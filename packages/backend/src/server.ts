@@ -10,6 +10,7 @@ import { closeQueues } from "./lib/queue";
 import { logger } from "./lib/logger";
 import { startPDFWorker } from "./workers/pdf.worker";
 import { startGitHubAnalysisWorker } from "./workers/github-analysis.worker";
+import { startRecruiterBatchWorker } from "./workers/recruiter-batch.worker";
 import { checkOllamaHealth, checkModelAvailable } from "./lib/ollama";
 import { ollamaConfig } from "./config/ollama";
 
@@ -33,6 +34,7 @@ async function bootstrap(): Promise<void> {
   // Start BullMQ workers
   startPDFWorker();
   startGitHubAnalysisWorker();
+  startRecruiterBatchWorker();
 
   // Start HTTP server
   const server = app.listen(env.PORT, () => {

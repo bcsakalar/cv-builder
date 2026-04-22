@@ -22,8 +22,13 @@ export function validate(schemas: ValidationSchemas) {
     }
 
     if (schemas.query) {
-      // Express 5: req.query is a read-only getter, validate only
-      schemas.query.parse(req.query);
+      const parsedQuery = schemas.query.parse(req.query);
+      Object.defineProperty(req, "query", {
+        value: parsedQuery,
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      });
     }
 
     next();

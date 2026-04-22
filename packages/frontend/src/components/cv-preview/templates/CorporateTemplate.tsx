@@ -4,7 +4,7 @@ import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
-import { getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
+import { getLanguageProficiencyLabelForLocale, getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
 
 interface TemplateProps {
   cv: CVDetail;
@@ -15,6 +15,8 @@ export function CorporateTemplate({ cv, theme }: TemplateProps) {
   const pi = cv.personalInfo as Record<string, string> | null;
   const photoUrl = resolveProfilePhotoUrl(pi);
   const sectionLabel = (sectionKey: string) => getSectionLabelForLocale(sectionKey, cv.locale);
+  const languageProficiencyLabel = (value: unknown) =>
+    getLanguageProficiencyLabelForLocale(typeof value === "string" ? value : undefined, cv.locale);
 
   const sectionHeading = (title: string) => (
     <h2
@@ -67,6 +69,13 @@ export function CorporateTemplate({ cv, theme }: TemplateProps) {
           <section className="mb-6">
             {sectionHeading(sectionLabel("summary"))}
             <p className="whitespace-pre-line leading-relaxed">{cv.summary.content}</p>
+          </section>
+        )}
+
+        {cv.coverLetter?.content && (
+          <section className="mb-6">
+            {sectionHeading(sectionLabel("coverLetter"))}
+            <p className="whitespace-pre-line leading-relaxed">{cv.coverLetter.content}</p>
           </section>
         )}
 
@@ -149,7 +158,7 @@ export function CorporateTemplate({ cv, theme }: TemplateProps) {
               <div className="flex flex-wrap gap-4 text-sm">
                 {cv.languages.map((l: Record<string, unknown>, i: number) => (
                   <span key={i}>
-                    {String(l.name)}{l.proficiency ? ` (${String(l.proficiency)})` : ""}
+                    {String(l.name)}{l.proficiency ? ` (${languageProficiencyLabel(l.proficiency)})` : ""}
                   </span>
                 ))}
               </div>

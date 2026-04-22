@@ -4,7 +4,7 @@ import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
-import { getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
+import { getLanguageProficiencyLabelForLocale, getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
 
 interface TemplateProps {
   cv: CVDetail;
@@ -15,6 +15,8 @@ export function ClassicTemplate({ cv, theme }: TemplateProps) {
   const pi = cv.personalInfo as Record<string, string> | null;
   const photoUrl = resolveProfilePhotoUrl(pi);
   const sectionLabel = (sectionKey: string) => getSectionLabelForLocale(sectionKey, cv.locale);
+  const languageProficiencyLabel = (value: unknown) =>
+    getLanguageProficiencyLabelForLocale(typeof value === "string" ? value : undefined, cv.locale);
 
   const heading = (title: string) => (
     <>
@@ -62,6 +64,13 @@ export function ClassicTemplate({ cv, theme }: TemplateProps) {
         <section className="mb-5">
           {heading(sectionLabel("summary"))}
           <p className="whitespace-pre-line text-justify">{cv.summary.content}</p>
+        </section>
+      )}
+
+      {cv.coverLetter?.content && (
+        <section className="mb-5">
+          {heading(sectionLabel("coverLetter"))}
+          <p className="whitespace-pre-line text-justify">{cv.coverLetter.content}</p>
         </section>
       )}
 
@@ -148,7 +157,7 @@ export function ClassicTemplate({ cv, theme }: TemplateProps) {
       {cv.languages.length > 0 && (
         <section className="mb-5">
           {heading(sectionLabel("languages"))}
-          <p>{cv.languages.map((l: Record<string, unknown>) => `${String(l.name)}${l.proficiency ? ` (${String(l.proficiency)})` : ""}`).join(", ")}</p>
+          <p>{cv.languages.map((l: Record<string, unknown>) => `${String(l.name)}${l.proficiency ? ` (${languageProficiencyLabel(l.proficiency)})` : ""}`).join(", ")}</p>
         </section>
       )}
 

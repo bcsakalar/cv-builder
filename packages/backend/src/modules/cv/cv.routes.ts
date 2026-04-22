@@ -12,9 +12,11 @@ import {
   updateCVSchema,
   updateThemeSchema,
   updateSectionOrderSchema,
+  cloneCVSchema,
   cvIdParamSchema,
   personalInfoSchema,
   summarySchema,
+  coverLetterSchema,
   experienceSchema,
   educationSchema,
   skillSchema,
@@ -65,6 +67,12 @@ router.delete(
   asyncHandler(cvController.remove)
 );
 
+router.post(
+  "/:id/clone",
+  validate({ params: cvIdParamSchema, body: cloneCVSchema }),
+  asyncHandler(cvController.clone)
+);
+
 router.patch(
   "/:id/section-order",
   validate({ params: cvIdParamSchema, body: updateSectionOrderSchema }),
@@ -91,6 +99,12 @@ router.put(
   "/:cvId/summary",
   validate({ params: cvIdParam, body: summarySchema }),
   asyncHandler(cvController.upsertSummary)
+);
+
+router.put(
+  "/:cvId/cover-letter",
+  validate({ params: cvIdParam, body: coverLetterSchema }),
+  asyncHandler(cvController.upsertCoverLetter)
 );
 
 // ── Experience ───────────────────────────────────────────

@@ -10,7 +10,6 @@ describe("preview personal info helpers", () => {
       phone: "+90 507 095 78 78",
       city: "Izmir",
       country: "Turkiye",
-      zipCode: "35110",
       website: "https://berkecansakalar.com/",
       linkedIn: "https://www.linkedin.com/in/berkecansakalar",
       github: "https://github.com/bcsakalar",
@@ -26,7 +25,7 @@ describe("preview personal info helpers", () => {
       "github",
       "twitter",
     ]);
-    expect(items.find((item) => item.key === "location")?.value).toBe("Izmir, Turkiye 35110");
+    expect(items.find((item) => item.key === "location")?.value).toBe("Izmir, Turkiye");
     expect(items.find((item) => item.key === "website")?.value).toBe("berkecansakalar.com");
     expect(items.find((item) => item.key === "linkedIn")?.value).toBe("linkedin.com/in/berkecansakalar");
     expect(items.find((item) => item.key === "github")?.value).toBe("github.com/bcsakalar");

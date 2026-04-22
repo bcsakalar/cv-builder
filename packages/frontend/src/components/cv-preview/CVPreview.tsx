@@ -39,11 +39,12 @@ export function CVPreview({ cv }: CVPreviewProps) {
     cv.educations.length === 0 &&
     cv.skills.length === 0 &&
     !cv.summary?.content &&
+    !cv.coverLetter?.content &&
     !pi?.firstName;
 
   if (isEmpty) {
     return (
-      <div className="mx-auto max-w-[210mm] rounded-lg bg-white p-8 shadow-sm">
+      <div className="mx-auto max-w-[210mm] rounded-lg border bg-card p-8 shadow-sm">
         <div className="py-16 text-center text-muted-foreground">
           <p className="text-sm">{t("editor.emptyPreview")}</p>
         </div>

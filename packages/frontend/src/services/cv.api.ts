@@ -27,6 +27,7 @@ export interface CVDetail {
   template: { id: string; name: string; slug: string; defaultThemeConfig?: Record<string, unknown> };
   personalInfo: Record<string, unknown> | null;
   summary: { id: string; content: string; aiGenerated: boolean } | null;
+  coverLetter: { id: string; content: string; aiGenerated: boolean } | null;
   experiences: Record<string, unknown>[];
   educations: Record<string, unknown>[];
   skills: Record<string, unknown>[];
@@ -52,6 +53,9 @@ export const cvApi = {
   update: (id: string, data: Record<string, unknown>) =>
     api.put(`/cv/${id}`, data).then(unwrap<CVDetail>),
 
+  clone: (id: string, data: { locale?: string; targetRole?: string; title?: string }) =>
+    api.post(`/cv/${id}/clone`, data).then(unwrap<CVDetail>),
+
   remove: (id: string) => api.delete(`/cv/${id}`),
 
   updateSectionOrder: (id: string, sectionOrder: string[]) =>
@@ -66,6 +70,9 @@ export const cvApi = {
 
   upsertSummary: (cvId: string, data: { content: string; aiGenerated?: boolean }) =>
     api.put(`/cv/${cvId}/summary`, data).then(unwrap),
+
+  upsertCoverLetter: (cvId: string, data: { content: string; aiGenerated?: boolean }) =>
+    api.put(`/cv/${cvId}/cover-letter`, data).then(unwrap),
 
   addExperience: (cvId: string, data: Record<string, unknown>) =>
     api.post(`/cv/${cvId}/experiences`, data).then(unwrap),

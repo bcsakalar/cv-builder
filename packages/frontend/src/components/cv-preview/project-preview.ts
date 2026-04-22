@@ -56,17 +56,7 @@ export function buildPreviewProject(
     name: asText(project.name) ?? "",
     description: asText(project.description),
     metaLine: joinParts([asText(project.role), projectTypeLabel, dateRange || null]),
-    signalLine: joinParts([
-      githubRepoData?.qualityScore != null
-        ? `${translateForLocale(locale, "github.metrics.quality")} ${githubRepoData.qualityScore}/100`
-        : null,
-      githubRepoData?.commitCount
-        ? `${githubRepoData.commitCount} ${translateForLocale(locale, "github.metrics.commits")}`
-        : null,
-      githubRepoData?.contributorCount && githubRepoData.contributorCount > 1
-        ? `${githubRepoData.contributorCount} ${translateForLocale(locale, "github.metrics.contributors")}`
-        : null,
-    ]),
+    signalLine: null,
     technologies: technologies.slice(0, technologyLimit),
     extraTechnologyCount: Math.max(0, technologies.length - technologyLimit),
     highlights,

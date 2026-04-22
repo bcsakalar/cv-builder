@@ -60,6 +60,19 @@ export function useDeleteCV() {
   });
 }
 
+export function useCloneCV() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: { id: string; locale?: string; targetRole?: string; title?: string }) =>
+      cvApi.clone(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: cvKeys.all });
+      toast.success(translate("cvList.cloneSuccess", { defaultValue: "CV variant created." }));
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
 export function useUpdateSectionOrder(cvId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -92,6 +105,10 @@ export function useSectionMutation(cvId: string) {
     }),
     upsertSummary: useMutation({
       mutationFn: (data: { content: string; aiGenerated?: boolean }) => cvApi.upsertSummary(cvId, data),
+      onSuccess: invalidate,
+    }),
+    upsertCoverLetter: useMutation({
+      mutationFn: (data: { content: string; aiGenerated?: boolean }) => cvApi.upsertCoverLetter(cvId, data),
       onSuccess: invalidate,
     }),
     addExperience: useMutation({

@@ -1,10 +1,11 @@
-import { createRoute, Link } from "@tanstack/react-router";
+import { createRoute, Link, useNavigate } from "@tanstack/react-router";
 import { rootRoute } from "../__root";
-import { useGetCVs, useDeleteCV } from "@/hooks/useCV";
+import { useGetCVs, useDeleteCV, useCloneCV } from "@/hooks/useCV";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Trash2, Edit, Plus, FileText } from "lucide-react";
+import { Trash2, Edit, Plus, FileText, CopyPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getDateLocale, getStatusLabel, getTemplateName } from "@/i18n/helpers";
+import { useState } from "react";
 
 export const cvIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -14,9 +15,20 @@ export const cvIndexRoute = createRoute({
 
 function CVListPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const { data: cvs, isLoading } = useGetCVs();
   const deleteMutation = useDeleteCV();
+  const cloneMutation = useCloneCV();
   const dateLocale = getDateLocale(i18n.language);
+  const [cloneTargetId, setCloneTargetId] = useState<string | null>(null);
+  const [cloneLocale, setCloneLocale] = useState("en");
+  const [cloneRole, setCloneRole] = useState("");
+
+  const openClonePanel = (cv: NonNullable<typeof cvs>[number]) => {
+    setCloneTargetId(cv.id);
+    setCloneLocale(cv.locale.toLowerCase().startsWith("tr") ? "en" : "tr");
+    setCloneRole(cv.personalInfo?.professionalTitle ?? "");
+  };
 
   if (isLoading) {
     return (
@@ -91,6 +103,13 @@ function CVListPage() {
                     <Edit size={12} /> {t("cvList.edit")}
                   </Link>
                   <button
+                    type="button"
+                    onClick={() => openClonePanel(cv)}
+                    className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs hover:bg-accent"
+                  >
+                    <CopyPlus size={12} /> {t("cvList.cloneVariant", { defaultValue: "Clone variant" })}
+                  </button>
+                  <button
                     onClick={() => {
                       if (confirm(t("cvList.deleteConfirm"))) deleteMutation.mutate(cv.id);
                     }}
@@ -99,6 +118,67 @@ function CVListPage() {
                     <Trash2 size={12} /> {t("cvList.delete")}
                   </button>
                 </div>
+
+                {cloneTargetId === cv.id && (
+                  <div className="mt-3 space-y-3 rounded-lg border border-dashed p-3">
+                    <div className="flex gap-2">
+                      {[
+                        { value: "en", label: "EN" },
+                        { value: "tr", label: "TR" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setCloneLocale(option.value)}
+                          className={`rounded-md px-2.5 py-1 text-xs ${
+                            cloneLocale === option.value ? "bg-primary text-primary-foreground" : "border hover:bg-accent"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <input
+                      value={cloneRole}
+                      onChange={(event) => setCloneRole(event.target.value)}
+                      placeholder={t("cvList.cloneRolePlaceholder", { defaultValue: "Optional role focus, e.g. Frontend Engineer" })}
+                      className="w-full rounded-md border px-3 py-2 text-sm"
+                    />
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          cloneMutation.mutate(
+                            {
+                              id: cv.id,
+                              locale: cloneLocale,
+                              targetRole: cloneRole.trim() || undefined,
+                            },
+                            {
+                              onSuccess: (cloned) => {
+                                setCloneTargetId(null);
+                                void navigate({ to: `/cv/${cloned.id}/edit` as string });
+                              },
+                            }
+                          );
+                        }}
+                        disabled={cloneMutation.isPending}
+                        className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        {cloneMutation.isPending ? t("common.loading") : t("cvList.createVariant", { defaultValue: "Create variant" })}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCloneTargetId(null)}
+                        className="rounded-md border px-3 py-1.5 text-xs hover:bg-accent"
+                      >
+                        {t("common.cancel")}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -33,6 +33,7 @@ import { cacheDelete } from "../../lib/redis";
 import { ApiError } from "../../utils/api-error";
 import { aiRepository, AI_ARTIFACT_SELECT } from "./ai.repository";
 import { AI_PROMPTS, localizeSystemPrompt } from "./ai.prompts";
+import { buildAtsAnalysis } from "./ai.ats";
 
 type ArtifactRecord = Prisma.AiArtifactGetPayload<{ select: typeof AI_ARTIFACT_SELECT }>;
 
@@ -173,6 +174,10 @@ async function getCVData(userId: string, cvId: string) {
   const cv = await aiRepository.findCVForUser(userId, cvId);
   if (!cv) throw ApiError.notFound("CV not found");
   return cv;
+}
+
+function resolveCvLocale(cv: { locale?: string | null }, fallback?: string): string {
+  return normalizeLocale(cv.locale ?? fallback);
 }
 
 function buildArtifactTitle(tool: AIToolKind): string {
@@ -477,6 +482,17 @@ function parseAtsResult(result: string): AIATSResult {
     score: typeof parsed.score === "number" ? Math.min(100, Math.max(0, parsed.score)) : 50,
     issues: Array.isArray(parsed.issues) ? parsed.issues : [],
     suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+    keywordGaps: [],
+    hardSkillGaps: [],
+    sectionScores: [],
+    recruiterReadability: {
+      score: 0,
+      averageSentenceLength: 0,
+      metricCoverage: 0,
+      actionVerbUsage: 0,
+      notes: [],
+    },
+    fixChecklist: [],
   };
 }
 
@@ -564,20 +580,21 @@ export const aiService = {
 
   async generateSummary(userId: string, cvId: string, locale?: string): Promise<AISummaryGenerationResult> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
     const { system, buildPrompt } = AI_PROMPTS.generateSummary;
 
-    logger.info("Generating AI summary", { cvId, locale });
+    logger.info("Generating AI summary", { cvId, locale: effectiveLocale });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "summary",
-      locale,
+      locale: effectiveLocale,
       targetSection: "summary",
       input: { cvId },
       execute: async () => {
         const result = await ollama.generate({
           prompt: buildPrompt(cv as unknown as Record<string, unknown>),
-          system: localizeSystemPrompt(system, locale),
+          system: localizeSystemPrompt(system, effectiveLocale),
           temperature: 0.6,
         });
 
@@ -620,6 +637,7 @@ export const aiService = {
 
   async suggestSkills(userId: string, cvId: string, locale?: string): Promise<AISkillSuggestionResult> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
     const { system, buildPrompt } = AI_PROMPTS.suggestSkills;
     const existingSkillNames = new Set(
       ((cv.skills ?? []) as Record<string, unknown>[])
@@ -627,19 +645,19 @@ export const aiService = {
         .filter(Boolean)
     );
 
-    logger.info("Suggesting skills", { cvId, locale });
+    logger.info("Suggesting skills", { cvId, locale: effectiveLocale });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "skills",
-      locale,
+      locale: effectiveLocale,
       targetSection: "skills",
       input: { cvId },
       execute: async () => {
         try {
           const result = await ollama.generate({
             prompt: buildPrompt(cv as unknown as Record<string, unknown>),
-            system: localizeSystemPrompt(system, locale, true),
+            system: localizeSystemPrompt(system, effectiveLocale, true),
             temperature: 0.45,
             json: true,
           });
@@ -677,27 +695,40 @@ export const aiService = {
     return { skills: output, artifact };
   },
 
-  async atsCheck(userId: string, cvId: string, locale?: string): Promise<AIATSCheckResponse> {
+  async atsCheck(userId: string, cvId: string, options?: { locale?: string; jobDescription?: string }): Promise<AIATSCheckResponse> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, options?.locale);
     const { system, buildPrompt } = AI_PROMPTS.atsCheck;
 
-    logger.info("Running ATS check", { cvId, locale });
+    logger.info("Running ATS check", { cvId, locale: effectiveLocale });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "ats",
-      locale,
+      locale: effectiveLocale,
       targetSection: "general",
-      input: { cvId },
+      input: { cvId, ...(options?.jobDescription ? { jobDescription: options.jobDescription } : {}) },
       execute: async () => {
-        const result = await ollama.generate({
-          prompt: buildPrompt(cv as unknown as Record<string, unknown>),
-          system: localizeSystemPrompt(system, locale, true),
-          temperature: 0.25,
-          json: true,
-        });
+        let baseResult: AIATSResult;
 
-        return parseAtsResult(result);
+        try {
+          const result = await ollama.generate({
+            prompt: buildPrompt(cv as unknown as Record<string, unknown>),
+            system: localizeSystemPrompt(system, effectiveLocale, true),
+            temperature: 0.25,
+            json: true,
+          });
+
+          baseResult = parseAtsResult(result);
+        } catch (error) {
+          logger.warn("ATS model output unavailable, using deterministic fallback", {
+            cvId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          baseResult = parseAtsResult("{}");
+        }
+
+        return buildAtsAnalysis(cv as unknown as Record<string, unknown>, baseResult, options?.jobDescription);
       },
     });
 
@@ -706,20 +737,21 @@ export const aiService = {
 
   async generateCoverLetter(userId: string, cvId: string, jobDescription?: string, locale?: string): Promise<AICoverLetterResponse> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
     const { system, buildPrompt } = AI_PROMPTS.generateCoverLetter;
 
-    logger.info("Generating cover letter", { cvId, locale });
+    logger.info("Generating cover letter", { cvId, locale: effectiveLocale });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "cover_letter",
-      locale,
-      targetSection: "general",
+      locale: effectiveLocale,
+      targetSection: "coverLetter",
       input: { cvId, ...(jobDescription ? { jobDescription } : {}) },
       execute: async () => {
         const result = await ollama.generate({
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
-          system: localizeSystemPrompt(system, locale),
+          system: localizeSystemPrompt(system, effectiveLocale),
           temperature: 0.65,
         });
 
@@ -737,12 +769,13 @@ export const aiService = {
     locale?: string
   ): Promise<string> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
     const { system, buildPrompt } = AI_PROMPTS.generateSummary;
 
     return ollama.generateStreaming(
       {
         prompt: buildPrompt(cv as unknown as Record<string, unknown>),
-        system: localizeSystemPrompt(system, locale),
+        system: localizeSystemPrompt(system, effectiveLocale),
         temperature: 0.6,
       },
       onChunk
@@ -781,20 +814,21 @@ export const aiService = {
 
   async reviewCV(userId: string, cvId: string, locale?: string): Promise<AICVReviewResponse> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
     const { system, buildPrompt } = AI_PROMPTS.reviewCV;
 
-    logger.info("Reviewing CV", { cvId, locale });
+    logger.info("Reviewing CV", { cvId, locale: effectiveLocale });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "review",
-      locale,
+      locale: effectiveLocale,
       targetSection: "general",
       input: { cvId },
       execute: async () => {
         const result = await ollama.generate({
           prompt: buildPrompt(cv as unknown as Record<string, unknown>),
-          system: localizeSystemPrompt(system, locale, true),
+          system: localizeSystemPrompt(system, effectiveLocale, true),
           temperature: 0.25,
           json: true,
         });
@@ -808,20 +842,21 @@ export const aiService = {
 
   async jobMatch(userId: string, cvId: string, jobDescription: string, locale?: string): Promise<AIJobMatchResponse> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
     const { system, buildPrompt } = AI_PROMPTS.jobMatch;
 
-    logger.info("Analyzing job match", { cvId, locale });
+    logger.info("Analyzing job match", { cvId, locale: effectiveLocale });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "job_match",
-      locale,
+      locale: effectiveLocale,
       targetSection: "general",
       input: { cvId, jobDescription },
       execute: async () => {
         const result = await ollama.generate({
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
-          system: localizeSystemPrompt(system, locale, true),
+          system: localizeSystemPrompt(system, effectiveLocale, true),
           temperature: 0.25,
           json: true,
         });
@@ -835,20 +870,21 @@ export const aiService = {
 
   async tailorCV(userId: string, cvId: string, jobDescription: string, locale?: string): Promise<AITailorResponse> {
     const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
     const { system, buildPrompt } = AI_PROMPTS.tailorCV;
 
-    logger.info("Tailoring CV", { cvId, locale });
+    logger.info("Tailoring CV", { cvId, locale: effectiveLocale });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "tailor",
-      locale,
+      locale: effectiveLocale,
       targetSection: "general",
       input: { cvId, jobDescription },
       execute: async () => {
         const result = await ollama.generate({
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
-          system: localizeSystemPrompt(system, locale, true),
+          system: localizeSystemPrompt(system, effectiveLocale, true),
           temperature: 0.35,
           json: true,
         });
@@ -937,6 +973,17 @@ export const aiService = {
           message: addedCount > 0 ? "Added AI-suggested skills to the CV" : "No new skills were added",
           count: addedCount,
         });
+        break;
+      }
+
+      case AiToolKind.COVER_LETTER: {
+        const coverLetter = extractArtifactString(artifact).trim();
+        if (!coverLetter) {
+          throw ApiError.badRequest("Cover letter artifact has no content to apply");
+        }
+
+        await aiRepository.upsertCoverLetter(artifact.cvId, coverLetter);
+        actions.push({ type: "artifact_state_updated", message: "Applied cover letter to the CV" });
         break;
       }
 

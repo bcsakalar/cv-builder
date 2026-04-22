@@ -88,7 +88,8 @@ export const aiController = {
 
   async atsCheck(req: Request, res: Response) {
     const cvId = req.params.cvId as string;
-    const result = await aiService.atsCheck(currentUserId(req), cvId, getLocale(req));
+    const { jobDescription } = req.body as { jobDescription?: string };
+    const result = await aiService.atsCheck(currentUserId(req), cvId, { locale: getLocale(req), jobDescription });
     sendSuccess(res, result);
   },
 

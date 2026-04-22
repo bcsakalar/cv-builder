@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { CVDetail } from "@/services/cv.api";
 import { useSectionMutation } from "@/hooks/useCV";
 import { useImproveProject } from "@/hooks/useAI";
-import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp, Gauge } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { buildPreviewProject } from "@/components/cv-preview/project-preview";
 
 const createSchema = (t: TFunction) => z.object({
@@ -103,15 +103,6 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
   const projectTypeLabel = ghData?.projectType
     ? t(`github.projectTypes.${ghData.projectType}`, { defaultValue: ghData.projectType })
     : null;
-  const complexityLabel = ghData?.complexityLevel
-    ? t(`github.complexity.${ghData.complexityLevel}`, { defaultValue: ghData.complexityLevel })
-    : null;
-  const deliverySignals = [
-    ghData?.hasTypeScript ? "TypeScript" : null,
-    ghData?.hasTests ? t("github.tests") : null,
-    ghData?.hasCI ? "CI" : null,
-    ghData?.hasDocker ? "Docker" : null,
-  ].filter((signal): signal is string => Boolean(signal));
   const hasHiddenHighlights = allHighlights.length > previewProject.highlights.length;
 
   return (
@@ -131,41 +122,12 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
                 {projectTypeLabel}
               </span>
             )}
-            {complexityLabel && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-                {complexityLabel}
-              </span>
-            )}
-            {ghData?.qualityScore != null && (
-              <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                (ghData.qualityScore as number) >= 70
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : (ghData.qualityScore as number) >= 40
-                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-              }`}>
-                <Gauge size={10} /> {ghData.qualityScore as number}/100
-              </span>
-            )}
           </div>
 
           {previewProject.metaLine && (
             <p className="mt-1 text-xs text-muted-foreground">{previewProject.metaLine}</p>
           )}
 
-          {previewProject.signalLine && (
-            <p className="mt-1 text-xs font-medium text-foreground/70">{previewProject.signalLine}</p>
-          )}
-
-          {deliverySignals.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {deliverySignals.map((signal) => (
-                <span key={signal} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  {signal}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Action buttons */}

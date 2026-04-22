@@ -6,6 +6,7 @@ import type {
   ContributorInfo,
   GitHubComplexityLevel,
   GitHubDependencyInfo,
+  GitHubImpactAnalysis,
   GitHubProjectType,
 } from "./github.types";
 
@@ -150,6 +151,13 @@ export interface Summary {
   aiGenerated: boolean;
 }
 
+export interface CoverLetter {
+  id: string;
+  cvId: string;
+  content: string;
+  aiGenerated: boolean;
+}
+
 // ── Experience ───────────────────────────────────────────
 
 export interface Experience {
@@ -252,6 +260,7 @@ export interface GitHubRepoData {
   hasCI?: boolean;
   hasDocker?: boolean;
   hasTypeScript?: boolean;
+  impactAnalysis?: GitHubImpactAnalysis | null;
 }
 
 export interface GitHubProjectImportDraft {
@@ -415,6 +424,7 @@ export interface CV {
 export interface CVWithRelations extends CV {
   personalInfo: PersonalInfo | null;
   summary: Summary | null;
+  coverLetter: CoverLetter | null;
   experiences: Experience[];
   educations: Education[];
   skills: Skill[];

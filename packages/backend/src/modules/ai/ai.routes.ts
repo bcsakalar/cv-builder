@@ -10,6 +10,7 @@ import { aiController } from "./ai.controller";
 import {
   artifactIdParamSchema,
   artifactListQuerySchema,
+  atsCheckBodySchema,
   coverLetterBodySchema,
   cvIdParamSchema,
   improveExperienceBodySchema,
@@ -32,7 +33,7 @@ router.post("/improve-experience", aiRateLimiter, validate({ body: improveExperi
 router.post("/improve-project", aiRateLimiter, validate({ body: improveProjectBodySchema }), asyncHandler(aiController.improveProject));
 
 router.post("/suggest-skills/:cvId", aiRateLimiter, validate({ params: cvIdParamSchema }), asyncHandler(aiController.suggestSkills));
-router.post("/ats-check/:cvId", aiRateLimiter, validate({ params: cvIdParamSchema }), asyncHandler(aiController.atsCheck));
+router.post("/ats-check/:cvId", aiRateLimiter, validate({ params: cvIdParamSchema, body: atsCheckBodySchema }), asyncHandler(aiController.atsCheck));
 router.post("/cover-letter/:cvId", aiRateLimiter, validate({ params: cvIdParamSchema, body: coverLetterBodySchema }), asyncHandler(aiController.generateCoverLetter));
 router.post("/review/:cvId", aiRateLimiter, validate({ params: cvIdParamSchema }), asyncHandler(aiController.reviewCV));
 router.post("/job-match/:cvId", aiRateLimiter, validate({ params: cvIdParamSchema, body: jobMatchBodySchema }), asyncHandler(aiController.jobMatch));

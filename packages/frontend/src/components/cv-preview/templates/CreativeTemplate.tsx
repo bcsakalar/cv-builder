@@ -4,7 +4,7 @@ import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
-import { getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
+import { getLanguageProficiencyLabelForLocale, getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
 
 interface TemplateProps {
   cv: CVDetail;
@@ -15,6 +15,8 @@ export function CreativeTemplate({ cv, theme }: TemplateProps) {
   const pi = cv.personalInfo as Record<string, string> | null;
   const photoUrl = resolveProfilePhotoUrl(pi);
   const sectionLabel = (sectionKey: string) => getSectionLabelForLocale(sectionKey, cv.locale);
+  const languageProficiencyLabel = (value: unknown) =>
+    getLanguageProficiencyLabelForLocale(typeof value === "string" ? value : undefined, cv.locale);
 
   const sectionTitle = (title: string) => (
     <div className="mb-4 flex items-center gap-2">
@@ -72,6 +74,13 @@ export function CreativeTemplate({ cv, theme }: TemplateProps) {
               </h2>
             </div>
             <p className="whitespace-pre-line leading-relaxed">{cv.summary.content}</p>
+          </section>
+        )}
+
+        {cv.coverLetter?.content && (
+          <section className="mb-8">
+            {sectionTitle(sectionLabel("coverLetter"))}
+            <p className="whitespace-pre-line leading-relaxed">{cv.coverLetter.content}</p>
           </section>
         )}
 
@@ -186,7 +195,7 @@ export function CreativeTemplate({ cv, theme }: TemplateProps) {
             <div className="flex flex-wrap gap-2">
               {cv.languages.map((l: Record<string, unknown>, i: number) => (
                 <span key={i} className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: `${theme.primaryColor}15`, color: theme.primaryColor }}>
-                  {String(l.name)} — {String(l.proficiency)}
+                  {String(l.name)} — {languageProficiencyLabel(l.proficiency)}
                 </span>
               ))}
             </div>

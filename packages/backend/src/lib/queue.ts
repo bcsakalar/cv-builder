@@ -14,6 +14,7 @@ export const QUEUE_NAMES = {
   PDF_GENERATION: "pdf-generation",
   GITHUB_ANALYSIS: "github-analysis",
   EMBEDDING_GENERATION: "embedding-generation",
+  RECRUITER_BATCH_PROCESSING: "recruiter-batch-processing",
 } as const;
 
 // ── Queue Factory ────────────────────────────────────────

@@ -44,23 +44,207 @@ async function publishProgress(analysisId: string, event: AnalysisProgressEvent)
   await redis.publish(progressChannel(analysisId), JSON.stringify(event));
 }
 
-async function fetchWithToken(url: string, token: string) {
+const GITHUB_API_HEADERS = {
+  Accept: "application/vnd.github+json",
+  "User-Agent": "CvBuilder-GitHub-Analysis",
+  "X-GitHub-Api-Version": "2022-11-28",
+} as const;
+
+interface GitHubErrorPayload {
+  message?: string;
+  documentation_url?: string;
+}
+
+interface GitHubApiErrorContext {
+  status: number;
+  message: string;
+  documentationUrl: string | null;
+  retryAfterSeconds: number | null;
+  rateLimitRemaining: number | null;
+  rateLimitReset: number | null;
+  ssoHeader: string | null;
+  ssoUrl: string | null;
+}
+
+class GitHubApiRequestError extends Error {
+  readonly status: number;
+  readonly retryable: boolean;
+  readonly details: GitHubApiErrorContext;
+
+  constructor(message: string, details: GitHubApiErrorContext) {
+    super(message);
+    this.name = "GitHubApiRequestError";
+    this.status = details.status;
+    this.retryable = isRetryableGitHubError(details);
+    this.details = details;
+  }
+}
+
+function buildGitHubHeaders(token?: string) {
+  return {
+    ...GITHUB_API_HEADERS,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function fetchGitHub(url: string, token?: string) {
   return fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github.v3+json",
-    },
+    headers: buildGitHubHeaders(token),
   });
+}
+
+function parseOptionalNumber(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractGitHubSsoUrl(ssoHeader: string | null): string | null {
+  if (!ssoHeader) {
+    return null;
+  }
+
+  const match = ssoHeader.match(/https?:\/\/\S+/);
+  return match?.[0] ?? null;
+}
+
+async function readGitHubApiErrorContext(response: Response): Promise<GitHubApiErrorContext> {
+  let message = response.statusText || "GitHub API request failed";
+  let documentationUrl: string | null = null;
+
+  try {
+    const payload = (await response.clone().json()) as GitHubErrorPayload;
+    if (payload.message) {
+      message = payload.message;
+    }
+    documentationUrl = payload.documentation_url ?? null;
+  } catch {
+    try {
+      const text = (await response.clone().text()).trim();
+      if (text) {
+        message = text;
+      }
+    } catch {
+      // Ignore parse errors and fall back to status text.
+    }
+  }
+
+  const ssoHeader = response.headers.get("x-github-sso");
+
+  return {
+    status: response.status,
+    message,
+    documentationUrl,
+    retryAfterSeconds: parseOptionalNumber(response.headers.get("retry-after")),
+    rateLimitRemaining: parseOptionalNumber(response.headers.get("x-ratelimit-remaining")),
+    rateLimitReset: parseOptionalNumber(response.headers.get("x-ratelimit-reset")),
+    ssoHeader,
+    ssoUrl: extractGitHubSsoUrl(ssoHeader),
+  };
+}
+
+function isGitHubRateLimitError(details: GitHubApiErrorContext): boolean {
+  return details.status === 429
+    || details.retryAfterSeconds !== null
+    || details.rateLimitRemaining === 0
+    || /secondary rate limit|rate limit exceeded|rate limit/i.test(details.message);
+}
+
+function isRetryableGitHubError(details: GitHubApiErrorContext): boolean {
+  return isGitHubRateLimitError(details) || details.status >= 500;
+}
+
+function hasInvalidGitHubCredentials(details: GitHubApiErrorContext): boolean {
+  return /bad credentials|invalid credentials|requires authentication/i.test(details.message);
+}
+
+function shouldUsePublicGitHubFallback(details: GitHubApiErrorContext): boolean {
+  return (details.status === 403 || details.status === 404)
+    && !hasInvalidGitHubCredentials(details)
+    && !isGitHubRateLimitError(details)
+    && details.ssoUrl === null;
+}
+
+function formatGitHubApiError(details: GitHubApiErrorContext, repoFullName: string): string {
+  if (hasInvalidGitHubCredentials(details) || details.status === 401) {
+    return "GitHub token is invalid or expired. Reconnect GitHub and try again.";
+  }
+
+  if (details.ssoUrl) {
+    return `GitHub access to ${repoFullName} is blocked until this token is authorized for your organization's SSO. Authorize the token in GitHub, then reconnect and try again.`;
+  }
+
+  if (isGitHubRateLimitError(details)) {
+    return "GitHub temporarily rate-limited repository analysis. Please wait a minute and try again.";
+  }
+
+  if (/resource not accessible by personal access token/i.test(details.message)) {
+    return `This GitHub token can list ${repoFullName} but cannot read enough repository data to analyze it. Use GitHub OAuth or a PAT with repository Metadata + Contents read access.`;
+  }
+
+  if (details.status === 404) {
+    return `Repository ${repoFullName} was not found or the connected GitHub account cannot access it.`;
+  }
+
+  if (details.status === 403) {
+    return `GitHub denied access to ${repoFullName}. If you're using a PAT, make sure it can read repository metadata and contents.`;
+  }
+
+  if (details.status >= 500) {
+    return "GitHub API is temporarily unavailable. Please try again.";
+  }
+
+  return `GitHub API request failed (${details.status})${details.documentationUrl ? `. See ${details.documentationUrl}` : ""}.`;
+}
+
+interface GitHubJsonRequestOptions {
+  repoFullName: string;
+  token?: string;
+  allowPublicFallback?: boolean;
+}
+
+interface GitHubJsonResult<T> {
+  data: T;
+  usedPublicFallback: boolean;
+}
+
+async function fetchGitHubJson<T>(url: string, options: GitHubJsonRequestOptions): Promise<GitHubJsonResult<T>> {
+  const primaryResponse = await fetchGitHub(url, options.token);
+  if (primaryResponse.ok) {
+    return {
+      data: (await primaryResponse.json()) as T,
+      usedPublicFallback: false,
+    };
+  }
+
+  const primaryError = await readGitHubApiErrorContext(primaryResponse);
+  if (options.allowPublicFallback && options.token && shouldUsePublicGitHubFallback(primaryError)) {
+    const publicResponse = await fetchGitHub(url);
+    if (publicResponse.ok) {
+      return {
+        data: (await publicResponse.json()) as T,
+        usedPublicFallback: true,
+      };
+    }
+
+    const publicError = await readGitHubApiErrorContext(publicResponse);
+    throw new GitHubApiRequestError(formatGitHubApiError(publicError, options.repoFullName), publicError);
+  }
+
+  throw new GitHubApiRequestError(formatGitHubApiError(primaryError, options.repoFullName), primaryError);
 }
 
 export { progressChannel };
 
 // ── Helper: categorize dependencies ──
 
-const FRAMEWORK_NAMES = new Set(["react", "next", "vue", "nuxt", "angular", "svelte", "express", "fastify", "nestjs", "koa", "hono", "django", "flask", "fastapi", "spring-boot", "rails", "laravel", "gatsby", "remix", "@remix-run/react", "astro", "solid-js", "@tanstack/react-router", "@tanstack/react-query"]);
-const TESTING_NAMES = new Set(["jest", "vitest", "mocha", "chai", "cypress", "playwright", "@playwright/test", "supertest", "@testing-library/react", "@testing-library/jest-dom", "pytest", "unittest", "rspec", "phpunit"]);
+const FRAMEWORK_NAMES = new Set(["react", "next", "vue", "nuxt", "angular", "svelte", "express", "fastify", "nestjs", "koa", "hono", "django", "flask", "fastapi", "spring-boot", "rails", "laravel", "gatsby", "remix", "@remix-run/react", "astro", "solid-js", "@tanstack/react-router", "@tanstack/react-query", "flutter", "provider", "riverpod", "flutter_riverpod", "bloc", "flutter_bloc", "ktor", "ktor-server-core"]);
+const TESTING_NAMES = new Set(["jest", "vitest", "mocha", "chai", "cypress", "playwright", "@playwright/test", "supertest", "@testing-library/react", "@testing-library/jest-dom", "pytest", "unittest", "rspec", "phpunit", "junit", "kotest", "flutter_test"]);
 const BUILD_NAMES = new Set(["webpack", "vite", "rollup", "esbuild", "parcel", "turbo", "nx", "tsup", "swc", "@swc/core", "babel", "@babel/core", "gulp", "grunt"]);
-const LINTER_NAMES = new Set(["eslint", "prettier", "biome", "@biomejs/biome", "stylelint", "tslint", "oxlint", "pylint", "flake8", "rubocop"]);
+const LINTER_NAMES = new Set(["eslint", "prettier", "biome", "@biomejs/biome", "stylelint", "tslint", "oxlint", "pylint", "flake8", "rubocop", "flutter_lints", "ktlint"]);
 const DB_NAMES = new Set(["prisma", "@prisma/client", "mongoose", "sequelize", "typeorm", "drizzle-orm", "knex", "pg", "mysql2", "redis", "ioredis", "mongodb", "sqlite3", "better-sqlite3"]);
 const UI_NAMES = new Set(["tailwindcss", "@tailwindcss/vite", "bootstrap", "@mui/material", "antd", "chakra-ui", "@chakra-ui/react", "shadcn-ui", "styled-components", "@emotion/react", "radix-ui", "@radix-ui/react-dialog"]);
 
@@ -83,6 +267,29 @@ function categorizeDeps(deps: Record<string, string>) {
   }
 
   return { frameworks, testingTools, buildTools, linters, databases, uiLibraries };
+}
+
+type ManifestSource =
+  | "npm"
+  | "pip"
+  | "pipenv"
+  | "go"
+  | "cargo"
+  | "maven"
+  | "gradle"
+  | "bundler"
+  | "composer"
+  | "pub";
+
+interface ParsedManifestDependencies {
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+}
+
+interface ManifestCandidate {
+  path: string;
+  fileName: string;
+  source: ManifestSource;
 }
 
 // ── Helper: detect project type from file tree ──
@@ -184,7 +391,7 @@ function selectKeyFiles(tree: { path: string; type: string; size?: number }[]): 
 
 // ── Dependency manifest detection ──
 
-const MANIFEST_FILES: Record<string, string> = {
+const MANIFEST_FILES: Record<string, ManifestSource> = {
   "package.json": "npm",
   "requirements.txt": "pip",
   "Pipfile": "pipenv",
@@ -192,9 +399,365 @@ const MANIFEST_FILES: Record<string, string> = {
   "Cargo.toml": "cargo",
   "pom.xml": "maven",
   "build.gradle": "gradle",
+  "build.gradle.kts": "gradle",
   "Gemfile": "bundler",
   "composer.json": "composer",
+  "pubspec.yaml": "pub",
 };
+
+const MANIFEST_PRIORITY: Record<string, number> = {
+  "package.json": 100,
+  "pubspec.yaml": 95,
+  "go.mod": 90,
+  "Cargo.toml": 85,
+  "pom.xml": 80,
+  "build.gradle.kts": 78,
+  "build.gradle": 77,
+  "composer.json": 70,
+  "Gemfile": 65,
+  "Pipfile": 60,
+  "requirements.txt": 55,
+};
+
+function setDependency(target: Record<string, string>, name: string, version: string) {
+  const normalizedName = name.trim();
+  if (!normalizedName || normalizedName.startsWith("#") || normalizedName === "sdk") {
+    return;
+  }
+
+  if (!(normalizedName in target)) {
+    target[normalizedName] = version.trim() || "*";
+  }
+}
+
+function encodeContentPath(filePath: string) {
+  return filePath.split("/").map(encodeURIComponent).join("/");
+}
+
+function parseSimpleRequirementLines(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+
+  for (const rawLine of decoded.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("[")) continue;
+
+    if (trimmed.includes("==")) {
+      const [name, version] = trimmed.split("==");
+      setDependency(dependencies, name ?? trimmed, version ?? "*");
+      continue;
+    }
+
+    if (trimmed.includes(">=")) {
+      const [name, version] = trimmed.split(">=");
+      setDependency(dependencies, name ?? trimmed, `>=${version ?? ""}`);
+      continue;
+    }
+
+    setDependency(dependencies, trimmed, "*");
+  }
+
+  return { dependencies, devDependencies: {} };
+}
+
+function parsePipfile(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+  const devDependencies: Record<string, string> = {};
+  let active: "dependencies" | "devDependencies" | null = null;
+
+  for (const rawLine of decoded.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    if (trimmed === "[packages]") {
+      active = "dependencies";
+      continue;
+    }
+
+    if (trimmed === "[dev-packages]") {
+      active = "devDependencies";
+      continue;
+    }
+
+    if (trimmed.startsWith("[")) {
+      active = null;
+      continue;
+    }
+
+    if (!active || !trimmed.includes("=")) continue;
+
+    const [name, version] = trimmed.split("=");
+    const target = active === "dependencies" ? dependencies : devDependencies;
+    setDependency(target, name ?? trimmed, (version ?? "*").replace(/^['"]|['"]$/g, ""));
+  }
+
+  return { dependencies, devDependencies };
+}
+
+function parseGoMod(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+  let inRequireBlock = false;
+
+  for (const rawLine of decoded.split(/\r?\n/)) {
+    const trimmed = rawLine.replace(/\/\/.*$/, "").trim();
+    if (!trimmed) continue;
+
+    if (/^require\s*\($/.test(trimmed)) {
+      inRequireBlock = true;
+      continue;
+    }
+
+    if (inRequireBlock && trimmed === ")") {
+      inRequireBlock = false;
+      continue;
+    }
+
+    if (!inRequireBlock && trimmed.startsWith("require ")) {
+      const parts = trimmed.replace(/^require\s+/, "").split(/\s+/);
+      setDependency(dependencies, parts[0] ?? trimmed, parts[1] ?? "*");
+      continue;
+    }
+
+    if (inRequireBlock) {
+      const parts = trimmed.split(/\s+/);
+      setDependency(dependencies, parts[0] ?? trimmed, parts[1] ?? "*");
+    }
+  }
+
+  return { dependencies, devDependencies: {} };
+}
+
+function parseCargoToml(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+  const devDependencies: Record<string, string> = {};
+  let active: "dependencies" | "devDependencies" | null = null;
+
+  for (const rawLine of decoded.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    if (trimmed === "[dependencies]") {
+      active = "dependencies";
+      continue;
+    }
+
+    if (trimmed === "[dev-dependencies]") {
+      active = "devDependencies";
+      continue;
+    }
+
+    if (trimmed.startsWith("[")) {
+      active = null;
+      continue;
+    }
+
+    if (!active || !trimmed.includes("=")) continue;
+
+    const [name, version] = trimmed.split("=");
+    const target = active === "dependencies" ? dependencies : devDependencies;
+    const normalizedVersion = (version ?? "*").trim().replace(/^['"]|['"]$/g, "");
+    setDependency(target, name ?? trimmed, normalizedVersion || "*");
+  }
+
+  return { dependencies, devDependencies };
+}
+
+function parsePubspecYaml(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+  const devDependencies: Record<string, string> = {};
+  let active: "dependencies" | "devDependencies" | null = null;
+  let activeIndent = -1;
+
+  for (const rawLine of decoded.split(/\r?\n/)) {
+    const withoutComment = rawLine.replace(/\s+#.*$/, "");
+    const trimmed = withoutComment.trim();
+    if (!trimmed) continue;
+
+    const indent = withoutComment.match(/^\s*/)?.[0].length ?? 0;
+
+    if (/^dependencies\s*:\s*$/.test(trimmed)) {
+      active = "dependencies";
+      activeIndent = indent;
+      continue;
+    }
+
+    if (/^dev_dependencies\s*:\s*$/.test(trimmed)) {
+      active = "devDependencies";
+      activeIndent = indent;
+      continue;
+    }
+
+    if (active && indent <= activeIndent) {
+      active = null;
+    }
+
+    if (!active) continue;
+
+    const match = trimmed.match(/^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/);
+    if (!match) continue;
+
+    const name = match[1];
+    const versionPart = match[2] ?? "";
+    if (!name) continue;
+    const target = active === "dependencies" ? dependencies : devDependencies;
+    const normalizedVersion = versionPart && !versionPart.startsWith("{")
+      ? versionPart.replace(/^['"]|['"]$/g, "")
+      : "*";
+    setDependency(target, name, normalizedVersion || "*");
+  }
+
+  return { dependencies, devDependencies };
+}
+
+function parsePomXml(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+  const devDependencies: Record<string, string> = {};
+  const dependencyBlocks = decoded.match(/<dependency>[\s\S]*?<\/dependency>/g) ?? [];
+
+  for (const block of dependencyBlocks) {
+    const artifactId = block.match(/<artifactId>([^<]+)<\/artifactId>/)?.[1];
+    if (!artifactId) continue;
+    const version = block.match(/<version>([^<]+)<\/version>/)?.[1] ?? "*";
+    const isTestScope = /<scope>test<\/scope>/.test(block);
+    const target = isTestScope ? devDependencies : dependencies;
+    setDependency(target, artifactId, version);
+  }
+
+  return { dependencies, devDependencies };
+}
+
+function parseGradle(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+  const devDependencies: Record<string, string> = {};
+  const dependencyRegex = /^\s*(implementation|api|compileOnly|runtimeOnly|kapt|ksp|annotationProcessor|testImplementation|androidTestImplementation|debugImplementation|testFixturesImplementation|classpath)\s*(?:\(\s*)?["']([^:"']+):([^:"']+)(?::([^"')\s]+))?["']/;
+
+  for (const rawLine of decoded.split(/\r?\n/)) {
+    const match = rawLine.match(dependencyRegex);
+    if (!match) continue;
+
+    const scope = match[1] ?? "";
+    const group = match[2] ?? "";
+    const artifact = match[3] ?? group;
+    const version = match[4] ?? "*";
+    const target = scope.toLowerCase().includes("test") ? devDependencies : dependencies;
+    setDependency(target, artifact || rawLine.trim(), version);
+  }
+
+  return { dependencies, devDependencies };
+}
+
+function parseGemfile(decoded: string): ParsedManifestDependencies {
+  const dependencies: Record<string, string> = {};
+
+  for (const rawLine of decoded.split(/\r?\n/)) {
+    const match = rawLine.match(/^\s*gem\s+["']([^"']+)["'](?:\s*,\s*["']([^"']+)["'])?/);
+    const name = match?.[1];
+    if (!name) continue;
+    setDependency(dependencies, name, match[2] ?? "*");
+  }
+
+  return { dependencies, devDependencies: {} };
+}
+
+export function parseManifestContent(source: ManifestSource, decoded: string): ParsedManifestDependencies | null {
+  if (!decoded.trim()) return null;
+
+  switch (source) {
+    case "npm": {
+      const pkg = JSON.parse(decoded) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+      return {
+        dependencies: pkg.dependencies ?? {},
+        devDependencies: pkg.devDependencies ?? {},
+      };
+    }
+    case "composer": {
+      const composer = JSON.parse(decoded) as { require?: Record<string, string>; "require-dev"?: Record<string, string> };
+      return {
+        dependencies: composer.require ?? {},
+        devDependencies: composer["require-dev"] ?? {},
+      };
+    }
+    case "pip":
+      return parseSimpleRequirementLines(decoded);
+    case "pipenv":
+      return parsePipfile(decoded);
+    case "go":
+      return parseGoMod(decoded);
+    case "cargo":
+      return parseCargoToml(decoded);
+    case "pub":
+      return parsePubspecYaml(decoded);
+    case "maven":
+      return parsePomXml(decoded);
+    case "gradle":
+      return parseGradle(decoded);
+    case "bundler":
+      return parseGemfile(decoded);
+    default:
+      return null;
+  }
+}
+
+function formatDependencySource(manifestPaths: string[]) {
+  const primaryPath = manifestPaths[0] ?? "unknown";
+  if (manifestPaths.length <= 1) return primaryPath;
+  return `${primaryPath} (+${manifestPaths.length - 1} more)`;
+}
+
+export function findManifestCandidates(tree: { path: string; type: string }[]): ManifestCandidate[] {
+  return tree
+    .filter((item) => item.type === "blob")
+    .map((item) => {
+      const fileName = item.path.split("/").pop() ?? item.path;
+      const source = MANIFEST_FILES[fileName];
+      if (!source) return null;
+      return { path: item.path, fileName, source };
+    })
+    .filter((item): item is ManifestCandidate => item !== null)
+    .sort((left, right) => {
+      const depthDiff = left.path.split("/").length - right.path.split("/").length;
+      if (depthDiff !== 0) return depthDiff;
+
+      const priorityDiff = (MANIFEST_PRIORITY[right.fileName] ?? 0) - (MANIFEST_PRIORITY[left.fileName] ?? 0);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      return left.path.localeCompare(right.path);
+    });
+}
+
+export function buildDependencyInfoFromManifestEntries(entries: Array<{ path: string; source: ManifestSource; content: string }>) {
+  const dependencies: Record<string, string> = {};
+  const devDependencies: Record<string, string> = {};
+  const manifestPaths: string[] = [];
+
+  for (const entry of entries) {
+    try {
+      const parsed = parseManifestContent(entry.source, entry.content);
+      if (!parsed) continue;
+
+      for (const [name, version] of Object.entries(parsed.dependencies)) {
+        setDependency(dependencies, name, version);
+      }
+      for (const [name, version] of Object.entries(parsed.devDependencies)) {
+        setDependency(devDependencies, name, version);
+      }
+
+      manifestPaths.push(entry.path);
+    } catch {
+      logger.warn("Failed to parse manifest file", { file: entry.path });
+    }
+  }
+
+  if (manifestPaths.length === 0) return null;
+
+  const categories = categorizeDeps({ ...dependencies, ...devDependencies });
+
+  return {
+    source: formatDependencySource(manifestPaths),
+    dependencies,
+    devDependencies,
+    ...categories,
+  };
+}
 
 // ── Config file detection ──
 
@@ -243,6 +806,71 @@ export function startGitHubAnalysisWorker() {
         }
         const token = decrypt(user.githubToken);
 
+        const repoRequest = await fetchGitHubJson<{
+          name: string;
+          description: string | null;
+          default_branch: string;
+          topics?: string[];
+          stargazers_count?: number;
+          forks_count?: number;
+          watchers_count?: number;
+          open_issues_count?: number;
+          license?: { spdx_id?: string | null } | null;
+          created_at?: string;
+          updated_at?: string;
+          html_url?: string;
+          archived?: boolean;
+          fork?: boolean;
+          private?: boolean;
+        }>(`https://api.github.com/repos/${repoFullName}`, {
+          repoFullName,
+          token,
+          allowPublicFallback: true,
+        });
+
+        if (repoRequest.usedPublicFallback) {
+          logger.warn("GitHub analysis fell back to public API access", { repoFullName });
+        }
+
+        const repo = repoRequest.data;
+        const allowPublicFallback = repo.private === false;
+        let requestToken = repoRequest.usedPublicFallback ? undefined : token;
+
+        async function fetchRepoResource<T>(url: string): Promise<T> {
+          const result = await fetchGitHubJson<T>(url, {
+            repoFullName,
+            token: requestToken,
+            allowPublicFallback,
+          });
+
+          if (result.usedPublicFallback) {
+            if (requestToken) {
+              logger.warn("GitHub analysis switched to public API access for repository resource", { repoFullName, url });
+            }
+            requestToken = undefined;
+          }
+
+          return result.data;
+        }
+
+        async function fetchOptionalRepoResource<T>(url: string, fallback: T, context: string): Promise<T> {
+          try {
+            return await fetchRepoResource<T>(url);
+          } catch (error) {
+            if (error instanceof GitHubApiRequestError) {
+              logger.warn("Optional GitHub analysis request failed", {
+                repoFullName,
+                context,
+                status: error.status,
+                message: error.message,
+              });
+              return fallback;
+            }
+
+            throw error;
+          }
+        }
+
         // ══════════════════════════════════════════════
         // Stage 1: Fetch repo metadata
         // ══════════════════════════════════════════════
@@ -251,12 +879,6 @@ export function startGitHubAnalysisWorker() {
           progress: 8,
           message: "Fetching repository info...",
         });
-        const repoRes = await fetchWithToken(`https://api.github.com/repos/${repoFullName}`, token);
-        if (!repoRes.ok) {
-          throw new Error(`Failed to fetch repo: ${repoRes.status}`);
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const repo = (await repoRes.json()) as any;
 
         // ══════════════════════════════════════════════
         // Stage 2: Fetch languages
@@ -266,8 +888,11 @@ export function startGitHubAnalysisWorker() {
           progress: 15,
           message: "Analyzing language breakdown...",
         });
-        const langRes = await fetchWithToken(`https://api.github.com/repos/${repoFullName}/languages`, token);
-        const languages = langRes.ok ? ((await langRes.json()) as Record<string, number>) : {};
+        const languages = await fetchOptionalRepoResource<Record<string, number>>(
+          `https://api.github.com/repos/${repoFullName}/languages`,
+          {},
+          "languages"
+        );
 
         // ══════════════════════════════════════════════
         // Stage 3: Fetch file tree
@@ -277,21 +902,16 @@ export function startGitHubAnalysisWorker() {
           progress: 22,
           message: "Mapping file structure...",
         });
-        const treeRes = await fetchWithToken(
-          `https://api.github.com/repos/${repoFullName}/git/trees/${repo.default_branch}?recursive=1`,
-          token
+        const treeData = await fetchOptionalRepoResource<{ tree?: Array<{ path: string; type: string; size?: number }> }>(
+          `https://api.github.com/repos/${repoFullName}/git/trees/${encodeURIComponent(repo.default_branch ?? "HEAD")}?recursive=1`,
+          { tree: [] },
+          "tree"
         );
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let treeItems: { path: string; type: string; size?: number }[] = [];
-        if (treeRes.ok) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const treeData = (await treeRes.json()) as any;
-          treeItems = (treeData.tree ?? []).map((t: { path: string; type: string; size?: number }) => ({
-            path: t.path,
-            type: t.type === "tree" ? "tree" : "blob",
-            size: t.size,
-          }));
-        }
+        let treeItems: { path: string; type: string; size?: number }[] = (treeData.tree ?? []).map((t) => ({
+          path: t.path,
+          type: t.type === "tree" ? "tree" : "blob",
+          size: t.size,
+        }));
 
         // Process file tree
         const fileItems = treeItems.filter((t) => t.type === "blob");
@@ -306,7 +926,6 @@ export function startGitHubAnalysisWorker() {
         }
 
         // Detect config files present (check at any depth for monorepo support)
-        const treePathSet = new Set(treeItems.map((t) => t.path));
         const configFiles: string[] = [];
         for (const cf of CONFIG_FILES_TO_DETECT) {
           // For directory-like checks (e.g. .github/workflows) check if any path starts with it
@@ -338,12 +957,20 @@ export function startGitHubAnalysisWorker() {
           progress: 32,
           message: "Analyzing commit history...",
         });
-        const commitsRes = await fetchWithToken(
+        const commits = await fetchOptionalRepoResource<Array<{
+          sha?: string;
+          commit?: {
+            author?: {
+              name?: string;
+              date?: string;
+            };
+            message?: string;
+          };
+        }>>(
           `https://api.github.com/repos/${repoFullName}/commits?per_page=100`,
-          token
+          [],
+          "commits"
         );
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const commits = commitsRes.ok ? ((await commitsRes.json()) as any[]) : [];
 
         // Build commit analytics
         const authorBreakdown: Record<string, number> = {};
@@ -390,14 +1017,16 @@ export function startGitHubAnalysisWorker() {
           progress: 42,
           message: "Identifying contributors...",
         });
-        const contribRes = await fetchWithToken(
+        const contribRaw = await fetchOptionalRepoResource<Array<{
+          login?: string;
+          avatar_url?: string;
+          contributions?: number;
+        }>>(
           `https://api.github.com/repos/${repoFullName}/contributors?per_page=10`,
-          token
+          [],
+          "contributors"
         );
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const contribRaw = contribRes.ok ? ((await contribRes.json()) as any[]) : [];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const contributors = contribRaw.map((c: any) => ({
+        const contributors = contribRaw.map((c) => ({
           login: c.login ?? "",
           avatarUrl: c.avatar_url ?? "",
           contributions: c.contributions ?? 0,
@@ -424,95 +1053,29 @@ export function startGitHubAnalysisWorker() {
           uiLibraries: string[];
         } | null = null;
 
-        // Find which manifest file exists
-        for (const [file, source] of Object.entries(MANIFEST_FILES)) {
-          if (!treePathSet.has(file)) continue;
+        const manifestCandidates = findManifestCandidates(treeItems).slice(0, 12);
+        if (manifestCandidates.length > 0) {
+          const manifestEntries: Array<{ path: string; source: ManifestSource; content: string }> = [];
 
-          const contentRes = await fetchWithToken(
-            `https://api.github.com/repos/${repoFullName}/contents/${file}`,
-            token
-          );
-          if (!contentRes.ok) continue;
+          for (const manifest of manifestCandidates) {
+            const contentData = await fetchOptionalRepoResource<{
+              encoding?: string;
+              content?: string;
+            } | null>(
+              `https://api.github.com/repos/${repoFullName}/contents/${encodeContentPath(manifest.path)}`,
+              null,
+              `manifest:${manifest.path}`
+            );
+            if (!contentData || contentData.encoding !== "base64" || !contentData.content) continue;
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const contentData = (await contentRes.json()) as any;
-          if (contentData.encoding === "base64" && contentData.content) {
-            try {
-              const decoded = Buffer.from(contentData.content, "base64").toString("utf-8");
-
-              if (source === "npm") {
-                const pkg = JSON.parse(decoded) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-                const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
-                const categories = categorizeDeps(allDeps);
-                dependencyInfo = {
-                  source: file,
-                  dependencies: pkg.dependencies ?? {},
-                  devDependencies: pkg.devDependencies ?? {},
-                  ...categories,
-                };
-              } else {
-                // For non-npm manifests, just store raw content lines as dependencies
-                const lines = decoded.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
-                const deps: Record<string, string> = {};
-                for (const line of lines.slice(0, 50)) {
-                  const trimmed = line.trim();
-                  if (trimmed.includes("==")) {
-                    const parts = trimmed.split("==");
-                    const name = parts[0] ?? trimmed;
-                    deps[name.trim()] = parts[1]?.trim() ?? "*";
-                  } else if (trimmed.includes(">=")) {
-                    const parts = trimmed.split(">=");
-                    const name = parts[0] ?? trimmed;
-                    deps[name.trim()] = ">=" + (parts[1]?.trim() ?? "");
-                  } else {
-                    deps[trimmed] = "*";
-                  }
-                }
-                dependencyInfo = {
-                  source: file,
-                  dependencies: deps,
-                  devDependencies: {},
-                  frameworks: [], testingTools: [], buildTools: [], linters: [], databases: [], uiLibraries: [],
-                };
-              }
-              break; // Use the first manifest found
-            } catch {
-              logger.warn("Failed to parse manifest file", { file });
-            }
+            manifestEntries.push({
+              path: manifest.path,
+              source: manifest.source,
+              content: Buffer.from(contentData.content, "base64").toString("utf-8"),
+            });
           }
-        }
 
-        // For monorepos: scan nested package.json files and merge dependencies
-        if (fileTree.projectType === "monorepo" && dependencyInfo?.source === "package.json") {
-          const nestedPkgPaths = treeItems
-            .filter((t) => t.type === "blob" && t.path !== "package.json" && t.path.endsWith("/package.json") && t.path.split("/").length <= 3)
-            .map((t) => t.path)
-            .slice(0, 6); // Limit to 6 nested packages
-
-          for (const pkgPath of nestedPkgPaths) {
-            try {
-              const pkgRes = await fetchWithToken(
-                `https://api.github.com/repos/${repoFullName}/contents/${pkgPath}`,
-                token
-              );
-              if (!pkgRes.ok) continue;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const pkgData = (await pkgRes.json()) as any;
-              if (pkgData.encoding === "base64" && pkgData.content) {
-                const decoded = Buffer.from(pkgData.content, "base64").toString("utf-8");
-                const pkg = JSON.parse(decoded) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-                // Merge deps into existing dependencyInfo
-                Object.assign(dependencyInfo.dependencies, pkg.dependencies ?? {});
-                Object.assign(dependencyInfo.devDependencies, pkg.devDependencies ?? {});
-              }
-            } catch {
-              // Skip nested packages that fail
-            }
-          }
-          // Re-categorize with merged dependencies
-          const allMergedDeps = { ...dependencyInfo.dependencies, ...dependencyInfo.devDependencies };
-          const mergedCategories = categorizeDeps(allMergedDeps);
-          Object.assign(dependencyInfo, mergedCategories);
+          dependencyInfo = buildDependencyInfoFromManifestEntries(manifestEntries);
         }
 
         // ══════════════════════════════════════════════
@@ -550,15 +1113,18 @@ export function startGitHubAnalysisWorker() {
 
         // Fetch README content
         let readmeContent: string | null = null;
-        const readmeRes = await fetchWithToken(`https://api.github.com/repos/${repoFullName}/readme`, token);
-        if (readmeRes.ok) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const readmeData = (await readmeRes.json()) as any;
-          if (readmeData.encoding === "base64" && readmeData.content) {
-            readmeContent = Buffer.from(readmeData.content, "base64").toString("utf-8");
-            // Limit README to 5KB for AI analysis
-            if (readmeContent.length > 5120) readmeContent = readmeContent.slice(0, 5120) + "\n...(truncated)";
-          }
+        const readmeData = await fetchOptionalRepoResource<{
+          encoding?: string;
+          content?: string;
+        } | null>(
+          `https://api.github.com/repos/${repoFullName}/readme`,
+          null,
+          "readme"
+        );
+        if (readmeData?.encoding === "base64" && readmeData.content) {
+          readmeContent = Buffer.from(readmeData.content, "base64").toString("utf-8");
+          // Limit README to 5KB for AI analysis
+          if (readmeContent.length > 5120) readmeContent = readmeContent.slice(0, 5120) + "\n...(truncated)";
         }
 
         // Fetch key source files for AI
@@ -572,14 +1138,15 @@ export function startGitHubAnalysisWorker() {
           if (filePath === "package.json" && dependencyInfo) continue;
 
           try {
-            const fileRes = await fetchWithToken(
-              `https://api.github.com/repos/${repoFullName}/contents/${encodeURIComponent(filePath)}`,
-              token
+            const fileData = await fetchOptionalRepoResource<{
+              encoding?: string;
+              content?: string;
+            } | null>(
+              `https://api.github.com/repos/${repoFullName}/contents/${encodeContentPath(filePath)}`,
+              null,
+              `source:${filePath}`
             );
-            if (!fileRes.ok) continue;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const fileData = (await fileRes.json()) as any;
-            if (fileData.encoding === "base64" && fileData.content) {
+            if (fileData?.encoding === "base64" && fileData.content) {
               const rawContent = Buffer.from(fileData.content, "base64").toString("utf-8");
               const content = rawContent.length > 12288
                 ? rawContent.slice(0, 12288) + "\n...(truncated)"
@@ -679,7 +1246,10 @@ export function startGitHubAnalysisWorker() {
             hasTypeScript: codeQuality.hasTypeScript,
             recentActivityCount: commitAnalytics.recentActivityCount,
             activeDays: commitAnalytics.activeDays,
-            recentCommits: commits.slice(0, 5).map((commit) => commit.commit?.message?.split("\n")[0]).filter(Boolean),
+            recentCommits: commits
+              .slice(0, 5)
+              .map((commit) => commit.commit?.message?.split("\n")[0])
+              .filter((message): message is string => Boolean(message)),
             dependencySignals: dependencyInfo ? {
               frameworks: dependencyInfo.frameworks,
               databases: dependencyInfo.databases,
@@ -729,7 +1299,10 @@ export function startGitHubAnalysisWorker() {
               hasTypeScript: codeQuality.hasTypeScript,
               recentActivityCount: commitAnalytics.recentActivityCount,
               activeDays: commitAnalytics.activeDays,
-              recentCommits: commits.slice(0, 5).map((commit) => commit.commit?.message?.split("\n")[0]).filter(Boolean),
+              recentCommits: commits
+                .slice(0, 5)
+                .map((commit) => commit.commit?.message?.split("\n")[0])
+                .filter((message): message is string => Boolean(message)),
               dependencySignals: dependencyInfo ? {
                 frameworks: dependencyInfo.frameworks,
                 databases: dependencyInfo.databases,
@@ -841,6 +1414,28 @@ export function startGitHubAnalysisWorker() {
         return result;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const attemptsAllowed = typeof job.opts.attempts === "number" ? job.opts.attempts : 1;
+        const hasMoreAttempts = job.attemptsMade + 1 < attemptsAllowed;
+
+        if (error instanceof GitHubApiRequestError && error.retryable && hasMoreAttempts) {
+          logger.warn("GitHub analysis attempt failed, retrying", {
+            analysisId,
+            error: errorMessage,
+            attempt: job.attemptsMade + 1,
+            attemptsAllowed,
+          });
+
+          await prisma.gitHubAnalysis.update({
+            where: { id: analysisId },
+            data: {
+              status: "PENDING",
+              error: null,
+            },
+          });
+
+          throw error;
+        }
+
         logger.error("GitHub analysis failed", { analysisId, error: errorMessage });
 
         await prisma.gitHubAnalysis.update({
@@ -860,7 +1455,7 @@ export function startGitHubAnalysisWorker() {
         throw error;
       }
     },
-    { concurrency: 2 }
+    { concurrency: 1 }
   );
 
   logger.info("GitHub deep analysis worker started");

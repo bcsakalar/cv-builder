@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { useForm, type UseFormRegister, type FieldErrors } from "react-hook-form";
+import { useCallback, useEffect } from "react";
+import { useForm, useWatch, type UseFormRegister, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { TFunction } from "i18next";
@@ -17,7 +17,6 @@ const createSchema = (t: TFunction) => z.object({
   phone: z.string().default(""),
   city: z.string().default(""),
   country: z.string().default(""),
-  zipCode: z.string().default(""),
   website: z.string().url(t("common.invalidUrl")).nullable().or(z.literal("")).transform((v) => v || null),
   linkedIn: z.string().url(t("common.invalidUrl")).nullable().or(z.literal("")).transform((v) => v || null),
   github: z.string().url(t("common.invalidUrl")).nullable().or(z.literal("")).transform((v) => v || null),
@@ -33,6 +32,30 @@ const createSchema = (t: TFunction) => z.object({
 });
 
 type FormData = z.infer<ReturnType<typeof createSchema>>;
+
+function createDefaultValues(pi: FormData | null): FormData {
+  return pi ?? {
+    firstName: "",
+    lastName: "",
+    professionalTitle: "",
+    email: "",
+    phone: "",
+    city: "",
+    country: "",
+    website: null,
+    linkedIn: null,
+    github: null,
+    twitter: null,
+    dateOfBirth: null,
+    nationality: null,
+    stackoverflow: null,
+    medium: null,
+    behance: null,
+    dribbble: null,
+    profilePhotoUrl: null,
+    address: null,
+  };
+}
 
 function Field({ name, label, type = "text", register, errors }: {
   name: keyof FormData;
@@ -62,44 +85,38 @@ export function PersonalInfoSection({ cv }: { cv: CVDetail }) {
   const schema = createSchema(t);
 
   const pi = cv.personalInfo as FormData | null;
+  const defaultValues = createDefaultValues(pi);
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: pi ?? {
-      firstName: "",
-      lastName: "",
-      professionalTitle: "",
-      email: "",
-      phone: "",
-      city: "",
-      country: "",
-      zipCode: "",
-      website: null,
-      linkedIn: null,
-      github: null,
-      twitter: null,
-      dateOfBirth: null,
-      nationality: null,
-      stackoverflow: null,
-      medium: null,
-      behance: null,
-      dribbble: null,
-      profilePhotoUrl: null,
-      address: null,
-    },
+    defaultValues,
   });
 
+  useEffect(() => {
+    form.reset(createDefaultValues(cv.personalInfo as FormData | null));
+  }, [cv.personalInfo, form]);
+
   const onSave = useCallback(
-    (data: FormData) => upsertPersonalInfo.mutate(data as Record<string, unknown>),
+    (data: FormData) => upsertPersonalInfo.mutateAsync(data as Record<string, unknown>),
     [upsertPersonalInfo]
   );
 
   useAutoSave(form.watch, onSave);
+  const watchedPhotoUrl = useWatch({ control: form.control, name: "profilePhotoUrl" }) ?? null;
 
   const { register, formState: { errors } } = form;
 
   return (
     <div className="space-y-6">
-      <ProfilePhotoUpload cvId={cv.id} currentPhotoUrl={pi?.profilePhotoUrl} />
+      <ProfilePhotoUpload
+        cvId={cv.id}
+        currentPhotoUrl={watchedPhotoUrl}
+        onPhotoChange={(nextPhotoUrl) => {
+          form.setValue("profilePhotoUrl", nextPhotoUrl, {
+            shouldDirty: true,
+            shouldTouch: true,
+          });
+        }}
+      />
       <div className="grid grid-cols-2 gap-4">
         <Field name="firstName" label={t("editorSections.personalInfo.firstName")} register={register} errors={errors} />
         <Field name="lastName" label={t("editorSections.personalInfo.lastName")} register={register} errors={errors} />
@@ -109,10 +126,9 @@ export function PersonalInfoSection({ cv }: { cv: CVDetail }) {
         <Field name="email" label={t("editorSections.personalInfo.email")} type="email" register={register} errors={errors} />
         <Field name="phone" label={t("editorSections.personalInfo.phone")} register={register} errors={errors} />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Field name="city" label={t("editorSections.personalInfo.city")} register={register} errors={errors} />
         <Field name="country" label={t("editorSections.personalInfo.country")} register={register} errors={errors} />
-        <Field name="zipCode" label={t("editorSections.personalInfo.zipCode")} register={register} errors={errors} />
       </div>
 
       <div className="border-t pt-4">

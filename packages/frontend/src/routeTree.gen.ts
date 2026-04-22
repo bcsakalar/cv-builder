@@ -10,6 +10,7 @@ import { cvNewRoute } from "./routes/cv/new";
 import { cvEditRoute } from "./routes/cv/$cvId/edit";
 import { templatesRoute } from "./routes/templates/index";
 import { githubRoute } from "./routes/github/index";
+import { recruiterRoute } from "./routes/recruiter/index";
 import { settingsRoute } from "./routes/settings/index";
 
 const routeTree = rootRoute.addChildren([
@@ -20,6 +21,7 @@ const routeTree = rootRoute.addChildren([
   cvEditRoute,
   templatesRoute,
   githubRoute,
+  recruiterRoute,
   settingsRoute,
 ]);
 

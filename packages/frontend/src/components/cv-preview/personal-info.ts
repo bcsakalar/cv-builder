@@ -25,14 +25,13 @@ function formatLinkLabel(url: string): string {
 export function formatPersonalInfoLocation(personalInfo: PersonalInfoRecord): string | null {
   const city = getNonEmptyString(personalInfo?.city);
   const country = getNonEmptyString(personalInfo?.country);
-  const zipCode = getNonEmptyString(personalInfo?.zipCode);
   const location = [city, country].filter(Boolean).join(", ");
 
-  if (!location && !zipCode) {
+  if (!location) {
     return null;
   }
 
-  return [location, zipCode].filter(Boolean).join(" ");
+  return location;
 }
 
 export function resolveProfilePhotoUrl(personalInfo: PersonalInfoRecord): string | null {

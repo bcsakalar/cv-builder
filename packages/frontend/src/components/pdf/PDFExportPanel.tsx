@@ -70,7 +70,7 @@ export function PDFExportPanel({ cvId }: PDFExportPanelProps) {
         data-testid="pdf-generate-button"
         onClick={handleGenerate}
         disabled={generateMutation.isPending}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
         {generateMutation.isPending ? (
           <Loader2 size={16} className="animate-spin" />

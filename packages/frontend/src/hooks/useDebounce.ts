@@ -17,16 +17,16 @@ export function useDebounce<T>(value: T, delay = 800): T {
 
 export function useAutoSave<T extends Record<string, unknown>>(
   watch: UseFormWatch<T>,
-  onSave: (data: T) => void,
+  onSave: (data: T) => void | Promise<unknown>,
   delay = 800
 ) {
   const setSaveStatus = useCVStore((s) => s.setSaveStatus);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string>("");
-  const handleSave = useEffectEvent((data: T, serialized: string) => {
+  const handleSave = useEffectEvent(async (data: T, serialized: string) => {
     try {
-      onSave(data);
+      await onSave(data);
       lastSavedRef.current = serialized;
       setSaveStatus("saved");
     } catch {
@@ -47,7 +47,7 @@ export function useAutoSave<T extends Record<string, unknown>>(
 
       timeoutRef.current = setTimeout(() => {
         if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
-        handleSave(data as T, serialized);
+        void handleSave(data as T, serialized);
       }, delay);
     });
 

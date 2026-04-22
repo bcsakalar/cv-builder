@@ -11,10 +11,10 @@ import { translate } from "@/i18n/helpers";
 const ghKeys = {
   all: ["github"] as const,
   status: () => [...ghKeys.all, "status"] as const,
-  repos: (page: number) => [...ghKeys.all, "repos", page] as const,
+  repos: (page: number, cvId?: string) => [...ghKeys.all, "repos", page, cvId ?? "none"] as const,
   repoDetails: (owner: string, repo: string) => [...ghKeys.all, "repo", owner, repo] as const,
-  analyses: () => [...ghKeys.all, "analyses"] as const,
-  analysis: (id: string) => [...ghKeys.all, "analysis", id] as const,
+  analyses: (cvId?: string) => [...ghKeys.all, "analyses", cvId ?? "none"] as const,
+  analysis: (id: string, cvId?: string) => [...ghKeys.all, "analysis", id, cvId ?? "none"] as const,
 };
 
 export function useGitHubStatus() {
@@ -24,10 +24,10 @@ export function useGitHubStatus() {
   });
 }
 
-export function useGitHubRepos(page = 1) {
+export function useGitHubRepos(page = 1, cvId?: string) {
   return useQuery({
-    queryKey: ghKeys.repos(page),
-    queryFn: () => githubApi.getRepos(page),
+    queryKey: ghKeys.repos(page, cvId),
+    queryFn: () => githubApi.getRepos(page, cvId),
   });
 }
 
@@ -39,21 +39,21 @@ export function useRepoDetails(owner: string, repo: string) {
   });
 }
 
-export function useGitHubAnalyses() {
-  const query = useQuery({
-    queryKey: ghKeys.analyses(),
-    queryFn: () => githubApi.getAnalyses(),
-  });
-
-  // Auto-refetch when any analysis is in progress
-  const hasActive = query.data?.some(
-    (a) => a.status === "PENDING" || a.status === "PROCESSING"
-  );
-
+export function useGitHubAnalyses(cvId?: string) {
   return useQuery({
-    queryKey: ghKeys.analyses(),
-    queryFn: () => githubApi.getAnalyses(),
-    refetchInterval: hasActive ? 3000 : false,
+    queryKey: ghKeys.analyses(cvId),
+    queryFn: () => githubApi.getAnalyses(cvId),
+    refetchInterval: (query) => {
+      const data = query.state.data as Awaited<ReturnType<typeof githubApi.getAnalyses>> | undefined;
+      return data?.some((analysis) => analysis.status === "PENDING" || analysis.status === "PROCESSING") ? 3000 : false;
+    },
+  });
+}
+
+export function useGitHubOAuthAuthorize() {
+  return useMutation({
+    mutationFn: () => githubApi.authorizeOAuth(),
+    onError: () => toast.error(translate("toasts.github.connectFailed")),
   });
 }
 
@@ -84,9 +84,9 @@ export function useDisconnectGitHub() {
 export function useAnalyzeRepo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (repoFullName: string) => githubApi.analyze(repoFullName),
+    mutationFn: githubApi.analyze,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ghKeys.analyses() });
+      qc.invalidateQueries({ queryKey: ghKeys.all });
       toast.success(translate("toasts.github.analysisStarted"));
     },
     onError: () => toast.error(translate("toasts.github.analysisFailed")),
@@ -159,7 +159,7 @@ export function useAnalysisProgress(analysisId: string | null) {
 
         if (data.stage === "completed" || data.stage === "failed") {
           // Refresh analysis list when done
-          qc.invalidateQueries({ queryKey: ghKeys.analyses() });
+          qc.invalidateQueries({ queryKey: ghKeys.all });
           close();
         }
       } catch {

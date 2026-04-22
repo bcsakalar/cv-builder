@@ -10,6 +10,7 @@ import { prisma } from "../../lib/prisma";
 export const AI_CV_INCLUDE = {
   personalInfo: true,
   summary: true,
+  coverLetter: true,
   experiences: { orderBy: { orderIndex: "asc" as const } },
   educations: { orderBy: { orderIndex: "asc" as const } },
   skills: { orderBy: { orderIndex: "asc" as const } },
@@ -145,6 +146,14 @@ export const aiRepository = {
 
   upsertSummary(cvId: string, content: string) {
     return prisma.summary.upsert({
+      where: { cvId },
+      create: { cvId, content, aiGenerated: true },
+      update: { content, aiGenerated: true },
+    });
+  },
+
+  upsertCoverLetter(cvId: string, content: string) {
+    return prisma.coverLetter.upsert({
       where: { cvId },
       create: { cvId, content, aiGenerated: true },
       update: { content, aiGenerated: true },

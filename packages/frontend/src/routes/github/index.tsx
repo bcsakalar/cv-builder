@@ -2,15 +2,23 @@ import type { DeepAnalysisResult } from "@cvbuilder/shared";
 import { createRoute } from "@tanstack/react-router";
 import { rootRoute } from "../__root";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { GitHubConnect } from "@/components/github/GitHubConnect";
-import { RepoSelector } from "@/components/github/RepoSelector";
-import { AnalysisDetail } from "@/components/github/AnalysisDetail";
-import { GitHubProfileSummary } from "@/components/github/GitHubProfileSummary";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useGitHubStatus, useGitHubAnalyses } from "@/hooks/useGitHub";
+import { useGetCVs } from "@/hooks/useCV";
+import { useQueryClient } from "@tanstack/react-query";
 import { Github, Clock, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
 import { getDateLocale, getStatusLabel } from "@/i18n/helpers";
+import { toast } from "sonner";
+
+const LazyGitHubConnect = lazy(() => import("@/components/github/GitHubConnect").then((module) => ({ default: module.GitHubConnect })));
+const LazyRepoSelector = lazy(() => import("@/components/github/RepoSelector").then((module) => ({ default: module.RepoSelector })));
+const LazyAnalysisDetail = lazy(() => import("@/components/github/AnalysisDetail").then((module) => ({ default: module.AnalysisDetail })));
+const LazyGitHubProfileSummary = lazy(() => import("@/components/github/GitHubProfileSummary").then((module) => ({ default: module.GitHubProfileSummary })));
+
+function SectionFallback({ label }: { label: string }) {
+  return <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{label}</div>;
+}
 
 export const githubRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -20,10 +28,35 @@ export const githubRoute = createRoute({
 
 function GitHubPage() {
   const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
   const { data: status } = useGitHubStatus();
-  const { data: analyses } = useGitHubAnalyses();
+  const { data: cvs = [] } = useGetCVs();
+  const [selectedCvId, setSelectedCvId] = useState<string>("");
+  const { data: analyses } = useGitHubAnalyses(selectedCvId || undefined);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const dateLocale = getDateLocale(i18n.language);
+
+  useEffect(() => {
+    if (!selectedCvId && cvs.length > 0) {
+      setSelectedCvId(cvs[0]?.id ?? "");
+    }
+  }, [cvs, selectedCvId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthState = params.get("github_oauth");
+    if (!oauthState) return;
+
+    if (oauthState === "success") {
+      toast.success(t("github.oauthSuccess", { defaultValue: "GitHub OAuth connection completed." }));
+      qc.invalidateQueries({ queryKey: ["github"] });
+    } else {
+      const message = params.get("message") || t("github.oauthError", { defaultValue: "GitHub OAuth could not be completed." });
+      toast.error(message);
+    }
+
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [qc, t]);
 
   return (
     <MainLayout>
@@ -38,13 +71,40 @@ function GitHubPage() {
           </div>
         </div>
 
-        <GitHubConnect />
+        <Suspense fallback={<SectionFallback label={t("github.loadingConnect", { defaultValue: "Loading connection panel…" })} />}>
+          <LazyGitHubConnect />
+        </Suspense>
 
         {status?.connected && (
           <>
+            {cvs.length > 0 && (
+              <div className="rounded-lg border bg-card p-4">
+                <label className="mb-2 block text-sm font-medium">
+                  {t("github.selectedCvContext", { defaultValue: "Selected CV context" })}
+                </label>
+                <select
+                  value={selectedCvId}
+                  onChange={(event) => setSelectedCvId(event.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                >
+                  <option value="">{t("github.noCvContext", { defaultValue: "No CV selected" })}</option>
+                  {cvs.map((cv) => (
+                    <option key={cv.id} value={cv.id}>{cv.title}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {t("github.selectedCvContextHint", {
+                    defaultValue: "Use a CV here to rank repositories by fit and show relevance-aware impact scoring in analysis history.",
+                  })}
+                </p>
+              </div>
+            )}
+
             <div>
               <h2 className="mb-4 text-lg font-semibold">{t("github.yourRepos")}</h2>
-              <RepoSelector />
+              <Suspense fallback={<SectionFallback label={t("github.loadingRepos", { defaultValue: "Loading repositories…" })} />}>
+                <LazyRepoSelector selectedCvId={selectedCvId || undefined} />
+              </Suspense>
             </div>
 
             {analyses && analyses.length > 0 && (
@@ -93,11 +153,13 @@ function GitHubPage() {
                         {/* Expanded detail view */}
                         {isExpanded && a.result && (
                           <div className="rounded-b-lg border border-t-0 px-3 pb-3">
-                            <AnalysisDetail
-                              result={a.result as DeepAnalysisResult}
-                              analysisId={a.id}
-                              onClose={() => setExpandedId(null)}
-                            />
+                            <Suspense fallback={<SectionFallback label={t("github.loadingAnalysis", { defaultValue: "Loading analysis detail…" })} />}>
+                              <LazyAnalysisDetail
+                                result={a.result as DeepAnalysisResult}
+                                analysisId={a.id}
+                                onClose={() => setExpandedId(null)}
+                              />
+                            </Suspense>
                           </div>
                         )}
                       </div>
@@ -107,7 +169,9 @@ function GitHubPage() {
               </div>
 
               {/* AI Developer Profile Summary */}
-              <GitHubProfileSummary />
+              <Suspense fallback={<SectionFallback label={t("github.loadingProfileSummary", { defaultValue: "Loading profile summary…" })} />}>
+                <LazyGitHubProfileSummary />
+              </Suspense>
               </>
             )}
           </>

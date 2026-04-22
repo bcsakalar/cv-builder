@@ -12,6 +12,8 @@ const router = Router();
 router.post("/connect", asyncHandler(githubController.connect));
 router.post("/disconnect", asyncHandler(githubController.disconnect));
 router.get("/status", asyncHandler(githubController.status));
+router.get("/oauth/authorize", asyncHandler(githubController.oauthAuthorize));
+router.get("/oauth/callback", asyncHandler(githubController.oauthCallback));
 
 // Repos
 router.get("/repos", asyncHandler(githubController.repos));

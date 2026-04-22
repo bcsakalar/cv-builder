@@ -81,6 +81,41 @@ enum AiArtifactStatus {
   FAILED
 }
 
+enum RecruiterBatchStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+}
+
+enum CandidateDocumentStatus {
+  UPLOADED
+  PROCESSING
+  EXTRACTED
+  FAILED
+}
+
+enum CandidateRecommendation {
+  STRONG_MATCH
+  POTENTIAL_MATCH
+  WEAK_MATCH
+}
+
+enum CandidateLinkType {
+  GITHUB
+  LINKEDIN
+  PORTFOLIO
+  OTHER
+}
+
+enum LinkInspectionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  BLOCKED
+}
+
 // ── User ─────────────────────────────────────────────────
 
 model User {
@@ -97,6 +132,11 @@ model User {
   cvs              CV[]
   githubAnalyses   GitHubAnalysis[]
   aiArtifacts      AiArtifact[]
+  recruiterJobs        RecruiterJob[]
+  recruiterBatches     RecruiterBatch[]
+  candidateDocuments   CandidateDocument[]
+  candidateProfiles    CandidateProfile[]
+  candidateEvaluations CandidateEvaluation[]
 
   @@map("users")
 }
@@ -121,6 +161,7 @@ model CV {
   template             Template              @relation(fields: [templateId], references: [id])
   personalInfo         PersonalInfo?
   summary              Summary?
+  coverLetter          CoverLetter?
   experiences          Experience[]
   educations           Education[]
   skills               Skill[]
@@ -213,6 +254,19 @@ model Summary {
   cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
 
   @@map("summaries")
+}
+
+model CoverLetter {
+  id          String   @id @default(uuid()) @db.Uuid
+  content     String   @default("") @db.Text
+  aiGenerated Boolean  @default(false) @map("ai_generated")
+  cvId        String   @unique @map("cv_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+
+  @@map("cover_letters")
 }
 
 // ── Experience ───────────────────────────────────────────
@@ -526,4 +580,161 @@ model GitHubAnalysis {
   @@index([userId])
   @@index([status])
   @@map("github_analyses")
+}
+
+model RecruiterJob {
+  id                     String   @id @default(uuid()) @db.Uuid
+  title                  String   @db.VarChar(200)
+  company                String?  @db.VarChar(200)
+  location               String?  @db.VarChar(200)
+  locale                 String   @default("en") @db.VarChar(5)
+  description            String   @db.Text
+  mustHaveSkills         Json     @default("[]") @map("must_have_skills")
+  niceToHaveSkills       Json     @default("[]") @map("nice_to_have_skills")
+  minimumYearsExperience Float?   @map("minimum_years_experience")
+  userId                 String   @map("user_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batches           RecruiterBatch[]
+  candidateProfiles CandidateProfile[]
+
+  @@index([userId, createdAt])
+  @@map("recruiter_jobs")
+}
+
+model RecruiterBatch {
+  id              String               @id @default(uuid()) @db.Uuid
+  status          RecruiterBatchStatus @default(PENDING)
+  totalFiles      Int                  @default(0) @map("total_files")
+  processedFiles  Int                  @default(0) @map("processed_files")
+  successfulFiles Int                  @default(0) @map("successful_files")
+  failedFiles     Int                  @default(0) @map("failed_files")
+  lastError       String?              @map("last_error") @db.Text
+  completedAt     DateTime?            @map("completed_at")
+  jobId           String               @map("job_id") @db.Uuid
+  userId          String               @map("user_id") @db.Uuid
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  job               RecruiterJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents         CandidateDocument[]
+  candidateProfiles CandidateProfile[]
+
+  @@index([jobId, createdAt])
+  @@index([userId, createdAt])
+  @@map("recruiter_batches")
+}
+
+model CandidateDocument {
+  id               String                  @id @default(uuid()) @db.Uuid
+  originalFileName String                  @map("original_file_name") @db.VarChar(260)
+  storedFileName   String                  @map("stored_file_name") @db.VarChar(260)
+  mimeType         String                  @map("mime_type") @db.VarChar(120)
+  filePath         String                  @map("file_path") @db.Text
+  fileSize         Int                     @map("file_size")
+  extractionStatus CandidateDocumentStatus @default(UPLOADED) @map("extraction_status")
+  extractedText    String?                 @map("extracted_text") @db.Text
+  parseError       String?                 @map("parse_error") @db.Text
+  processedAt      DateTime?               @map("processed_at")
+  batchId          String                  @map("batch_id") @db.Uuid
+  userId           String                  @map("user_id") @db.Uuid
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  batch            RecruiterBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  candidateProfile CandidateProfile?
+
+  @@index([batchId, createdAt])
+  @@index([userId, createdAt])
+  @@map("candidate_documents")
+}
+
+model CandidateProfile {
+  id                String   @id @default(uuid()) @db.Uuid
+  fullName          String?  @map("full_name") @db.VarChar(200)
+  headline          String?  @db.VarChar(250)
+  email             String?  @db.VarChar(255)
+  phone             String?  @db.VarChar(40)
+  location          String?  @db.VarChar(200)
+  yearsOfExperience Float?   @map("years_of_experience")
+  summary           String?  @db.Text
+  topSkills         Json     @default("[]") @map("top_skills")
+  completenessScore Int      @default(0) @map("completeness_score")
+  missingFields     Json     @default("[]") @map("missing_fields")
+  rawTextSnippet    String   @map("raw_text_snippet") @db.Text
+  jobId             String   @map("job_id") @db.Uuid
+  batchId           String   @map("batch_id") @db.Uuid
+  documentId        String   @unique @map("document_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  job        RecruiterJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  batch      RecruiterBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  document   CandidateDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links      CandidateLink[]
+  evaluation CandidateEvaluation?
+
+  @@index([jobId, createdAt])
+  @@index([batchId, createdAt])
+  @@index([userId, createdAt])
+  @@map("candidate_profiles")
+}
+
+model CandidateLink {
+  id                 String               @id @default(uuid()) @db.Uuid
+  url                String               @db.Text
+  normalizedUrl      String               @map("normalized_url") @db.Text
+  host               String               @db.VarChar(255)
+  linkType           CandidateLinkType    @map("link_type")
+  inspectionStatus   LinkInspectionStatus @default(PENDING) @map("inspection_status")
+  statusCode         Int?                 @map("status_code")
+  finalUrl           String?              @map("final_url") @db.Text
+  title              String?              @db.VarChar(300)
+  description        String?              @db.Text
+  accessible         Boolean?
+  responseTimeMs     Int?                 @map("response_time_ms")
+  error              String?              @db.Text
+  candidateProfileId String               @map("candidate_profile_id") @db.Uuid
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([candidateProfileId])
+  @@map("candidate_links")
+}
+
+model CandidateEvaluation {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  overallScore       Int                    @map("overall_score")
+  mustHaveScore      Int                    @map("must_have_score")
+  keywordScore       Int                    @map("keyword_score")
+  experienceScore    Int                    @map("experience_score")
+  readabilityScore   Int                    @map("readability_score")
+  linkQualityScore   Int                    @map("link_quality_score")
+  riskPenalty        Int                    @map("risk_penalty")
+  recommendation     CandidateRecommendation
+  missingKeywords    Json                   @default("[]") @map("missing_keywords")
+  missingHardSkills  Json                   @default("[]") @map("missing_hard_skills")
+  strengths          Json                   @default("[]")
+  riskFlags          Json                   @default("[]") @map("risk_flags")
+  shortSummary       String                 @map("short_summary") @db.Text
+  explanation        String?                @db.Text
+  evaluatedAt        DateTime               @default(now()) @map("evaluated_at")
+  candidateProfileId String                 @unique @map("candidate_profile_id") @db.Uuid
+  userId             String                 @map("user_id") @db.Uuid
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, overallScore])
+  @@map("candidate_evaluations")
 }

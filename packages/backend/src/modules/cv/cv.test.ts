@@ -24,10 +24,17 @@ jest.mock("../../config/env", () => ({
   },
 }));
 jest.mock("../../lib/prisma", () => ({
-  prisma: {},
+  prisma: {
+    template: {
+      findFirst: jest.fn(),
+    },
+  },
 }));
 
 const mockRepo = cvRepository as jest.Mocked<typeof cvRepository>;
+const mockPrisma = require("../../lib/prisma").prisma as {
+  template: { findFirst: jest.Mock };
+};
 const USER_ID = "00000000-0000-0000-0000-000000000001";
 
 const MOCK_CV = {
@@ -67,6 +74,9 @@ describe("cvService", () => {
 
   describe("create", () => {
     it("should create a CV with generated slug", async () => {
+      mockPrisma.template.findFirst.mockResolvedValue({
+        id: "22222222-2222-2222-2222-222222222222",
+      });
       mockRepo.create.mockResolvedValue(MOCK_CV as never);
 
       const result = await cvService.create(USER_ID, {
@@ -77,6 +87,36 @@ describe("cvService", () => {
 
       expect(mockRepo.create).toHaveBeenCalledTimes(1);
       expect(result).toEqual(MOCK_CV);
+    });
+
+    it("should resolve template by slug and trim incoming values", async () => {
+      mockPrisma.template.findFirst.mockResolvedValue({
+        id: "22222222-2222-2222-2222-222222222222",
+      });
+      mockRepo.create.mockResolvedValue(MOCK_CV as never);
+
+      await cvService.create(USER_ID, {
+        title: "  My Resume  ",
+        templateId: "  academic-cv  ",
+        locale: " en ",
+      });
+
+      expect(mockPrisma.template.findFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { id: "academic-cv" },
+            { slug: { equals: "academic-cv", mode: "insensitive" } },
+            { name: { equals: "academic-cv", mode: "insensitive" } },
+          ],
+        },
+      });
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "My Resume",
+          locale: "en",
+          template: { connect: { id: "22222222-2222-2222-2222-222222222222" } },
+        })
+      );
     });
   });
 
@@ -140,6 +180,54 @@ describe("cvService", () => {
       mockRepo.findByIdForUser.mockResolvedValue(null);
 
       await expect(cvService.remove(USER_ID, "nonexistent")).rejects.toThrow(ApiError);
+    });
+  });
+
+  describe("clone", () => {
+    it("should clone a CV into a locale and role-specific variant", async () => {
+      const sourceCv = {
+        ...MOCK_CV,
+        personalInfo: {
+          id: "pi-1",
+          cvId: MOCK_CV.id,
+          firstName: "Jane",
+          lastName: "Doe",
+          professionalTitle: "Full-Stack Developer",
+          email: "jane@example.com",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        summary: {
+          id: "summary-1",
+          cvId: MOCK_CV.id,
+          content: "Built production apps",
+          aiGenerated: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      };
+
+      mockRepo.findByIdForUser.mockResolvedValue(sourceCv as never);
+      mockRepo.create.mockResolvedValue({ ...MOCK_CV, id: "clone-1", title: "Test CV • TR • Backend Engineer" } as never);
+
+      const result = await cvService.clone(USER_ID, MOCK_CV.id, {
+        locale: "tr",
+        targetRole: "Backend Engineer",
+      });
+
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Test CV • TR • Backend Engineer",
+          locale: "tr",
+          personalInfo: {
+            create: expect.objectContaining({
+              professionalTitle: "Backend Engineer",
+              firstName: "Jane",
+            }),
+          },
+        })
+      );
+      expect(result.id).toBe("clone-1");
     });
   });
 

@@ -13,8 +13,10 @@ import { DEFAULT_THEME_CONFIG } from "@cvbuilder/shared";
 import type {
   CreateCVInput,
   UpdateCVInput,
+  CloneCVInput,
   PersonalInfoInput,
   SummaryInput,
+  CoverLetterInput,
   ExperienceInput,
   EducationInput,
   SkillInput,
@@ -33,31 +35,70 @@ function cacheKey(userId: string, id: string): string {
   return `cv:${userId}:${id}`;
 }
 
+function cloneEntityData<T extends Record<string, unknown> | null | undefined>(value: T): Record<string, unknown> | null {
+  if (!value) return null;
+  const clone = structuredClone(value) as Record<string, unknown>;
+  delete clone.id;
+  delete clone.cvId;
+  delete clone.createdAt;
+  delete clone.updatedAt;
+  return clone;
+}
+
+function cloneEntityArray(values: Array<Record<string, unknown>> | null | undefined): Record<string, unknown>[] {
+  return (values ?? [])
+    .map((value) => cloneEntityData(value))
+    .filter((value): value is Record<string, unknown> => value !== null);
+}
+
+function buildClonedTitle(sourceTitle: string, sourceLocale: string, input: CloneCVInput): string {
+  if (input.title) {
+    return input.title.trim();
+  }
+
+  const labels: string[] = [];
+  if (input.locale && input.locale.trim() && input.locale.trim() !== sourceLocale) {
+    labels.push(input.locale.trim().toUpperCase());
+  }
+  if (input.targetRole && input.targetRole.trim()) {
+    labels.push(input.targetRole.trim());
+  }
+
+  const suffix = labels.length > 0 ? labels.join(" • ") : "Variant";
+  return `${sourceTitle} • ${suffix}`;
+}
+
 export const cvService = {
   // ── CV CRUD ────────────────────────────────────────────
 
   async create(userId: string, input: CreateCVInput) {
-    const slug = generateSlug(input.title);
+    const title = input.title.trim();
+    const requestedTemplate = input.templateId.trim();
+    const locale = input.locale?.trim() || "en";
+    const slug = generateSlug(title);
 
-    // Resolve templateId: accept both UUID and slug
-    let templateId = input.templateId;
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId);
-    if (!isUUID) {
-      const template = await prisma.template.findFirst({ where: { slug: templateId } });
-      if (!template) throw ApiError.notFound("Template");
-      templateId = template.id;
-    }
+    const template = await prisma.template.findFirst({
+      where: {
+        OR: [
+          { id: requestedTemplate },
+          { slug: { equals: requestedTemplate, mode: "insensitive" } },
+          { name: { equals: requestedTemplate, mode: "insensitive" } },
+        ],
+      },
+    });
+
+    if (!template) throw ApiError.notFound("Template");
 
     const cv = await cvRepository.create({
-      title: input.title,
+      title,
       slug,
       status: "DRAFT",
-      locale: input.locale ?? "en",
+      locale,
       isAtsOptimized: false,
       sectionOrder: DEFAULT_SECTION_ORDER,
       themeConfig: DEFAULT_THEME_CONFIG,
       user: { connect: { id: userId } },
-      template: { connect: { id: templateId } },
+      template: { connect: { id: template.id } },
     });
 
     return cv;
@@ -102,6 +143,79 @@ export const cvService = {
     await cacheDelete(cacheKey(userId, id));
   },
 
+  async clone(userId: string, id: string, input: CloneCVInput) {
+    const existing = await cvRepository.findByIdForUser(id, userId);
+    if (!existing) throw ApiError.notFound("CV");
+
+    const title = buildClonedTitle(existing.title, existing.locale, input);
+
+    const cloned = await cvRepository.create({
+      title,
+      slug: generateSlug(title),
+      status: "DRAFT",
+      locale: input.locale?.trim() || existing.locale,
+      isAtsOptimized: existing.isAtsOptimized,
+      sectionOrder: structuredClone(existing.sectionOrder) as Prisma.InputJsonValue,
+      themeConfig: structuredClone(existing.themeConfig) as Prisma.InputJsonValue,
+      user: { connect: { id: userId } },
+      template: { connect: { id: existing.templateId } },
+      ...(existing.personalInfo
+        ? {
+            personalInfo: {
+              create: {
+                ...(cloneEntityData(existing.personalInfo) as Prisma.PersonalInfoCreateWithoutCvInput),
+                professionalTitle: input.targetRole?.trim() || existing.personalInfo.professionalTitle,
+              },
+            },
+          }
+        : {}),
+      ...(existing.summary
+        ? { summary: { create: cloneEntityData(existing.summary) as Prisma.SummaryCreateWithoutCvInput } }
+        : {}),
+      ...(existing.coverLetter
+        ? { coverLetter: { create: cloneEntityData(existing.coverLetter) as Prisma.CoverLetterCreateWithoutCvInput } }
+        : {}),
+      ...(existing.experiences.length > 0
+        ? { experiences: { create: cloneEntityArray(existing.experiences as unknown as Record<string, unknown>[]) as Prisma.ExperienceCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.educations.length > 0
+        ? { educations: { create: cloneEntityArray(existing.educations as unknown as Record<string, unknown>[]) as Prisma.EducationCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.skills.length > 0
+        ? { skills: { create: cloneEntityArray(existing.skills as unknown as Record<string, unknown>[]) as Prisma.SkillCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.projects.length > 0
+        ? { projects: { create: cloneEntityArray(existing.projects as unknown as Record<string, unknown>[]) as Prisma.ProjectCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.certifications.length > 0
+        ? { certifications: { create: cloneEntityArray(existing.certifications as unknown as Record<string, unknown>[]) as Prisma.CertificationCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.languages.length > 0
+        ? { languages: { create: cloneEntityArray(existing.languages as unknown as Record<string, unknown>[]) as Prisma.LanguageCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.volunteerExperiences.length > 0
+        ? { volunteerExperiences: { create: cloneEntityArray(existing.volunteerExperiences as unknown as Record<string, unknown>[]) as Prisma.VolunteerExperienceCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.publications.length > 0
+        ? { publications: { create: cloneEntityArray(existing.publications as unknown as Record<string, unknown>[]) as Prisma.PublicationCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.awards.length > 0
+        ? { awards: { create: cloneEntityArray(existing.awards as unknown as Record<string, unknown>[]) as Prisma.AwardCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.references.length > 0
+        ? { references: { create: cloneEntityArray(existing.references as unknown as Record<string, unknown>[]) as Prisma.ReferenceCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.hobbies.length > 0
+        ? { hobbies: { create: cloneEntityArray(existing.hobbies as unknown as Record<string, unknown>[]) as Prisma.HobbyCreateWithoutCvInput[] } }
+        : {}),
+      ...(existing.customSections.length > 0
+        ? { customSections: { create: cloneEntityArray(existing.customSections as unknown as Record<string, unknown>[]) as Prisma.CustomSectionCreateWithoutCvInput[] } }
+        : {}),
+    });
+
+    return cloned;
+  },
+
   async updateSectionOrder(userId: string, id: string, sectionOrder: string[]) {
     const existing = await cvRepository.findByIdForUser(id, userId);
     if (!existing) throw ApiError.notFound("CV");
@@ -139,6 +253,13 @@ export const cvService = {
   async upsertSummary(userId: string, cvId: string, input: SummaryInput) {
     await this.ensureCVAccess(userId, cvId);
     const result = await cvRepository.upsertSummary(cvId, input);
+    await cacheDelete(cacheKey(userId, cvId));
+    return result;
+  },
+
+  async upsertCoverLetter(userId: string, cvId: string, input: CoverLetterInput) {
+    await this.ensureCVAccess(userId, cvId);
+    const result = await cvRepository.upsertCoverLetter(cvId, input);
     await cacheDelete(cacheKey(userId, cvId));
     return result;
   },

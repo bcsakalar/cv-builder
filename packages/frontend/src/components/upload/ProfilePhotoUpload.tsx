@@ -7,9 +7,10 @@ import { useTranslation } from "react-i18next";
 interface ProfilePhotoUploadProps {
   cvId: string;
   currentPhotoUrl?: string | null;
+  onPhotoChange?: (nextPhotoUrl: string | null) => void;
 }
 
-export function ProfilePhotoUpload({ cvId, currentPhotoUrl }: ProfilePhotoUploadProps) {
+export function ProfilePhotoUpload({ cvId, currentPhotoUrl, onPhotoChange }: ProfilePhotoUploadProps) {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -26,14 +27,20 @@ export function ProfilePhotoUpload({ cvId, currentPhotoUrl }: ProfilePhotoUpload
     reader.readAsDataURL(file);
 
     uploadMut.mutate(file, {
-      onSuccess: () => setPreview(null),
+      onSuccess: (result) => {
+        setPreview(null);
+        onPhotoChange?.(result.url);
+      },
       onError: () => setPreview(null),
     });
   };
 
   const handleDelete = () => {
     deleteMut.mutate(undefined, {
-      onSuccess: () => setPreview(null),
+      onSuccess: () => {
+        setPreview(null);
+        onPhotoChange?.(null);
+      },
     });
   };
 
