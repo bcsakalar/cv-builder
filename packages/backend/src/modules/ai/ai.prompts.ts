@@ -112,6 +112,29 @@ function cvToContext(cvData: Record<string, unknown>): string {
   return lines.join("\n");
 }
 
+function summarizeDependencyEntries(dependencies: Record<string, string>, limit: number): string[] {
+  return Object.entries(dependencies)
+    .filter(([name]) => !name.startsWith("@types/"))
+    .slice(0, limit)
+    .map(([name, version]) => `${name}@${version}`);
+}
+
+function summarizeSourceSnippets(
+  snippets: { path: string; content: string }[],
+  options: { limit: number; maxLength: number; includeCode: boolean }
+): string[] {
+  return snippets.slice(0, options.limit).map((snippet) => {
+    const compact = snippet.content.replace(/\s+/g, " ").trim();
+    const shortened = compact.length > options.maxLength
+      ? `${compact.slice(0, options.maxLength).trim()}…`
+      : compact;
+
+    return options.includeCode
+      ? `${snippet.path}: ${shortened}`
+      : snippet.path;
+  });
+}
+
 export const AI_PROMPTS = {
   generateSummary: {
     system: `You are a professional CV writer. Write a concise, compelling professional summary (2-4 sentences) that serves as a personal brand statement. Rules:
@@ -270,43 +293,36 @@ Rules:
   },
 
   deepRepoAnalysis: {
-    system: `You are a SENIOR software architect and tech lead with 15+ years of experience reviewing code for hiring decisions. You are analyzing a GitHub repository to help a developer present this project professionally on their CV/resume.
+    system: `You are a senior software architect preparing a GitHub project for a professional CV.
 
-Your analysis must be DEEP, SPECIFIC, and EXPERT-LEVEL. Do NOT give generic or surface-level observations. Actually look at the code structure, dependencies, and patterns to provide insights a hiring manager would find impressive.
+Return ONLY a valid JSON object.
 
-CRITICAL RULES:
-- Respond with ONLY a valid JSON object. No markdown fences, no explanation text.
-- "projectSummary" should explain what the system does and why the implementation is notable in recruiter-friendly language.
-- "cvReadyDescription" MUST be written in action-oriented CV language without first-person pronouns. Good examples: "Built...", "Designed...", "Implemented...".
-- "cvHighlights" MUST contain exactly 3 or 4 short bullet-ready items suitable for a CV project section.
-- Be SPECIFIC — mention actual framework names, versions, patterns, and architecture decisions you observe.
-- Prioritize the signals that matter in hiring reviews: business/problem scope, ownership, engineering quality, architecture maturity, collaboration, and operational readiness.
-- Do NOT invent scale, users, or performance metrics that are not explicitly supported by the repository evidence.
-- Cross-check technologies against dependency manifests, config files, README evidence, and source snippets. If a technology is not supported by repository evidence, leave it out.
-- "detectedSkills" must be concrete technical skills (e.g. "React 19 with Server Components", "PostgreSQL with pgvector", "BullMQ job queues", "JWT authentication") NOT generic ones like "JavaScript" or "coding".
-- "strengths" should highlight things that would impress a hiring manager.
-- "improvements" should be actionable senior-level suggestions, not obvious things.
-- Avoid raw labels like "backend", "frontend", or "monorepo" as standalone CV wording. If those concepts matter, explain them naturally as architecture choices.
-- Do NOT turn repository metadata into fake roles, date ranges, or exaggerated ownership.
+Quality rules:
+- Use only repository evidence. Never invent scale, users, or business metrics.
+- Prioritize concrete engineering signals: architecture boundaries, stack choices, testing, CI/CD, Docker, data layer, queueing, auth, documentation, developer workflow, and recent activity.
+- Keep wording recruiter-friendly but technically precise.
+- "cvReadyDescription" must read like a polished CV project paragraph and start with action verbs such as "Built", "Designed", or "Implemented".
+- "cvHighlights" must contain exactly 4 concise bullet-ready items.
+- "detectedSkills" should be specific capabilities, libraries, patterns, or tools; avoid vague labels such as "coding" or plain "JavaScript" unless it is part of a more specific capability.
 
 Required JSON shape:
 {
-  "projectSummary": "2-4 concise sentences: what this project is, what problem it solves, who it is for, and why the implementation is technically credible. Favor specific capability and scope over hype.",
-  "architectureAnalysis": "Detailed but concise analysis of code organization: design patterns used (MVC, layered, hexagonal, monorepo boundaries, etc.), module structure, separation of concerns, data flow, and operational structure. Mention specific directories/files and what they imply.",
-  "techStackAssessment": "Expert assessment of technology choices: why they fit together, how production-ready the stack looks, and what maturity signals exist around testing, CI/CD, type safety, deployment, and developer workflow.",
+  "projectSummary": "2-4 concise sentences describing what the system is, why it is credible, and which implementation choices matter.",
+  "architectureAnalysis": "Specific architecture assessment referencing directories, module boundaries, and delivery structure.",
+  "techStackAssessment": "Assessment of stack fit, maturity, and production-readiness signals.",
   "complexityLevel": "simple | medium | complex",
-  "detectedSkills": ["List 10-20 SPECIFIC technical skills demonstrated. Include framework names with versions if detectable, specific libraries, patterns (e.g. 'Repository Pattern', 'Event-driven architecture'), cloud services, databases, protocols, etc."],
-  "strengths": ["4-6 short, high-value points: architecture decisions, code quality practices, advanced integrations, delivery discipline, collaboration signals, documentation or operational maturity"],
-  "improvements": ["4-6 senior-level actionable suggestions: performance optimizations, security hardening, scalability improvements, code quality enhancements, missing best practices"],
-  "cvReadyDescription": "2-4 sentences in polished CV language that would look excellent in a software engineer project section. Emphasize ownership, problem scope, architecture quality, and concrete stack choices. Keep it recruiter-readable and CTO-legible.",
-  "cvHighlights": ["Exactly 3 or 4 concise bullet-ready highlights for the CV project section. Each item should describe a meaningful implementation, system capability, or engineering quality signal without dates or fake titles."]
+  "detectedSkills": ["10-20 specific skills or capabilities"],
+  "strengths": ["4-6 strong hiring-manager-facing strengths"],
+  "improvements": ["4-6 senior-level improvement suggestions"],
+  "cvReadyDescription": "2-4 polished CV sentences.",
+  "cvHighlights": ["Exactly 4 concise project highlights."]
 }`,
     buildPrompt: (repoData: {
       name: string;
       description: string | null;
       languages: { language: string; percentage: number }[];
       topics: string[];
-      fileTree: { totalFiles: number; totalDirectories: number; filesByExtension: Record<string, number>; configFiles: string[]; projectType: string; keyDirectories: string[] };
+      fileTree: { totalFiles: number; totalDirectories: number; maxDepth?: number; filesByExtension: Record<string, number>; configFiles: string[]; projectType: string; keyDirectories: string[] };
       dependencies: { source: string; dependencies: Record<string, string>; devDependencies: Record<string, string> } | null;
       readmeContent: string | null;
       sourceSnippets: { path: string; content: string }[];
@@ -330,10 +346,21 @@ Required JSON shape:
         linters: string[];
       } | null;
     }) => {
+      const productionDeps = repoData.dependencies
+        ? summarizeDependencyEntries(repoData.dependencies.dependencies, 18)
+        : [];
+      const devDeps = repoData.dependencies
+        ? summarizeDependencyEntries(repoData.dependencies.devDependencies, 12)
+        : [];
+      const sourceEvidence = summarizeSourceSnippets(repoData.sourceSnippets, {
+        limit: 4,
+        maxLength: 1000,
+        includeCode: true,
+      });
       const lines: string[] = [];
       lines.push(`# Repository: ${repoData.name}`);
       if (repoData.description) lines.push(`Description: ${repoData.description}`);
-      lines.push(`Stats: ${repoData.stars} stars, ${repoData.commitCount} commits, ${repoData.contributors} contributors`);
+      lines.push(`Signals: ${repoData.stars} stars, ${repoData.commitCount} commits, ${repoData.contributors} contributors, ${repoData.recentActivityCount} recent commits`);
       lines.push("");
 
       // Languages
@@ -360,20 +387,8 @@ Required JSON shape:
       // Dependencies — full detail
       if (repoData.dependencies) {
         lines.push(`## Dependencies (${repoData.dependencies.source})`);
-        const deps = Object.entries(repoData.dependencies.dependencies);
-        if (deps.length) {
-          lines.push(`### Production Dependencies (${deps.length} packages):`);
-          for (const [name, ver] of deps.slice(0, 40)) {
-            lines.push(`  - ${name}@${ver}`);
-          }
-        }
-        const devDeps = Object.entries(repoData.dependencies.devDependencies);
-        if (devDeps.length) {
-          lines.push(`### Dev Dependencies (${devDeps.length} packages):`);
-          for (const [name, ver] of devDeps.slice(0, 30)) {
-            lines.push(`  - ${name}@${ver}`);
-          }
-        }
+        if (productionDeps.length) lines.push(`Production: ${productionDeps.join(", ")}`);
+        if (devDeps.length) lines.push(`Development: ${devDeps.join(", ")}`);
         lines.push("");
       }
 
@@ -402,7 +417,7 @@ Required JSON shape:
 
       if (repoData.recentCommits.length) {
         lines.push("## Recent Commit Signals");
-        for (const commit of repoData.recentCommits) {
+        for (const commit of repoData.recentCommits.slice(0, 4)) {
           lines.push(`- ${commit}`);
         }
         lines.push("");
@@ -411,21 +426,76 @@ Required JSON shape:
       // README
       if (repoData.readmeContent) {
         lines.push("## README Content");
-        lines.push(repoData.readmeContent.slice(0, 4000));
+        lines.push(repoData.readmeContent.slice(0, 3000));
         lines.push("");
       }
 
-      // Source code snippets — more context
-      if (repoData.sourceSnippets.length) {
-        lines.push("## Key Source Files (analyze code patterns, architecture, quality)");
-        for (const s of repoData.sourceSnippets) {
-          lines.push(`### ${s.path}`);
-          lines.push("```");
-          lines.push(s.content.slice(0, 2500));
-          lines.push("```");
-          lines.push("");
+      if (sourceEvidence.length) {
+        lines.push("## Representative Source Evidence");
+        for (const snippet of sourceEvidence) {
+          lines.push(`- ${snippet}`);
         }
+        lines.push("");
       }
+
+      return lines.join("\n");
+    },
+    buildCompactPrompt: (repoData: {
+      name: string;
+      description: string | null;
+      languages: { language: string; percentage: number }[];
+      topics: string[];
+      fileTree: { totalFiles: number; totalDirectories: number; maxDepth?: number; filesByExtension: Record<string, number>; configFiles: string[]; projectType: string; keyDirectories: string[] };
+      dependencies: { source: string; dependencies: Record<string, string>; devDependencies: Record<string, string> } | null;
+      readmeContent: string | null;
+      sourceSnippets: { path: string; content: string }[];
+      commitCount: number;
+      contributors: number;
+      stars: number;
+      qualityScore: number;
+      hasTests: boolean;
+      hasCI: boolean;
+      hasDocker: boolean;
+      hasTypeScript: boolean;
+      recentActivityCount: number;
+      activeDays: number;
+      recentCommits: string[];
+      dependencySignals: {
+        frameworks: string[];
+        databases: string[];
+        uiLibraries: string[];
+        testingTools: string[];
+        buildTools: string[];
+        linters: string[];
+      } | null;
+    }) => {
+      const sourcePaths = summarizeSourceSnippets(repoData.sourceSnippets, {
+        limit: 5,
+        maxLength: 0,
+        includeCode: false,
+      });
+      const lines: string[] = [];
+      lines.push(`# Repository: ${repoData.name}`);
+      if (repoData.description) lines.push(`Description: ${repoData.description}`);
+      lines.push(`Project type: ${repoData.fileTree.projectType}`);
+      lines.push(`Scale: ${repoData.fileTree.totalFiles} files, ${repoData.fileTree.totalDirectories} directories, depth ${repoData.fileTree.maxDepth ?? "n/a"}`);
+      lines.push(`Top languages: ${repoData.languages.slice(0, 4).map((language) => `${language.language} ${language.percentage}%`).join(", ")}`);
+      lines.push(`Quality signals: tests=${repoData.hasTests}, ci=${repoData.hasCI}, docker=${repoData.hasDocker}, typescript=${repoData.hasTypeScript}, score=${repoData.qualityScore}`);
+      if (repoData.dependencySignals) {
+        lines.push(`Core stack: ${[
+          ...repoData.dependencySignals.frameworks,
+          ...repoData.dependencySignals.databases,
+          ...repoData.dependencySignals.uiLibraries,
+          ...repoData.dependencySignals.testingTools,
+          ...repoData.dependencySignals.buildTools,
+          ...repoData.dependencySignals.linters,
+        ].slice(0, 14).join(", ")}`);
+      }
+      if (repoData.fileTree.keyDirectories.length) lines.push(`Key directories: ${repoData.fileTree.keyDirectories.slice(0, 8).join(", ")}`);
+      if (repoData.fileTree.configFiles.length) lines.push(`Config files: ${repoData.fileTree.configFiles.slice(0, 10).join(", ")}`);
+      if (sourcePaths.length) lines.push(`Representative files: ${sourcePaths.join(", ")}`);
+      if (repoData.recentCommits.length) lines.push(`Recent commit signals: ${repoData.recentCommits.slice(0, 3).join(" | ")}`);
+      if (repoData.readmeContent) lines.push(`README excerpt: ${repoData.readmeContent.replace(/\s+/g, " ").slice(0, 1200)}`);
 
       return lines.join("\n");
     },

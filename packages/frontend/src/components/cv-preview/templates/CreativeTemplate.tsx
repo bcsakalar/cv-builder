@@ -145,7 +145,7 @@ export function CreativeTemplate({ cv, theme }: TemplateProps) {
             {sectionTitle(sectionLabel("projects"))}
             <div className="grid grid-cols-2 gap-4">
               {cv.projects.map((p: Record<string, unknown>, i: number) => {
-                const project = buildPreviewProject(p, cv.locale, { technologyLimit: 5, highlightLimit: 2 });
+                const project = buildPreviewProject(p, cv.locale, { technologyLimit: 7, highlightLimit: 3 });
 
                 return (
                   <div key={i} className="rounded-lg p-4" style={{ backgroundColor: `${theme.primaryColor}0A` }}>

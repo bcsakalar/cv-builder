@@ -170,7 +170,7 @@ export function CorporateTemplate({ cv, theme }: TemplateProps) {
           <section className="mb-6">
             {sectionHeading(sectionLabel("projects"))}
             {cv.projects.map((p: Record<string, unknown>, i: number) => {
-              const project = buildPreviewProject(p, cv.locale, { technologyLimit: 6, highlightLimit: 2 });
+              const project = buildPreviewProject(p, cv.locale, { technologyLimit: 8, highlightLimit: 4 });
 
               return (
                 <div key={i} className="mb-5">

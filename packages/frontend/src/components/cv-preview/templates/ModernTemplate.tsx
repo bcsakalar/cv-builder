@@ -96,7 +96,7 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
           {cv.projects.length > 0 && (
             <Section title={sectionLabel("projects")} color={theme.primaryColor} font={theme.headingFont}>
               {cv.projects.map((p: Record<string, unknown>, i: number) => {
-                const project = buildPreviewProject(p, cv.locale, { technologyLimit: 6, highlightLimit: 2 });
+                const project = buildPreviewProject(p, cv.locale, { technologyLimit: 8, highlightLimit: 4 });
 
                 return (
                   <div key={i} className="mb-4">

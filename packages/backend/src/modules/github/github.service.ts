@@ -25,7 +25,7 @@ function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
 }
 
-const MAX_IMPORT_TECHNOLOGIES = 12;
+const MAX_IMPORT_TECHNOLOGIES = 14;
 const MAX_IMPORT_HIGHLIGHTS = 4;
 const GITHUB_OAUTH_SCOPE = "read:user repo";
 const GITHUB_OAUTH_STATE_TTL_SECONDS = 600;
@@ -68,6 +68,42 @@ function truncateSentences(value: string, sentenceCount: number): string {
   }
 
   return sentences.slice(0, sentenceCount).join(" ").trim();
+}
+
+function truncateLength(value: string, maxLength: number): string {
+  const normalized = compactText(value);
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 1).trim()}…`;
+}
+
+function splitSentences(value: string): string[] {
+  return compactText(value)
+    .match(/[^.!?]+[.!?]?/g)
+    ?.map((item) => item.trim())
+    .filter(Boolean) ?? [];
+}
+
+function mergeNarrativeParts(values: Array<string | null | undefined>, sentenceLimit: number): string {
+  const seen = new Set<string>();
+  const sentences: string[] = [];
+
+  for (const value of values) {
+    if (!hasText(value)) continue;
+    for (const sentence of splitSentences(value)) {
+      const key = sentence.toLocaleLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      sentences.push(sentence);
+      if (sentences.length >= sentenceLimit) {
+        return sentences.join(" ");
+      }
+    }
+  }
+
+  return sentences.join(" ");
 }
 
 function formatHumanList(values: string[]): string {
@@ -115,22 +151,35 @@ function buildTechnologyList(result: DeepAnalysisResult): string[] {
 
 function buildProjectDescription(result: DeepAnalysisResult): string {
   const ai = result.aiInsights;
-  const preferred = ai?.cvReadyDescription ?? ai?.projectSummary ?? result.description ?? "";
+  const preferred = mergeNarrativeParts([
+    ai?.cvReadyDescription,
+    ai?.projectSummary,
+    result.description,
+  ], 5);
 
   if (hasText(preferred)) {
-    return truncateSentences(preferred, 3);
+    return truncateLength(truncateSentences(preferred, 5), 440);
   }
 
   const projectType = result.fileTree?.projectType ?? "unknown";
-  const stackItems = buildTechnologyList(result).slice(0, 4);
+  const stackItems = buildTechnologyList(result).slice(0, 5);
   const stack = formatHumanList(stackItems);
+  const qualitySignals = uniqueStrings([
+    result.codeQuality?.hasTypeScript ? "TypeScript" : null,
+    result.codeQuality?.hasTests ? "automated tests" : null,
+    result.codeQuality?.hasCI ? "CI/CD workflows" : null,
+    result.codeQuality?.hasDocker ? "Dockerized deployment" : null,
+  ], 3);
   const typeLabel = projectType === "unknown" ? "software" : projectType;
 
   if (hasText(stack)) {
-    return `Built and maintained a ${typeLabel} project using ${stack}.`;
+    return truncateLength(
+      `Built a ${typeLabel} project using ${stack}. ${qualitySignals.length > 0 ? `Backed delivery with ${formatHumanList(qualitySignals)}.` : "Structured the repository with a maintainable, production-oriented engineering workflow."}`,
+      440
+    );
   }
 
-  return `Built and maintained a ${typeLabel} project with a production-focused engineering setup.`;
+  return `Built a ${typeLabel} project with a production-focused engineering setup and maintainable delivery workflow.`;
 }
 
 function buildArchitectureHighlight(projectType: GitHubProjectType): string | null {
@@ -174,14 +223,14 @@ function buildQualityHighlight(result: DeepAnalysisResult): string | null {
   }
 
   if (signals.length === 2) {
-    return `Engineering setup includes ${signals[0]} and ${signals[1]}.`;
+    return `Reinforced delivery quality with ${signals[0]} and ${signals[1]}.`;
   }
 
-  return `Engineering setup includes ${signals.slice(0, -1).join(", ")}, and ${signals.at(-1)}.`;
+  return `Reinforced delivery quality with ${signals.slice(0, -1).join(", ")}, and ${signals.at(-1)}.`;
 }
 
 function buildStackHighlight(result: DeepAnalysisResult): string | null {
-  const stack = buildTechnologyList(result).slice(0, 4);
+  const stack = buildTechnologyList(result).slice(0, 5);
   if (stack.length === 0) {
     return null;
   }
@@ -194,11 +243,11 @@ function buildActivityHighlight(result: DeepAnalysisResult): string | null {
   const contributors = result.contributors?.length ?? 0;
 
   if (recentActivity > 0 && contributors > 1) {
-    return `Maintained active iteration across ${contributors} contributors with ${recentActivity} recent commits.`;
+    return `Sustained active delivery across ${contributors} contributors with ${recentActivity} recent commits.`;
   }
 
   if (recentActivity > 0) {
-    return `Maintained active iteration with ${recentActivity} recent commits.`;
+    return `Sustained active delivery with ${recentActivity} recent commits.`;
   }
 
   if (contributors > 1) {
@@ -225,7 +274,7 @@ function buildHighlights(result: DeepAnalysisResult): string[] {
   const aiStrengths = (result.aiInsights?.strengths ?? [])
     .map(normalizeListItem)
     .filter((value): value is string => value !== null)
-    .slice(0, 2);
+    .slice(0, 3);
   const projectType = result.fileTree?.projectType ?? "unknown";
 
   return uniqueStrings(
@@ -266,7 +315,7 @@ function buildGitHubRepoData(result: DeepAnalysisResult): GitHubRepoData {
     strengths: result.aiInsights?.strengths ?? [],
     cvHighlights: result.aiInsights?.cvHighlights ?? [],
     contributorCount: result.contributors?.length ?? 0,
-    topContributors: (result.contributors ?? []).slice(0, 3),
+    topContributors: (result.contributors ?? []).slice(0, 5),
     lastCommitDate: result.commitAnalytics?.lastCommitDate ?? null,
     recentActivityCount: result.commitAnalytics?.recentActivityCount ?? null,
     averagePerWeek: result.commitAnalytics?.averagePerWeek ?? null,

@@ -68,6 +68,10 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
       ].slice(0, 8)
     : [];
   const detectedSkills = (githubData?.detectedSkills ?? []).slice(0, 8);
+  const strengths = (githubData?.strengths ?? []).slice(0, 4);
+  const architectureText = githubData?.architectureAnalysis?.trim() || null;
+  const stackAssessmentText = githubData?.techStackAssessment?.trim() || null;
+  const cvReadyText = githubData?.cvHighlights?.length ? githubData.cvHighlights : [];
   const summaryText = githubData?.projectSummary?.trim() || preview?.draft.description?.trim() || null;
 
   function closeReview() {
@@ -278,6 +282,51 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
                         <span key={skill} className="rounded-full bg-accent px-2 py-1 text-xs font-medium">{skill}</span>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {strengths.length > 0 && (
+                  <div className="mb-4 rounded-lg border border-border/70 bg-muted/10 p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">{t("github.strengths")}</p>
+                    <ul className="space-y-1.5 text-sm text-foreground">
+                      {strengths.map((strength) => (
+                        <li key={strength} className="flex items-start gap-2">
+                          <Check size={14} className="mt-0.5 shrink-0 text-green-500" />
+                          <span>{strength}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {cvReadyText.length > 0 && (
+                  <div className="mb-4 rounded-lg border border-border/70 bg-muted/10 p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">{t("github.projectHighlights")}</p>
+                    <ul className="space-y-1.5 text-sm text-foreground">
+                      {cvReadyText.map((highlight) => (
+                        <li key={highlight} className="flex items-start gap-2">
+                          <Sparkles size={14} className="mt-0.5 shrink-0 text-primary" />
+                          <span>{highlight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {(architectureText || stackAssessmentText) && (
+                  <div className="mb-4 grid gap-4 md:grid-cols-2">
+                    {architectureText && (
+                      <div className="rounded-lg border border-border/70 bg-muted/10 p-3">
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">{t("github.architectureAnalysis")}</p>
+                        <p className="text-sm leading-relaxed text-foreground">{architectureText}</p>
+                      </div>
+                    )}
+                    {stackAssessmentText && (
+                      <div className="rounded-lg border border-border/70 bg-muted/10 p-3">
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">{t("github.aiAssessment")}</p>
+                        <p className="text-sm leading-relaxed text-foreground">{stackAssessmentText}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

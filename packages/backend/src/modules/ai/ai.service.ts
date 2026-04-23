@@ -127,6 +127,13 @@ interface DeepRepoAnalysisOutput {
   cvHighlights: string[];
 }
 
+interface RepoAnalysisAttemptResult {
+  parsed: Record<string, unknown>;
+  merged: DeepRepoAnalysisOutput;
+  qualityScore: number;
+  directFieldCount: number;
+}
+
 function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
 }
@@ -931,6 +938,41 @@ function mergeRepoAnalysis(primary: Record<string, unknown>, fallback: DeepRepoA
   };
 }
 
+function scoreRepoAnalysis(primary: Record<string, unknown>, merged: DeepRepoAnalysisOutput): RepoAnalysisAttemptResult {
+  const directFieldCount = [
+    normalizeInsightText(primary.projectSummary),
+    normalizeInsightText(primary.architectureAnalysis),
+    normalizeInsightText(primary.techStackAssessment),
+    normalizeInsightText(primary.cvReadyDescription),
+  ].filter(Boolean).length;
+
+  const parsedSkills = uniqueInsightItems(Array.isArray(primary.detectedSkills) ? primary.detectedSkills : [], 20, {
+    minLength: 3,
+    maxLength: 80,
+  }).length;
+  const parsedHighlights = uniqueInsightItems(Array.isArray(primary.cvHighlights) ? primary.cvHighlights : [], 6, {
+    minLength: 16,
+    maxLength: 160,
+  }).length;
+  const parsedStrengths = uniqueInsightItems(Array.isArray(primary.strengths) ? primary.strengths : [], 6, {
+    minLength: 18,
+    maxLength: 180,
+  }).length;
+
+  const qualityScore = directFieldCount * 2 + Math.min(parsedSkills, 8) + Math.min(parsedHighlights, 4) + Math.min(parsedStrengths, 4);
+
+  return {
+    parsed: primary,
+    merged,
+    directFieldCount,
+    qualityScore,
+  };
+}
+
+function shouldRetryRepoAnalysis(attempt: RepoAnalysisAttemptResult): boolean {
+  return attempt.directFieldCount < 3 || attempt.qualityScore < 11 || attempt.merged.detectedSkills.length < 8 || attempt.merged.cvHighlights.length < 4;
+}
+
 function deriveFallbackSkillSuggestions(cvData: Record<string, unknown>, existingSkillNames: Set<string>): string[] {
   const personalInfo = cvData.personalInfo as Record<string, unknown> | null;
   const summary = cvData.summary as Record<string, unknown> | null;
@@ -1566,24 +1608,98 @@ export const aiService = {
   },
 
   async deepAnalyzeRepo(repoData: DeepRepoAnalysisInput, locale?: string): Promise<DeepRepoAnalysisOutput> {
-    const { system, buildPrompt } = AI_PROMPTS.deepRepoAnalysis;
+    const { system, buildPrompt, buildCompactPrompt } = AI_PROMPTS.deepRepoAnalysis;
     const fallback = buildFallbackRepoAnalysis(repoData);
+    const candidateModels = uniqueInsightItems([
+      ollamaConfig.repoAnalysisModel,
+      ollamaConfig.codeModel,
+      ollamaConfig.defaultModel,
+    ], 3, { minLength: 2, maxLength: 80 });
 
-    logger.info("Running deep AI analysis on repo", { name: repoData.name, locale });
-    try {
+    const runAttempt = async (
+      prompt: string,
+      attemptLabel: "full" | "compact",
+      temperature: number,
+      model: string
+    ): Promise<RepoAnalysisAttemptResult> => {
       const result = await ollama.generate({
-        prompt: buildPrompt(repoData),
+        model,
+        prompt,
         system: localizeSystemPrompt(system, locale, true),
-        temperature: 0.4,
+        temperature,
+        topP: 0.9,
         json: true,
       });
 
       const parsed = extractJSON<Record<string, unknown>>(result, {});
-      return mergeRepoAnalysis(parsed, fallback);
+      const merged = mergeRepoAnalysis(parsed, fallback);
+      const scored = scoreRepoAnalysis(parsed, merged);
+
+      logger.info("Completed repo analysis attempt", {
+        name: repoData.name,
+        locale,
+        attemptLabel,
+        model,
+        promptLength: prompt.length,
+        qualityScore: scored.qualityScore,
+        directFieldCount: scored.directFieldCount,
+        detectedSkills: scored.merged.detectedSkills.length,
+        highlights: scored.merged.cvHighlights.length,
+      });
+
+      return scored;
+    };
+
+    logger.info("Running deep AI analysis on repo", { name: repoData.name, locale });
+    try {
+      const primaryPrompt = buildPrompt(repoData);
+      const compactPrompt = buildCompactPrompt(repoData);
+      let bestAttempt: RepoAnalysisAttemptResult | null = null;
+      let lastError: unknown = null;
+
+      for (const model of candidateModels) {
+        try {
+          const firstAttempt = await runAttempt(primaryPrompt, "full", ollamaConfig.repoAnalysisTemperature, model);
+          bestAttempt = !bestAttempt || firstAttempt.qualityScore > bestAttempt.qualityScore ? firstAttempt : bestAttempt;
+
+          if (!shouldRetryRepoAnalysis(firstAttempt)) {
+            return firstAttempt.merged;
+          }
+
+          logger.warn("Repo analysis response was too weak, retrying with compact prompt", {
+            name: repoData.name,
+            locale,
+            model,
+            qualityScore: firstAttempt.qualityScore,
+          });
+
+          const secondAttempt = await runAttempt(compactPrompt, "compact", Math.max(0.35, ollamaConfig.repoAnalysisTemperature - 0.05), model);
+          bestAttempt = secondAttempt.qualityScore >= (bestAttempt?.qualityScore ?? 0) ? secondAttempt : bestAttempt;
+
+          if (!shouldRetryRepoAnalysis(secondAttempt)) {
+            return secondAttempt.merged;
+          }
+        } catch (error) {
+          lastError = error;
+          logger.warn("Repo analysis model attempt failed, trying fallback model", {
+            name: repoData.name,
+            locale,
+            model,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      if (bestAttempt) {
+        return bestAttempt.merged;
+      }
+
+      throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "All repo-analysis models failed"));
     } catch (error) {
       logger.warn("Deep AI repository analysis failed, using deterministic fallback", {
         name: repoData.name,
         locale,
+        modelCandidates: candidateModels,
         error: error instanceof Error ? error.message : String(error),
       });
       return fallback;

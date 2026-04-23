@@ -15,6 +15,7 @@ export interface OllamaGenerateOptions {
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
+  topP?: number;
   /** Force JSON output format (Ollama native) */
   json?: boolean;
 }
@@ -136,6 +137,7 @@ export async function generate(
     prompt,
     system,
     temperature = 0.7,
+    topP,
     json = false,
   } = options;
 
@@ -146,7 +148,10 @@ export async function generate(
     prompt,
     system,
     stream: false,
-    options: { temperature },
+    options: {
+      temperature,
+      ...(typeof topP === "number" ? { top_p: topP } : {}),
+    },
   };
 
   // Disable reasoning traces where the local model supports it so downstream

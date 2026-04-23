@@ -111,7 +111,7 @@ export function MinimalTemplate({ cv, theme }: TemplateProps) {
         <section className="mb-8">
           {heading(sectionLabel("projects"))}
           {cv.projects.map((p: Record<string, unknown>, i: number) => {
-            const project = buildPreviewProject(p, cv.locale, { technologyLimit: 5, highlightLimit: 2 });
+            const project = buildPreviewProject(p, cv.locale, { technologyLimit: 7, highlightLimit: 3 });
 
             return (
               <div key={i} className="mb-5">

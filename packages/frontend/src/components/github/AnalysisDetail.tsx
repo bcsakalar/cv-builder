@@ -380,12 +380,17 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {Object.entries(data.fileTree.filesByExtension)
                         .sort(([, a], [, b]) => b - a)
-                        .slice(0, 10)
+                          .slice(0, 14)
                         .map(([ext, count]) => (
                           <span key={ext} className="rounded bg-muted px-2 py-0.5 text-xs">
                             {ext} <span className="text-muted-foreground">({count})</span>
                           </span>
                         ))}
+                        {Object.keys(data.fileTree.filesByExtension).length > 14 && (
+                          <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                            +{Object.keys(data.fileTree.filesByExtension).length - 14} more
+                          </span>
+                        )}
                     </div>
                   )}
                 </div>
@@ -431,7 +436,7 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
             {Object.keys(data.dependencyInfo.dependencies).length > 0 && (
               <div>
                 <h4 className="mb-2 text-sm font-medium">{t("github.allDependencies", { count: Object.keys(data.dependencyInfo.dependencies).length })}</h4>
-                <div className="max-h-40 overflow-y-auto rounded-lg border p-2">
+                <div className="max-h-56 overflow-y-auto rounded-lg border p-2">
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(data.dependencyInfo.dependencies).map(([name, ver]) => (
                       <span key={name} className="rounded bg-accent px-2 py-0.5 text-xs">
@@ -445,7 +450,7 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
             {Object.keys(data.dependencyInfo.devDependencies).length > 0 && (
               <div>
                 <h4 className="mb-2 text-sm font-medium">{t("github.devDependencies", { count: Object.keys(data.dependencyInfo.devDependencies).length })}</h4>
-                <div className="max-h-40 overflow-y-auto rounded-lg border p-2">
+                <div className="max-h-56 overflow-y-auto rounded-lg border p-2">
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(data.dependencyInfo.devDependencies).map(([name, ver]) => (
                       <span key={name} className="rounded bg-muted px-2 py-0.5 text-xs">
@@ -558,7 +563,7 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
                 <div className="space-y-1.5">
                   {Object.entries(data.commitAnalytics.authorBreakdown)
                     .sort(([, a], [, b]) => b - a)
-                    .slice(0, 8)
+                    .slice(0, 12)
                     .map(([author, count]) => {
                       const pct = data.commitAnalytics ? Math.round((count / data.commitAnalytics.totalCommits) * 100) : 0;
                       return (
@@ -574,6 +579,11 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
                       );
                     })}
                 </div>
+                {Object.keys(data.commitAnalytics.authorBreakdown).length > 12 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    +{Object.keys(data.commitAnalytics.authorBreakdown).length - 12} more contributors in the full commit history
+                  </p>
+                )}
               </div>
             )}
 

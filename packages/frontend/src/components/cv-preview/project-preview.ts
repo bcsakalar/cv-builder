@@ -41,8 +41,8 @@ export function buildPreviewProject(
   locale?: string,
   options: BuildPreviewProjectOptions = {}
 ): PreviewProjectViewModel {
-  const technologyLimit = options.technologyLimit ?? 6;
-  const highlightLimit = options.highlightLimit ?? 2;
+  const technologyLimit = options.technologyLimit ?? 8;
+  const highlightLimit = options.highlightLimit ?? 4;
   const githubRepoData = asGitHubRepoData(project.githubRepoData);
   const technologies = asStringArray(project.technologies);
   const highlights = asStringArray(project.highlights).slice(0, highlightLimit);
