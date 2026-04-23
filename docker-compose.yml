@@ -51,6 +51,8 @@ services:
       OLLAMA_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:9b}
       OLLAMA_CODE_MODEL: ${OLLAMA_CODE_MODEL:-qwen3.5:9b}
+      OLLAMA_REPO_ANALYSIS_MODEL: ${OLLAMA_REPO_ANALYSIS_MODEL:-qwen2.5-coder:14b}
+      OLLAMA_REPO_ANALYSIS_TEMPERATURE: ${OLLAMA_REPO_ANALYSIS_TEMPERATURE:-0.55}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text:v1.5}
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production_jwt_secret_key}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-abcdefghijklmnopqrstuvwxyz123456}
