@@ -27,9 +27,9 @@ const healthData: AIHealthResult = {
   ollama: "connected",
   ready: true,
   readinessIssues: [],
-  model: "glm-4.7-flash:q4_K_M",
+  model: "qwen3.5:9b",
   modelAvailable: true,
-  availableModels: ["glm-4.7-flash:q4_K_M"],
+  availableModels: ["qwen3.5:9b"],
 };
 
 function createIdleMutation<TData>(data?: TData) {
@@ -53,7 +53,7 @@ function buildSummaryArtifact(overrides?: Partial<AIArtifact<string>>): AIArtifa
     output: "Generated summary content",
     summary: "Generated summary content",
     provider: "ollama",
-    model: "glm-4.7-flash:q4_K_M",
+    model: "qwen3.5:9b",
     locale: "en",
     error: null,
     createdAt: "2026-04-12T10:00:00.000Z",

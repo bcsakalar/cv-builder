@@ -132,8 +132,8 @@ Important variables:
 
 Recommended local Ollama defaults in this repository:
 
-- `OLLAMA_MODEL=glm-4.7-flash:q4_K_M`
-- `OLLAMA_CODE_MODEL=glm-4.7-flash:q4_K_M`
+- `OLLAMA_MODEL=qwen3.5:9b`
+- `OLLAMA_CODE_MODEL=qwen3.5:9b`
 - `OLLAMA_EMBEDDING_MODEL=nomic-embed-text:v1.5`
 
 ## Common Scripts

@@ -53,8 +53,8 @@ jest.mock("../../lib/logger", () => ({
 
 jest.mock("../../config/env", () => ({
   env: {
-    OLLAMA_MODEL: "glm-4.7-flash:q4_K_M",
-    OLLAMA_CODE_MODEL: "glm-4.7-flash:q4_K_M",
+    OLLAMA_MODEL: "qwen3.5:9b",
+    OLLAMA_CODE_MODEL: "qwen3.5:9b",
     OLLAMA_EMBEDDING_MODEL: "nomic-embed-text:v1.5",
   },
 }));
@@ -176,7 +176,7 @@ function buildArtifactRecord(overrides?: Record<string, unknown>) {
     status: "READY",
     title: "Professional summary draft",
     provider: "ollama",
-    model: "glm-4.7-flash:q4_K_M",
+    model: "qwen3.5:9b",
     locale: "en",
     targetSection: "summary",
     input: { promptVersion: "developer-cv-v2", cvId: CV_ID },
@@ -226,12 +226,12 @@ describe("aiService", () => {
     it("reports readiness and available models", async () => {
       mockCheckOllamaHealth.mockResolvedValue(true);
       mockCheckModelAvailable.mockResolvedValue(true);
-      mockGetAvailableModels.mockResolvedValue(["glm-4.7-flash:q4_K_M", "nomic-embed-text:v1.5"]);
+      mockGetAvailableModels.mockResolvedValue(["qwen3.5:9b", "nomic-embed-text:v1.5"]);
 
       const result = await aiService.getHealth();
 
       expect(result.ready).toBe(true);
-      expect(result.availableModels).toEqual(["glm-4.7-flash:q4_K_M", "nomic-embed-text:v1.5"]);
+      expect(result.availableModels).toEqual(["qwen3.5:9b", "nomic-embed-text:v1.5"]);
       expect(result.readinessIssues).toHaveLength(0);
     });
   });
