@@ -19,6 +19,7 @@ export type AnalyzeRepoInput = z.infer<typeof analyzeRepoSchema>;
 
 export const importPreviewSchema = z.object({
   analysisId: z.string().uuid("Invalid analysis ID"),
+  cvId: z.string().uuid("Invalid CV ID").optional(),
 });
 
 export type ImportPreviewInput = z.infer<typeof importPreviewSchema>;

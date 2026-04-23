@@ -64,6 +64,18 @@ const importPreview: GitHubProjectImportPreview = {
       license: "MIT",
       projectType: "fullstack",
       qualityScore: 84,
+      impactAnalysis: {
+        impactScore: 86,
+        fitScore: 91,
+        breakdown: {
+          documentation: 20,
+          engineering: 26,
+          activity: 18,
+          community: 12,
+          relevance: 15,
+        },
+        reasons: ["Strong engineering practices", "Relevant stack alignment"],
+      },
       contributorCount: 2,
       frameworks: ["React", "Express"],
       databases: ["PostgreSQL"],
@@ -102,7 +114,7 @@ describe("ImportToCV", () => {
     await user.click(screen.getByTestId("github-import-review-button"));
 
     expect(previewMutate).toHaveBeenCalledWith(
-      "analysis-1",
+      { analysisId: "analysis-1", cvId: "cv-1" },
       expect.objectContaining({ onSuccess: expect.any(Function) })
     );
   });

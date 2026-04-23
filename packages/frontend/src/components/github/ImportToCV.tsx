@@ -58,6 +58,7 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
   const reviewDraft = reviewDraftState ?? previewDraft;
   const reviewOpen = Boolean(preview && reviewDraft);
   const githubData = preview?.draft.githubRepoData;
+  const impactAnalysis = githubData?.impactAnalysis ?? null;
   const suggestedStack = preview?.dependencyInfo
     ? [
         ...preview.dependencyInfo.frameworks,
@@ -66,6 +67,8 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
         ...preview.dependencyInfo.testingTools,
       ].slice(0, 8)
     : [];
+  const detectedSkills = (githubData?.detectedSkills ?? []).slice(0, 8);
+  const summaryText = githubData?.projectSummary?.trim() || preview?.draft.description?.trim() || null;
 
   function closeReview() {
     setDismissedPreviewAnalysisId(preview?.analysisId ?? null);
@@ -90,7 +93,7 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
       return;
     }
 
-    previewMutation.mutate(analysisIds[0]!, {
+    previewMutation.mutate({ analysisId: analysisIds[0]!, cvId: selectedCvId }, {
       onSuccess: (nextPreview) => {
         setDismissedPreviewAnalysisId(null);
         setReviewDraftState(buildReviewDraft(nextPreview));
@@ -211,6 +214,48 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
                 {githubData && (
                   <div className="mb-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
                     {githubData.projectType && <span className="rounded-full bg-accent px-2 py-0.5 font-medium">{githubData.projectType}</span>}
+                    {githubData.complexityLevel && <span className="rounded-full bg-accent px-2 py-0.5 font-medium">{githubData.complexityLevel}</span>}
+                  </div>
+                )}
+
+                {(impactAnalysis || githubData?.qualityScore !== undefined) && (
+                  <div className="mb-4 grid gap-2 sm:grid-cols-3">
+                    {impactAnalysis && (
+                      <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("github.impactScore", { defaultValue: "Impact score" })}</p>
+                        <p className="mt-1 text-lg font-semibold">{impactAnalysis.impactScore}</p>
+                      </div>
+                    )}
+                    {impactAnalysis?.fitScore !== null && impactAnalysis?.fitScore !== undefined && (
+                      <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("github.fitScore", { defaultValue: "CV fit score" })}</p>
+                        <p className="mt-1 text-lg font-semibold">{impactAnalysis.fitScore}</p>
+                      </div>
+                    )}
+                    {githubData?.qualityScore !== undefined && githubData?.qualityScore !== null && (
+                      <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t("github.qualityScore")}</p>
+                        <p className="mt-1 text-lg font-semibold">{githubData.qualityScore}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {summaryText && (
+                  <div className="mb-4 rounded-lg border border-border/70 bg-muted/20 p-3">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">{t("github.aiProjectSummary")}</p>
+                    <p className="text-sm leading-relaxed text-foreground">{summaryText}</p>
+                  </div>
+                )}
+
+                {impactAnalysis?.reasons && impactAnalysis.reasons.length > 0 && (
+                  <div className="mb-4 rounded-lg border border-border/70 bg-muted/10 p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">{t("github.impactHighlights", { defaultValue: "Impact highlights" })}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {impactAnalysis.reasons.map((reason) => (
+                        <span key={reason} className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">{reason}</span>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -220,6 +265,17 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
                     <div className="flex flex-wrap gap-1.5">
                       {suggestedStack.map((item) => (
                         <span key={item} className="rounded-md bg-accent px-2 py-0.5 text-xs font-medium">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {detectedSkills.length > 0 && (
+                  <div className="mb-4 rounded-lg border border-border/70 bg-muted/10 p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">{t("github.detectedSkills")}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {detectedSkills.map((skill) => (
+                        <span key={skill} className="rounded-full bg-accent px-2 py-1 text-xs font-medium">{skill}</span>
                       ))}
                     </div>
                   </div>

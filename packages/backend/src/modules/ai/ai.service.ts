@@ -73,6 +73,60 @@ const DB_TO_STATUS = {
   [AiArtifactStatus.FAILED]: "failed",
 } as const;
 
+interface DeepRepoAnalysisInput {
+  name: string;
+  description: string | null;
+  languages: { language: string; percentage: number }[];
+  topics: string[];
+  fileTree: {
+    totalFiles: number;
+    totalDirectories: number;
+    maxDepth?: number;
+    filesByExtension: Record<string, number>;
+    configFiles: string[];
+    projectType: string;
+    keyDirectories: string[];
+  };
+  dependencies: {
+    source: string;
+    dependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+  } | null;
+  readmeContent: string | null;
+  sourceSnippets: { path: string; content: string }[];
+  commitCount: number;
+  contributors: number;
+  stars: number;
+  qualityScore: number;
+  hasTests: boolean;
+  hasCI: boolean;
+  hasDocker: boolean;
+  hasTypeScript: boolean;
+  recentActivityCount: number;
+  activeDays: number;
+  recentCommits: string[];
+  dependencySignals: {
+    frameworks: string[];
+    databases: string[];
+    uiLibraries: string[];
+    testingTools: string[];
+    buildTools: string[];
+    linters: string[];
+  } | null;
+}
+
+interface DeepRepoAnalysisOutput {
+  projectSummary: string;
+  architectureAnalysis: string;
+  techStackAssessment: string;
+  complexityLevel: GitHubComplexityLevel;
+  detectedSkills: string[];
+  strengths: string[];
+  improvements: string[];
+  cvReadyDescription: string;
+  cvHighlights: string[];
+}
+
 function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
 }
@@ -169,6 +223,43 @@ const SKILL_SUGGESTION_RULES = [
     suggestions: ["Leadership", "Mentoring", "Stakeholder Communication"],
   },
 ] as const;
+
+const REPO_SKILL_LABELS: Record<string, string> = {
+  react: "React",
+  "react-dom": "React",
+  next: "Next.js",
+  vue: "Vue",
+  nuxt: "Nuxt",
+  angular: "Angular",
+  svelte: "Svelte",
+  express: "Express",
+  fastify: "Fastify",
+  nestjs: "NestJS",
+  "@nestjs/core": "NestJS",
+  prisma: "Prisma ORM",
+  "@prisma/client": "Prisma ORM",
+  pg: "PostgreSQL",
+  redis: "Redis",
+  ioredis: "Redis",
+  bullmq: "BullMQ job queues",
+  axios: "Axios",
+  zod: "Zod validation",
+  "react-hook-form": "React Hook Form",
+  zustand: "Zustand state management",
+  "@tanstack/react-query": "TanStack Query",
+  "@tanstack/react-router": "TanStack Router",
+  tailwindcss: "Tailwind CSS",
+  "@tailwindcss/vite": "Tailwind CSS",
+  playwright: "Playwright E2E testing",
+  "@playwright/test": "Playwright E2E testing",
+  vitest: "Vitest",
+  jest: "Jest",
+  puppeteer: "Puppeteer",
+  i18next: "i18next",
+  "react-i18next": "react-i18next",
+  "lucide-react": "Lucide React",
+  "socket.io": "Socket.IO",
+};
 
 async function getCVData(userId: string, cvId: string) {
   const cv = await aiRepository.findCVForUser(userId, cvId);
@@ -371,42 +462,473 @@ async function runToolWithArtifact<TOutput>(options: {
  * extra text, and partial JSON from LLM outputs.
  */
 function extractJSON<T>(raw: string, fallback: T): T {
-  const trimmed = raw.trim();
-  try {
-    return JSON.parse(trimmed) as T;
-  } catch {
-    // continue
+  const trimmed = raw.replace(/^\uFEFF/, "").trim();
+
+  function tryParseCandidate(candidate: string): T | undefined {
+    const normalized = candidate
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .trim();
+    const variants = [
+      normalized,
+      normalized.replace(/,\s*([}\]])/g, "$1"),
+    ];
+
+    for (const variant of variants) {
+      try {
+        return JSON.parse(variant) as T;
+      } catch {
+        // keep trying other candidates
+      }
+    }
+
+    return undefined;
   }
 
-  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenceMatch) {
-    try {
-      return JSON.parse(fenceMatch[1]!.trim()) as T;
-    } catch {
-      // continue
+  function collectBalancedJsonCandidates(source: string): string[] {
+    const candidates: string[] = [];
+
+    for (let start = 0; start < source.length; start++) {
+      const opener = source[start];
+      if (opener !== "{" && opener !== "[") {
+        continue;
+      }
+
+      const stack = [opener];
+      let inString = false;
+      let escaped = false;
+
+      for (let cursor = start + 1; cursor < source.length; cursor++) {
+        const char = source[cursor]!;
+
+        if (inString) {
+          if (escaped) {
+            escaped = false;
+            continue;
+          }
+
+          if (char === "\\") {
+            escaped = true;
+            continue;
+          }
+
+          if (char === '"') {
+            inString = false;
+          }
+
+          continue;
+        }
+
+        if (char === '"') {
+          inString = true;
+          continue;
+        }
+
+        if (char === "{" || char === "[") {
+          stack.push(char);
+          continue;
+        }
+
+        if (char === "}" || char === "]") {
+          const expected = char === "}" ? "{" : "[";
+          if (stack.at(-1) !== expected) {
+            break;
+          }
+
+          stack.pop();
+          if (stack.length === 0) {
+            candidates.push(source.slice(start, cursor + 1));
+            break;
+          }
+        }
+      }
+    }
+
+    return candidates;
+  }
+
+  const candidates: string[] = [trimmed];
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch?.[1]) {
+    candidates.push(fenceMatch[1].trim());
+  }
+
+  candidates.push(...collectBalancedJsonCandidates(trimmed));
+  if (fenceMatch?.[1]) {
+    candidates.push(...collectBalancedJsonCandidates(fenceMatch[1]));
+  }
+
+  for (const candidate of candidates) {
+    const parsed = tryParseCandidate(candidate);
+    if (parsed !== undefined) {
+      return parsed;
     }
   }
 
-  const objMatch = trimmed.match(/(\{[\s\S]*\})/);
-  if (objMatch) {
-    try {
-      return JSON.parse(objMatch[1]!) as T;
-    } catch {
-      // continue
-    }
-  }
-
-  const arrMatch = trimmed.match(/(\[[\s\S]*\])/);
-  if (arrMatch) {
-    try {
-      return JSON.parse(arrMatch[1]!) as T;
-    } catch {
-      // continue
-    }
-  }
-
-  logger.warn("Failed to parse AI JSON response", { raw: trimmed.slice(0, 200) });
+  logger.warn("Failed to parse AI JSON response", { raw: trimmed.slice(0, 300) });
   return fallback;
+}
+
+function normalizeInsightText(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const normalized = value
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .replace(/^[-*•]+\s*/g, "")
+    .replace(/^\d+[.)]\s*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return /^(n\/a|none|null|undefined|unknown)$/i.test(normalized) ? "" : normalized;
+}
+
+function uniqueInsightItems(
+  values: unknown[],
+  limit = Number.POSITIVE_INFINITY,
+  options: { minLength?: number; maxLength?: number } = {}
+): string[] {
+  const minLength = options.minLength ?? 3;
+  const maxLength = options.maxLength ?? 220;
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const normalized = normalizeInsightText(value);
+    if (!normalized || normalized.length < minLength || normalized.length > maxLength) {
+      continue;
+    }
+
+    const key = normalized.toLocaleLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(normalized);
+    if (result.length >= limit) {
+      break;
+    }
+  }
+
+  return result;
+}
+
+function formatHumanList(values: string[]): string {
+  if (values.length === 0) {
+    return "";
+  }
+
+  if (values.length === 1) {
+    return values[0]!;
+  }
+
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`;
+  }
+
+  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
+}
+
+function mapRepoSkillLabel(value: string): string | null {
+  const normalized = normalizeInsightText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const lower = normalized.toLowerCase();
+  if (lower.startsWith("@types/")) {
+    return null;
+  }
+
+  if (REPO_SKILL_LABELS[lower]) {
+    return REPO_SKILL_LABELS[lower];
+  }
+
+  if (lower.startsWith("@radix-ui/")) {
+    return "Radix UI";
+  }
+
+  return normalized;
+}
+
+function repoSourceContains(repoData: DeepRepoAnalysisInput, pattern: RegExp): boolean {
+  return repoData.sourceSnippets.some((snippet) => pattern.test(`${snippet.path}\n${snippet.content}`));
+}
+
+function buildRepoTypeLabel(projectType: string): string {
+  switch (projectType) {
+    case "fullstack":
+      return "full-stack application";
+    case "monorepo":
+      return "multi-package engineering platform";
+    case "frontend":
+      return "frontend product application";
+    case "backend":
+      return "backend service platform";
+    case "library":
+      return "reusable library";
+    case "cli":
+      return "developer tooling project";
+    case "mobile":
+      return "mobile application";
+    default:
+      return "software system";
+  }
+}
+
+function buildRepoTechnologyList(repoData: DeepRepoAnalysisInput, limit = 10): string[] {
+  const dependencyNames = repoData.dependencies
+    ? [
+        ...Object.keys(repoData.dependencies.dependencies),
+        ...Object.keys(repoData.dependencies.devDependencies),
+      ]
+        .map(mapRepoSkillLabel)
+        .filter((value): value is string => Boolean(value))
+    : [];
+
+  const categorizedNames = repoData.dependencySignals
+    ? [
+        ...repoData.dependencySignals.frameworks,
+        ...repoData.dependencySignals.databases,
+        ...repoData.dependencySignals.uiLibraries,
+        ...repoData.dependencySignals.testingTools,
+        ...repoData.dependencySignals.buildTools,
+        ...repoData.dependencySignals.linters,
+      ]
+        .map(mapRepoSkillLabel)
+        .filter((value): value is string => Boolean(value))
+    : [];
+
+  const topLanguages = repoData.languages
+    .sort((left, right) => right.percentage - left.percentage)
+    .slice(0, 4)
+    .map((language) => language.language);
+
+  return uniqueInsightItems(
+    [...categorizedNames, ...dependencyNames, ...topLanguages, ...repoData.topics.map(mapRepoSkillLabel)],
+    limit,
+    { minLength: 2, maxLength: 80 }
+  );
+}
+
+function buildRepoQualitySignals(repoData: DeepRepoAnalysisInput): string[] {
+  return uniqueInsightItems(
+    [
+      repoData.hasTypeScript ? "TypeScript" : null,
+      repoData.hasTests ? "automated tests" : null,
+      repoData.hasCI ? "CI/CD workflows" : null,
+      repoData.hasDocker ? "Dockerized environments" : null,
+      repoData.readmeContent ? "technical documentation" : null,
+    ],
+    5,
+    { minLength: 4, maxLength: 40 }
+  );
+}
+
+function inferRepoComplexity(repoData: DeepRepoAnalysisInput): GitHubComplexityLevel {
+  let score = 0;
+
+  if (repoData.fileTree.projectType === "fullstack" || repoData.fileTree.projectType === "monorepo") score += 2;
+  if (repoData.fileTree.totalFiles >= 80) score += 1;
+  if (repoData.fileTree.totalFiles >= 200) score += 1;
+  if (repoData.fileTree.totalDirectories >= 15) score += 1;
+  if (repoData.languages.length >= 3) score += 1;
+  if (repoData.dependencySignals) {
+    const signalCount = [
+      repoData.dependencySignals.frameworks.length,
+      repoData.dependencySignals.databases.length,
+      repoData.dependencySignals.uiLibraries.length,
+      repoData.dependencySignals.testingTools.length,
+      repoData.dependencySignals.buildTools.length,
+      repoData.dependencySignals.linters.length,
+    ].filter((count) => count > 0).length;
+    if (signalCount >= 4) score += 1;
+  }
+  if (repoData.hasTests && repoData.hasCI) score += 1;
+  if (repoData.hasDocker) score += 1;
+
+  if (score >= 6) return "complex";
+  if (score >= 3) return "medium";
+  return "simple";
+}
+
+function buildFallbackRepoAnalysis(repoData: DeepRepoAnalysisInput): DeepRepoAnalysisOutput {
+  const technologies = buildRepoTechnologyList(repoData, 12);
+  const stack = technologies.slice(0, 4);
+  const qualitySignals = buildRepoQualitySignals(repoData);
+  const projectTypeLabel = buildRepoTypeLabel(repoData.fileTree.projectType);
+  const directories = repoData.fileTree.keyDirectories.slice(0, 4);
+  const configFiles = repoData.fileTree.configFiles.slice(0, 5);
+  const complexityLevel = inferRepoComplexity(repoData);
+
+  const projectSummary = normalizeInsightText(repoData.description)
+    ? `${repoData.name} is a ${projectTypeLabel} focused on ${normalizeInsightText(repoData.description)}. Repository evidence points to a concrete implementation stack spanning ${formatHumanList(stack.length > 0 ? stack : technologies.slice(0, 3)) || "multiple production-oriented technologies"}. ${qualitySignals.length > 0 ? `Engineering maturity is reinforced by ${formatHumanList(qualitySignals)}.` : "The structure suggests deliberate engineering practices rather than a lightweight scaffold."}`
+    : `${repoData.name} is a ${projectTypeLabel} built around ${formatHumanList(stack.length > 0 ? stack : technologies.slice(0, 3)) || "a modern application stack"}. ${qualitySignals.length > 0 ? `Engineering maturity is reinforced by ${formatHumanList(qualitySignals)}.` : "Repository structure suggests deliberate engineering practices rather than a lightweight scaffold."}`;
+
+  const architectureAnalysis = [
+    `The repository spans ${repoData.fileTree.totalFiles} files across ${repoData.fileTree.totalDirectories} directories and reads like a ${projectTypeLabel} rather than a toy project.`,
+    directories.length > 0
+      ? `Key directories such as ${formatHumanList(directories)} indicate intentional separation of concerns and clearer ownership boundaries.`
+      : `Directory layout suggests deliberate separation of product, platform, and support concerns.`,
+    configFiles.length > 0
+      ? `Operational tooling is visible through ${formatHumanList(configFiles)}, which signals attention to build, lint, test, or deployment workflows.`
+      : null,
+    repoData.sourceSnippets.length > 0
+      ? `Selected source files show that the implementation is anchored in real application modules instead of placeholder boilerplate.`
+      : null,
+  ].filter(Boolean).join(" ");
+
+  const frameworkSignals = uniqueInsightItems(repoData.dependencySignals?.frameworks ?? [], 4, { minLength: 2, maxLength: 60 }).map(mapRepoSkillLabel).filter((value): value is string => Boolean(value));
+  const databaseSignals = uniqueInsightItems(repoData.dependencySignals?.databases ?? [], 3, { minLength: 2, maxLength: 60 }).map(mapRepoSkillLabel).filter((value): value is string => Boolean(value));
+  const testingSignals = uniqueInsightItems(repoData.dependencySignals?.testingTools ?? [], 3, { minLength: 2, maxLength: 60 }).map(mapRepoSkillLabel).filter((value): value is string => Boolean(value));
+  const techStackAssessment = [
+    stack.length > 0 ? `Core technologies include ${formatHumanList(stack)}.` : null,
+    frameworkSignals.length > 0 ? `Framework choices such as ${formatHumanList(frameworkSignals)} point to a coherent delivery stack.` : null,
+    databaseSignals.length > 0 ? `Data-layer signals include ${formatHumanList(databaseSignals)}.` : null,
+    testingSignals.length > 0 ? `Verification tooling is present through ${formatHumanList(testingSignals)}.` : null,
+    qualitySignals.length > 0 ? `Combined with ${formatHumanList(qualitySignals)}, the stack reads as production-minded and maintainable.` : `Even without every operational signal present, the stack appears intentional and credible.`,
+  ].filter(Boolean).join(" ");
+
+  const detectedSkills = uniqueInsightItems(
+    [
+      ...technologies,
+      repoData.fileTree.projectType === "monorepo" ? "Monorepo architecture" : null,
+      repoData.fileTree.projectType === "fullstack" ? "Full-stack system design" : null,
+      repoData.hasCI ? "CI/CD pipelines" : null,
+      repoData.hasTests ? "Automated testing" : null,
+      repoData.hasDocker ? "Dockerized delivery" : null,
+      repoData.readmeContent ? "Technical documentation" : null,
+      repoSourceContains(repoData, /auth|jwt|oauth/i) ? "Authentication flows" : null,
+      repoSourceContains(repoData, /redis|cache/i) ? "Caching with Redis" : null,
+      repoSourceContains(repoData, /bullmq|queue/i) ? "Background job processing" : null,
+      repoSourceContains(repoData, /prisma|postgres|sql/i) ? "Relational data modeling" : null,
+      repoSourceContains(repoData, /zod|schema/i) ? "Schema validation" : null,
+      repoSourceContains(repoData, /playwright|vitest|jest/i) ? "Quality engineering" : null,
+    ],
+    16,
+    { minLength: 3, maxLength: 80 }
+  );
+
+  const strengths = uniqueInsightItems(
+    [
+      repoData.fileTree.projectType === "fullstack" ? "Implementation spans product-facing UI, API, and shared logic rather than a single isolated layer." : null,
+      repoData.fileTree.projectType === "monorepo" ? "Repository structure separates applications and shared packages cleanly." : null,
+      repoData.hasTests ? "Automated testing is present, which improves release confidence." : null,
+      repoData.hasCI ? "Delivery workflow includes CI/CD automation for repeatable verification." : null,
+      repoData.hasDocker ? "Containerized environments reduce setup drift across development and deployment." : null,
+      repoData.recentActivityCount > 0 ? "Recent commit activity suggests the codebase is actively maintained." : null,
+      repoData.contributors > 1 ? "Multiple contributors indicate collaborative development practices." : null,
+      repoData.qualityScore >= 70 ? "Repository quality signals point to a production-minded engineering workflow." : null,
+      repoData.readmeContent ? "Repository includes documentation that improves onboarding and communication." : null,
+    ],
+    6,
+    { minLength: 18, maxLength: 180 }
+  );
+
+  const improvements = uniqueInsightItems(
+    [
+      repoData.hasTests
+        ? "Expand integration and contract tests around the highest-risk interfaces to complement the current test suite."
+        : "Add automated test coverage around the most important workflows and repository boundaries.",
+      repoData.hasCI
+        ? "Extend the existing CI pipeline with dependency, secret, and supply-chain scanning."
+        : "Introduce CI validation for build, lint, test, and security checks.",
+      repoData.hasDocker
+        ? "Add preview or release-promotion environments on top of the current Docker workflow."
+        : "Add a reproducible container workflow for development and deployment parity.",
+      repoData.readmeContent
+        ? "Add architecture decision records or operational runbooks to capture system trade-offs explicitly."
+        : "Document setup, architecture, and contribution workflows to reduce onboarding time.",
+      "Instrument performance and reliability monitoring around the most critical execution paths.",
+      repoData.contributors <= 1 ? "Add contribution guidelines, issue templates, or release notes to strengthen collaboration signals." : null,
+    ],
+    6,
+    { minLength: 18, maxLength: 200 }
+  );
+
+  const cvReadyDescription = [
+    `Built a ${projectTypeLabel} using ${formatHumanList(stack.length > 0 ? stack : technologies.slice(0, 4)) || "a pragmatic production stack"}.`,
+    directories.length > 0
+      ? `Structured the codebase around ${formatHumanList(directories)} to keep responsibilities separated and maintainable.`
+      : `Structured the codebase to keep product, platform, and operational concerns clearly separated.`,
+    qualitySignals.length > 0
+      ? `Reinforced delivery quality with ${formatHumanList(qualitySignals)}.`
+      : null,
+  ].filter(Boolean).join(" ");
+
+  const cvHighlights = uniqueInsightItems(
+    [
+      stack.length > 0 ? `Implemented core capabilities with ${formatHumanList(stack)}.` : null,
+      directories.length > 0 ? `Organized the repository around ${formatHumanList(directories)} for clearer ownership boundaries.` : null,
+      qualitySignals.length > 0 ? `Backed the codebase with ${formatHumanList(qualitySignals)} to improve release confidence.` : null,
+      repoData.recentActivityCount > 0 ? `Maintained active delivery with ${repoData.recentActivityCount} commits in the last 30 days.` : null,
+      repoData.contributors > 1 ? `Collaborated across ${repoData.contributors} contributors on the repository's evolution.` : null,
+    ],
+    4,
+    { minLength: 16, maxLength: 160 }
+  );
+
+  return {
+    projectSummary,
+    architectureAnalysis,
+    techStackAssessment,
+    complexityLevel,
+    detectedSkills,
+    strengths,
+    improvements,
+    cvReadyDescription,
+    cvHighlights,
+  };
+}
+
+function mergeRepoAnalysis(primary: Record<string, unknown>, fallback: DeepRepoAnalysisOutput): DeepRepoAnalysisOutput {
+  const validComplexities: GitHubComplexityLevel[] = ["simple", "medium", "complex"];
+  const complexityLevel = validComplexities.includes(primary.complexityLevel as GitHubComplexityLevel)
+    ? (primary.complexityLevel as GitHubComplexityLevel)
+    : fallback.complexityLevel;
+
+  return {
+    projectSummary: normalizeInsightText(primary.projectSummary) || fallback.projectSummary,
+    architectureAnalysis: normalizeInsightText(primary.architectureAnalysis) || fallback.architectureAnalysis,
+    techStackAssessment: normalizeInsightText(primary.techStackAssessment) || fallback.techStackAssessment,
+    complexityLevel,
+    detectedSkills: uniqueInsightItems(
+      [
+        ...(Array.isArray(primary.detectedSkills) ? primary.detectedSkills : []),
+        ...fallback.detectedSkills,
+      ],
+      16,
+      { minLength: 3, maxLength: 80 }
+    ),
+    strengths: uniqueInsightItems(
+      [
+        ...(Array.isArray(primary.strengths) ? primary.strengths : []),
+        ...fallback.strengths,
+      ],
+      6,
+      { minLength: 18, maxLength: 180 }
+    ),
+    improvements: uniqueInsightItems(
+      [
+        ...(Array.isArray(primary.improvements) ? primary.improvements : []),
+        ...fallback.improvements,
+      ],
+      6,
+      { minLength: 18, maxLength: 200 }
+    ),
+    cvReadyDescription: normalizeInsightText(primary.cvReadyDescription) || fallback.cvReadyDescription,
+    cvHighlights: uniqueInsightItems(
+      [
+        ...(Array.isArray(primary.cvHighlights) ? primary.cvHighlights : []),
+        ...fallback.cvHighlights,
+      ],
+      4,
+      { minLength: 16, maxLength: 160 }
+    ),
+  };
 }
 
 function deriveFallbackSkillSuggestions(cvData: Record<string, unknown>, existingSkillNames: Set<string>): string[] {
@@ -1043,69 +1565,28 @@ export const aiService = {
     return mapArtifact(updatedArtifact);
   },
 
-  async deepAnalyzeRepo(repoData: {
-    name: string;
-    description: string | null;
-    languages: { language: string; percentage: number }[];
-    topics: string[];
-    fileTree: { totalFiles: number; totalDirectories: number; filesByExtension: Record<string, number>; configFiles: string[]; projectType: string; keyDirectories: string[] };
-    dependencies: { source: string; dependencies: Record<string, string>; devDependencies: Record<string, string> } | null;
-    readmeContent: string | null;
-    sourceSnippets: { path: string; content: string }[];
-    commitCount: number;
-    contributors: number;
-    stars: number;
-    qualityScore: number;
-    hasTests: boolean;
-    hasCI: boolean;
-    hasDocker: boolean;
-    hasTypeScript: boolean;
-    recentActivityCount: number;
-    activeDays: number;
-    recentCommits: string[];
-    dependencySignals: {
-      frameworks: string[];
-      databases: string[];
-      uiLibraries: string[];
-      testingTools: string[];
-      buildTools: string[];
-      linters: string[];
-    } | null;
-  }, locale?: string): Promise<{
-    projectSummary: string;
-    architectureAnalysis: string;
-    techStackAssessment: string;
-    complexityLevel: GitHubComplexityLevel;
-    detectedSkills: string[];
-    strengths: string[];
-    improvements: string[];
-    cvReadyDescription: string;
-    cvHighlights: string[];
-  }> {
+  async deepAnalyzeRepo(repoData: DeepRepoAnalysisInput, locale?: string): Promise<DeepRepoAnalysisOutput> {
     const { system, buildPrompt } = AI_PROMPTS.deepRepoAnalysis;
+    const fallback = buildFallbackRepoAnalysis(repoData);
 
     logger.info("Running deep AI analysis on repo", { name: repoData.name, locale });
-    const result = await ollama.generate({
-      prompt: buildPrompt(repoData),
-      system: localizeSystemPrompt(system, locale, true),
-      temperature: 0.4,
-      json: true,
-    });
+    try {
+      const result = await ollama.generate({
+        prompt: buildPrompt(repoData),
+        system: localizeSystemPrompt(system, locale, true),
+        temperature: 0.4,
+        json: true,
+      });
 
-    const parsed = extractJSON<Record<string, unknown>>(result, {});
-    const validComplexity = ["simple", "medium", "complex"];
-    return {
-      projectSummary: typeof parsed.projectSummary === "string" ? parsed.projectSummary : "",
-      architectureAnalysis: typeof parsed.architectureAnalysis === "string" ? parsed.architectureAnalysis : "",
-      techStackAssessment: typeof parsed.techStackAssessment === "string" ? parsed.techStackAssessment : "",
-      complexityLevel: validComplexity.includes(parsed.complexityLevel as string)
-        ? (parsed.complexityLevel as GitHubComplexityLevel)
-        : "medium",
-      detectedSkills: Array.isArray(parsed.detectedSkills) ? parsed.detectedSkills.filter((skill): skill is string => typeof skill === "string") : [],
-      strengths: Array.isArray(parsed.strengths) ? parsed.strengths.filter((strength): strength is string => typeof strength === "string") : [],
-      improvements: Array.isArray(parsed.improvements) ? parsed.improvements.filter((improvement): improvement is string => typeof improvement === "string") : [],
-      cvReadyDescription: typeof parsed.cvReadyDescription === "string" ? parsed.cvReadyDescription : "",
-      cvHighlights: Array.isArray(parsed.cvHighlights) ? parsed.cvHighlights.filter((highlight): highlight is string => typeof highlight === "string") : [],
-    };
+      const parsed = extractJSON<Record<string, unknown>>(result, {});
+      return mergeRepoAnalysis(parsed, fallback);
+    } catch (error) {
+      logger.warn("Deep AI repository analysis failed, using deterministic fallback", {
+        name: repoData.name,
+        locale,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return fallback;
+    }
   },
 };

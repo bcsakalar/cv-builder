@@ -26,7 +26,7 @@ function buildArtifact(id: string, tool: string, output: unknown, overrides?: Re
     output,
     summary: typeof output === "string" ? output : `${tool} result`,
     provider: "ollama",
-    model: "qwen3.5:9b",
+    model: "glm-4.7-flash:q4_K_M",
     locale: "en",
     error: null,
     createdAt: "2026-04-12T10:00:00.000Z",
@@ -61,9 +61,9 @@ test("renders mocked AI review, summary, skills, and ATS results @smoke", async 
         ollama: "connected",
         ready: true,
         readinessIssues: [],
-        model: "qwen3.5:9b",
+        model: "glm-4.7-flash:q4_K_M",
         modelAvailable: true,
-        availableModels: ["qwen3.5:9b"],
+        availableModels: ["glm-4.7-flash:q4_K_M"],
       }),
     });
   });
@@ -230,9 +230,9 @@ test("renders mocked AI match, tailoring, and cover-letter outputs @smoke", asyn
         ollama: "connected",
         ready: true,
         readinessIssues: [],
-        model: "qwen3.5:9b",
+        model: "glm-4.7-flash:q4_K_M",
         modelAvailable: true,
-        availableModels: ["qwen3.5:9b"],
+        availableModels: ["glm-4.7-flash:q4_K_M"],
       }),
     });
   });

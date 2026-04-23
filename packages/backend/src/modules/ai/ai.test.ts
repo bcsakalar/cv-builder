@@ -53,7 +53,9 @@ jest.mock("../../lib/logger", () => ({
 
 jest.mock("../../config/env", () => ({
   env: {
-    OLLAMA_MODEL: "qwen3.5:9b",
+    OLLAMA_MODEL: "glm-4.7-flash:q4_K_M",
+    OLLAMA_CODE_MODEL: "glm-4.7-flash:q4_K_M",
+    OLLAMA_EMBEDDING_MODEL: "nomic-embed-text:v1.5",
   },
 }));
 
@@ -100,6 +102,73 @@ const MOCK_CV = {
   languages: [{ name: "English", proficiency: "NATIVE" }],
 };
 
+const MOCK_REPO_ANALYSIS_INPUT = {
+  name: "CvBuilder",
+  description: "AI-powered CV builder for software engineers.",
+  languages: [
+    { language: "TypeScript", percentage: 82 },
+    { language: "CSS", percentage: 10 },
+    { language: "HTML", percentage: 8 },
+  ],
+  topics: ["cv", "automation", "developer-tools"],
+  fileTree: {
+    totalFiles: 120,
+    totalDirectories: 18,
+    maxDepth: 5,
+    filesByExtension: { ".ts": 60, ".tsx": 24, ".css": 8 },
+    configFiles: ["package.json", "vite.config.ts", "playwright.config.ts"],
+    projectType: "fullstack",
+    keyDirectories: ["packages/frontend", "packages/backend", "packages/shared"],
+  },
+  dependencies: {
+    source: "package.json",
+    dependencies: {
+      react: "^19.0.0",
+      express: "^5.0.0",
+      prisma: "^6.0.0",
+      redis: "^5.0.0",
+      bullmq: "^5.0.0",
+    },
+    devDependencies: {
+      "@playwright/test": "^1.0.0",
+      vitest: "^3.0.0",
+      tailwindcss: "^4.0.0",
+      vite: "^6.0.0",
+      eslint: "^9.0.0",
+    },
+  },
+  readmeContent: "# CvBuilder\nAI-powered CV builder with GitHub analysis and recruiter tooling.",
+  sourceSnippets: [
+    {
+      path: "packages/backend/src/server.ts",
+      content: "import express from 'express'; import { Queue } from 'bullmq'; const redis = 'redis'; const prisma = 'prisma';",
+    },
+    {
+      path: "packages/frontend/src/main.tsx",
+      content: "import React from 'react'; import { QueryClientProvider } from '@tanstack/react-query';",
+    },
+  ],
+  commitCount: 128,
+  contributors: 2,
+  stars: 42,
+  qualityScore: 84,
+  hasTests: true,
+  hasCI: true,
+  hasDocker: true,
+  hasTypeScript: true,
+  recentActivityCount: 14,
+  activeDays: 48,
+  recentCommits: ["feat: add github analysis", "test: cover import preview flow"],
+  dependencySignals: {
+    frameworks: ["react", "express"],
+    databases: ["prisma", "redis"],
+    uiLibraries: ["tailwindcss"],
+    testingTools: ["@playwright/test", "vitest"],
+    buildTools: ["vite"],
+    linters: ["eslint"],
+  },
+};
+
 function buildArtifactRecord(overrides?: Record<string, unknown>) {
   return {
     id: "artifact-1",
@@ -107,7 +176,7 @@ function buildArtifactRecord(overrides?: Record<string, unknown>) {
     status: "READY",
     title: "Professional summary draft",
     provider: "ollama",
-    model: "qwen3.5:9b",
+    model: "glm-4.7-flash:q4_K_M",
     locale: "en",
     targetSection: "summary",
     input: { promptVersion: "developer-cv-v2", cvId: CV_ID },
@@ -157,12 +226,12 @@ describe("aiService", () => {
     it("reports readiness and available models", async () => {
       mockCheckOllamaHealth.mockResolvedValue(true);
       mockCheckModelAvailable.mockResolvedValue(true);
-      mockGetAvailableModels.mockResolvedValue(["qwen3.5:9b", "llama3.2"]);
+      mockGetAvailableModels.mockResolvedValue(["glm-4.7-flash:q4_K_M", "nomic-embed-text:v1.5"]);
 
       const result = await aiService.getHealth();
 
       expect(result.ready).toBe(true);
-      expect(result.availableModels).toEqual(["qwen3.5:9b", "llama3.2"]);
+      expect(result.availableModels).toEqual(["glm-4.7-flash:q4_K_M", "nomic-embed-text:v1.5"]);
       expect(result.readinessIssues).toHaveLength(0);
     });
   });
@@ -337,6 +406,34 @@ describe("aiService", () => {
       mockAnalysesFindMany.mockResolvedValue([]);
 
       await expect(aiService.githubProfileSummary(USER_ID)).rejects.toThrow("No completed GitHub analyses found");
+    });
+  });
+
+  describe("deepAnalyzeRepo", () => {
+    it("parses wrapped JSON and fills missing insight fields from deterministic fallback", async () => {
+      mockGenerate.mockResolvedValue(`Here is the analysis you requested:\n\n\
+\
+\`\`\`json\n{"projectSummary":"CvBuilder delivers an AI-assisted workflow for creating and refining software engineering CVs.","detectedSkills":["React","React","BullMQ job queues"],"cvHighlights":["Built an end-to-end CV workflow platform."]}\n\`\`\``);
+
+      const result = await aiService.deepAnalyzeRepo(MOCK_REPO_ANALYSIS_INPUT, "en");
+
+      expect(result.projectSummary).toContain("AI-assisted workflow");
+      expect(result.architectureAnalysis.length).toBeGreaterThan(40);
+      expect(result.techStackAssessment.length).toBeGreaterThan(40);
+      expect(result.detectedSkills).toEqual(expect.arrayContaining(["React", "BullMQ job queues"]));
+      expect(result.cvHighlights.length).toBeGreaterThanOrEqual(3);
+      expect(result.complexityLevel).toBe("complex");
+    });
+
+    it("returns deterministic fallback insights when model generation fails", async () => {
+      mockGenerate.mockRejectedValue(new Error("Model returned malformed output"));
+
+      const result = await aiService.deepAnalyzeRepo(MOCK_REPO_ANALYSIS_INPUT, "en");
+
+      expect(result.projectSummary).toContain("CvBuilder");
+      expect(result.cvReadyDescription).toMatch(/^Built /);
+      expect(result.detectedSkills).toEqual(expect.arrayContaining(["React", "Express", "Prisma ORM", "CI/CD pipelines"]));
+      expect(result.improvements.length).toBeGreaterThanOrEqual(4);
     });
   });
 });

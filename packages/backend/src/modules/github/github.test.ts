@@ -123,8 +123,11 @@ function buildCompletedAnalysisResult(overrides?: Record<string, unknown>) {
       hasDocker: true,
       hasTypeScript: true,
       hasLinting: true,
+      hasReadme: true,
+      hasLicense: true,
+      hasContributing: true,
+      hasChangelog: false,
       qualityScore: 84,
-      configFiles: ["playwright.config.ts", "vite.config.ts"],
     },
     commitAnalytics: {
       recentActivityCount: 14,
@@ -132,6 +135,9 @@ function buildCompletedAnalysisResult(overrides?: Record<string, unknown>) {
       activeDays: 48,
       lastCommitDate: "2026-04-10T00:00:00.000Z",
       firstCommitDate: "2025-01-02T00:00:00.000Z",
+      totalCommits: 128,
+      authorBreakdown: { "mock-dev": 96, teammate: 32 },
+      usesConventionalCommits: true,
     },
     aiInsights: {
       projectSummary: "Full-stack platform for automating developer workflows.",
@@ -384,9 +390,18 @@ describe("githubService", () => {
 
   describe("importToCV", () => {
     it("returns a structured import preview for completed analyses", async () => {
+      mockCV.findFirst.mockResolvedValue({
+        id: CV_ID,
+        userId: USER_ID,
+        personalInfo: { professionalTitle: "Full-Stack Developer" },
+        summary: { content: "TypeScript platform engineer" },
+        experiences: [],
+        skills: [{ name: "TypeScript" }, { name: "PostgreSQL" }],
+        projects: [{ technologies: ["React", "Playwright"] }],
+      });
       mockAnalysis.findFirst.mockResolvedValue(buildCompletedAnalysis());
 
-      const result = await githubService.getImportPreview(USER_ID, "analysis-1");
+      const result = await githubService.getImportPreview(USER_ID, "analysis-1", CV_ID);
 
       expect(result).toMatchObject({
         analysisId: "analysis-1",
@@ -399,6 +414,9 @@ describe("githubService", () => {
             qualityScore: 84,
             contributorCount: 2,
             hasCI: true,
+            impactAnalysis: expect.objectContaining({
+              impactScore: expect.any(Number),
+            }),
           }),
         },
         dependencyInfo: {

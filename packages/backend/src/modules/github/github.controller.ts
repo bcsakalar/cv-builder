@@ -110,8 +110,8 @@ export const githubController = {
   },
 
   async importPreview(req: Request, res: Response) {
-    const { analysisId } = importPreviewSchema.parse(req.body);
-    const preview = await githubService.getImportPreview(currentUserId(req), analysisId);
+    const { analysisId, cvId } = importPreviewSchema.parse(req.body);
+    const preview = await githubService.getImportPreview(currentUserId(req), analysisId, cvId);
     sendSuccess(res, preview);
   },
 

@@ -109,7 +109,7 @@ export function useAnalyzeRepo() {
 
 export function useImportPreview() {
   return useMutation({
-    mutationFn: (analysisId: string) => githubApi.getImportPreview(analysisId),
+    mutationFn: ({ analysisId, cvId }: { analysisId: string; cvId?: string }) => githubApi.getImportPreview(analysisId, cvId),
     onError: () => toast.error(translate("toasts.github.importPreviewFailed")),
   });
 }

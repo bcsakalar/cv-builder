@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// AI Prompts — Engineered for Qwen3 + structured output
+// AI Prompts — tuned for local Ollama models + structured output
 // ═══════════════════════════════════════════════════════════
 
 /**
@@ -30,7 +30,7 @@ export function localizeSystemPrompt(system: string, locale?: string, isJson = f
 
 /**
  * Helpers to build concise CV context strings for prompts.
- * We avoid dumping the full JSON — Qwen performs better with
+ * We avoid dumping the full JSON — local models generally perform better with
  * a readable, structured text representation.
  */
 function cvToContext(cvData: Record<string, unknown>): string {
@@ -282,6 +282,7 @@ CRITICAL RULES:
 - Be SPECIFIC — mention actual framework names, versions, patterns, and architecture decisions you observe.
 - Prioritize the signals that matter in hiring reviews: business/problem scope, ownership, engineering quality, architecture maturity, collaboration, and operational readiness.
 - Do NOT invent scale, users, or performance metrics that are not explicitly supported by the repository evidence.
+- Cross-check technologies against dependency manifests, config files, README evidence, and source snippets. If a technology is not supported by repository evidence, leave it out.
 - "detectedSkills" must be concrete technical skills (e.g. "React 19 with Server Components", "PostgreSQL with pgvector", "BullMQ job queues", "JWT authentication") NOT generic ones like "JavaScript" or "coding".
 - "strengths" should highlight things that would impress a hiring manager.
 - "improvements" should be actionable senior-level suggestions, not obvious things.

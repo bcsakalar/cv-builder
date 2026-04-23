@@ -122,11 +122,19 @@ Important variables:
 - `REDIS_URL`
 - `OLLAMA_URL`
 - `OLLAMA_MODEL`
+- `OLLAMA_CODE_MODEL`
+- `OLLAMA_EMBEDDING_MODEL`
 - `JWT_SECRET`
 - `ENCRYPTION_KEY`
 - `CORS_ORIGIN`
 - `UPLOAD_DIR`
 - `VITE_API_URL`
+
+Recommended local Ollama defaults in this repository:
+
+- `OLLAMA_MODEL=glm-4.7-flash:q4_K_M`
+- `OLLAMA_CODE_MODEL=glm-4.7-flash:q4_K_M`
+- `OLLAMA_EMBEDDING_MODEL=nomic-embed-text:v1.5`
 
 ## Common Scripts
 

@@ -70,6 +70,13 @@ function truncateSentences(value: string, sentenceCount: number): string {
   return sentences.slice(0, sentenceCount).join(" ").trim();
 }
 
+function formatHumanList(values: string[]): string {
+  if (values.length === 0) return "";
+  if (values.length === 1) return values[0]!;
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
+}
+
 function normalizeProjectDate(value: string | null | undefined): string | null {
   if (!hasText(value)) return null;
 
@@ -111,11 +118,12 @@ function buildProjectDescription(result: DeepAnalysisResult): string {
   const preferred = ai?.cvReadyDescription ?? ai?.projectSummary ?? result.description ?? "";
 
   if (hasText(preferred)) {
-    return truncateSentences(preferred, ai?.cvReadyDescription ? 2 : 3);
+    return truncateSentences(preferred, 3);
   }
 
   const projectType = result.fileTree?.projectType ?? "unknown";
-  const stack = buildTechnologyList(result).slice(0, 4).join(", ");
+  const stackItems = buildTechnologyList(result).slice(0, 4);
+  const stack = formatHumanList(stackItems);
   const typeLabel = projectType === "unknown" ? "software" : projectType;
 
   if (hasText(stack)) {
@@ -172,6 +180,43 @@ function buildQualityHighlight(result: DeepAnalysisResult): string | null {
   return `Engineering setup includes ${signals.slice(0, -1).join(", ")}, and ${signals.at(-1)}.`;
 }
 
+function buildStackHighlight(result: DeepAnalysisResult): string | null {
+  const stack = buildTechnologyList(result).slice(0, 4);
+  if (stack.length === 0) {
+    return null;
+  }
+
+  return `Implemented core capabilities with ${formatHumanList(stack)}.`;
+}
+
+function buildActivityHighlight(result: DeepAnalysisResult): string | null {
+  const recentActivity = result.commitAnalytics?.recentActivityCount ?? 0;
+  const contributors = result.contributors?.length ?? 0;
+
+  if (recentActivity > 0 && contributors > 1) {
+    return `Maintained active iteration across ${contributors} contributors with ${recentActivity} recent commits.`;
+  }
+
+  if (recentActivity > 0) {
+    return `Maintained active iteration with ${recentActivity} recent commits.`;
+  }
+
+  if (contributors > 1) {
+    return `Collaborated across ${contributors} contributors on the repository's evolution.`;
+  }
+
+  return null;
+}
+
+function buildImpactSignalHighlight(result: DeepAnalysisResult): string | null {
+  const primaryReason = result.impactAnalysis?.reasons?.[0];
+  if (!hasText(primaryReason)) {
+    return null;
+  }
+
+  return `${primaryReason.replace(/[.\s]+$/g, "")}.`;
+}
+
 function buildHighlights(result: DeepAnalysisResult): string[] {
   const aiHighlights = (result.aiInsights?.cvHighlights ?? [])
     .map(normalizeListItem)
@@ -187,8 +232,11 @@ function buildHighlights(result: DeepAnalysisResult): string[] {
     [
       ...aiHighlights,
       ...aiStrengths,
+      buildImpactSignalHighlight(result),
+      buildStackHighlight(result),
       buildArchitectureHighlight(projectType),
       buildQualityHighlight(result),
+      buildActivityHighlight(result),
     ],
     MAX_IMPORT_HIGHLIGHTS
   );
@@ -234,6 +282,7 @@ function buildGitHubRepoData(result: DeepAnalysisResult): GitHubRepoData {
     hasCI: result.codeQuality?.hasCI ?? false,
     hasDocker: result.codeQuality?.hasDocker ?? false,
     hasTypeScript: result.codeQuality?.hasTypeScript ?? false,
+    impactAnalysis: result.impactAnalysis ?? null,
   };
 }
 
@@ -267,7 +316,7 @@ function applyImportOverrides(
   return {
     ...draft,
     name: overrides.name !== undefined && hasText(overrides.name) ? compactText(overrides.name) : draft.name,
-    description: overrides.description !== undefined ? overrides.description.trim() : draft.description,
+    description: overrides.description !== undefined ? compactText(overrides.description) : draft.description,
     role: overrides.role !== undefined ? (hasText(overrides.role) ? compactText(overrides.role) : null) : draft.role,
     technologies: overrides.technologies !== undefined
       ? uniqueStrings(overrides.technologies, MAX_IMPORT_TECHNOLOGIES)
@@ -633,8 +682,8 @@ export const githubService = {
     return analysis;
   },
 
-  async getImportPreview(userId: string, analysisId: string) {
-    const analysis = await this.getAnalysis(userId, analysisId);
+  async getImportPreview(userId: string, analysisId: string, cvId?: string) {
+    const analysis = await this.getAnalysis(userId, analysisId, cvId);
     const result = getCompletedAnalysisResult(analysis);
 
     return buildImportPreviewPayload(analysis.id, result);

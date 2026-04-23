@@ -115,6 +115,7 @@ interface AIAnalysisInsight {
   strengths: string[];
   improvements: string[];
   cvReadyDescription: string;
+  cvHighlights: string[];
 }
 
 type AnalysisResult = DeepAnalysisResult & {
@@ -632,6 +633,20 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
                     <span key={skill} className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">{skill}</span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {data.aiInsights.cvHighlights.length > 0 && (
+              <div>
+                <h4 className="mb-2 flex items-center gap-1 text-sm font-medium"><FileText size={14} className="text-green-600" /> {t("github.projectHighlights")}</h4>
+                <ul className="space-y-1">
+                  {data.aiInsights.cvHighlights.map((highlight, index) => (
+                    <li key={`${highlight}-${index}`} className="flex items-start gap-2 text-xs">
+                      <CheckCircle size={12} className="mt-0.5 shrink-0 text-green-500" />
+                      <span>{highlight}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

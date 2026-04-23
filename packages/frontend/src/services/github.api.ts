@@ -109,8 +109,8 @@ export const githubApi = {
     return res.data.data;
   },
 
-  async getImportPreview(analysisId: string): Promise<GitHubProjectImportPreview> {
-    const res = await api.post("/github/import-preview", { analysisId });
+  async getImportPreview(analysisId: string, cvId?: string): Promise<GitHubProjectImportPreview> {
+    const res = await api.post("/github/import-preview", { analysisId, ...(cvId ? { cvId } : {}) });
     return res.data.data;
   },
 
