@@ -2,6 +2,7 @@ import type { CVDetail } from "@/services/cv.api";
 import type { ThemeConfig } from "@/stores/theme.store";
 import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
+import { getProjectsFooterSettings } from "@/lib/project-links";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
 import { getLanguageProficiencyLabelForLocale, getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
@@ -17,6 +18,7 @@ export function ClassicTemplate({ cv, theme }: TemplateProps) {
   const sectionLabel = (sectionKey: string) => getSectionLabelForLocale(sectionKey, cv.locale);
   const languageProficiencyLabel = (value: unknown) =>
     getLanguageProficiencyLabelForLocale(typeof value === "string" ? value : undefined, cv.locale);
+  const projectsFooter = getProjectsFooterSettings(cv.themeConfig);
 
   const heading = (title: string) => (
     <>
@@ -130,7 +132,11 @@ export function ClassicTemplate({ cv, theme }: TemplateProps) {
                     ))}
                   </ul>
                 )}
-                {project.signalLine && <p className="mt-1 text-xs" style={{ color: theme.secondaryColor }}>{project.signalLine}</p>}
+                {project.repositoryUrl && project.repositoryDisplayUrl && (
+                  <a href={project.repositoryUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs underline-offset-2 hover:underline" style={{ color: theme.primaryColor }}>
+                    {translateForLocale(cv.locale, "editorSections.projects.repositoryLinkLabel")}: {project.repositoryDisplayUrl}
+                  </a>
+                )}
                 {project.technologies.length > 0 && (
                   <p className="mt-1 text-xs" style={{ color: theme.secondaryColor }}>
                     {project.technologies.join(", ")}{project.extraTechnologyCount > 0 ? `, +${project.extraTechnologyCount}` : ""}
@@ -139,6 +145,11 @@ export function ClassicTemplate({ cv, theme }: TemplateProps) {
               </div>
             );
           })}
+          {projectsFooter.shouldRender && projectsFooter.url && projectsFooter.displayUrl && (
+            <a href={projectsFooter.url} target="_blank" rel="noreferrer" className="inline-block text-xs underline-offset-2 hover:underline" style={{ color: theme.primaryColor }}>
+              {translateForLocale(cv.locale, "editorSections.projects.moreProjectsCta")}: {projectsFooter.displayUrl}
+            </a>
+          )}
         </section>
       )}
 

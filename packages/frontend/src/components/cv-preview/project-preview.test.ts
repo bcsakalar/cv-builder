@@ -29,6 +29,19 @@ describe("buildPreviewProject", () => {
     expect(result.metaLine).toBe("Lead Engineer");
   });
 
+  it("shows repository link instead of technologies for public GitHub projects", () => {
+    const result = buildPreviewProject({
+      name: "CvBuilder",
+      isFromGitHub: true,
+      technologies: ["TypeScript", "React"],
+      githubUrl: "https://github.com/mock-dev/cvbuilder",
+    }, "en");
+
+    expect(result.repositoryUrl).toBe("https://github.com/mock-dev/cvbuilder");
+    expect(result.signalLine).toBe("github.com/mock-dev/cvbuilder");
+    expect(result.technologies).toEqual([]);
+  });
+
   it("preserves date metadata for manually entered projects", () => {
     const result = buildPreviewProject({
       name: "Manual Project",

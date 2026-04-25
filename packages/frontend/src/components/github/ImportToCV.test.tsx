@@ -41,7 +41,7 @@ const importPreview: GitHubProjectImportPreview = {
     name: "platform-repo",
     description: "Built a full-stack workflow platform with a strong testing and delivery setup.",
     role: null,
-    technologies: ["TypeScript", "React", "PostgreSQL", "Playwright"],
+    technologies: [],
     url: "https://github.com/mock-dev/platform-repo",
     githubUrl: "https://github.com/mock-dev/platform-repo",
     startDate: "2025-01-01T00:00:00.000Z",
@@ -133,8 +133,6 @@ describe("ImportToCV", () => {
     await user.type(screen.getByLabelText("Project Name"), "Reviewed Platform");
     await user.clear(screen.getByLabelText("Project Description"));
     await user.type(screen.getByLabelText("Project Description"), "Balanced project summary for recruiter and CTO review.");
-    await user.clear(screen.getByLabelText("Technologies"));
-    await user.type(screen.getByLabelText("Technologies"), "TypeScript, React, PostgreSQL");
     await user.clear(screen.getByLabelText("Highlights"));
     await user.type(screen.getByLabelText("Highlights"), "Led architecture across modules{enter}Shipped CI/CD automation");
 
@@ -146,7 +144,6 @@ describe("ImportToCV", () => {
       projectOverrides: {
         name: "Reviewed Platform",
         description: "Balanced project summary for recruiter and CTO review.",
-        technologies: ["TypeScript", "React", "PostgreSQL"],
         highlights: ["Led architecture across modules", "Shipped CI/CD automation"],
       },
     }, expect.any(Object));

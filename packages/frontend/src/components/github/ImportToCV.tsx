@@ -13,7 +13,6 @@ interface ImportToCVProps {
 interface ReviewDraftState {
   name: string;
   description: string;
-  technologiesText: string;
   highlightsText: string;
 }
 
@@ -21,16 +20,8 @@ function buildReviewDraft(preview: GitHubProjectImportPreview): ReviewDraftState
   return {
     name: preview.draft.name,
     description: preview.draft.description,
-    technologiesText: preview.draft.technologies.join(", "),
     highlightsText: preview.draft.highlights.join("\n"),
   };
-}
-
-function parseCommaSeparatedList(raw: string): string[] {
-  return raw
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function parseLineSeparatedList(raw: string): string[] {
@@ -115,7 +106,6 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
         projectOverrides: {
           name: reviewDraft.name.trim(),
           description: reviewDraft.description.trim(),
-          technologies: parseCommaSeparatedList(reviewDraft.technologiesText),
           highlights: parseLineSeparatedList(reviewDraft.highlightsText),
         },
       },
@@ -351,29 +341,16 @@ export function ImportToCV({ analysisIds, onDone }: ImportToCVProps) {
                   />
                 </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label htmlFor="github-import-technologies" className="mb-1 block text-xs font-medium">{t("github.technologies")}</label>
-                    <textarea
-                      id="github-import-technologies"
-                      rows={5}
-                      value={reviewDraft.technologiesText}
-                      onChange={(event) => updateReviewDraft((current) => ({ ...current, technologiesText: event.target.value }))}
-                      className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground"
-                    />
-                    <p className="mt-1 text-[11px] text-muted-foreground">{t("github.projectTechnologiesHint")}</p>
-                  </div>
-                  <div>
-                    <label htmlFor="github-import-highlights" className="mb-1 block text-xs font-medium">{t("github.projectHighlights")}</label>
-                    <textarea
-                      id="github-import-highlights"
-                      rows={5}
-                      value={reviewDraft.highlightsText}
-                      onChange={(event) => updateReviewDraft((current) => ({ ...current, highlightsText: event.target.value }))}
-                      className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground"
-                    />
-                    <p className="mt-1 text-[11px] text-muted-foreground">{t("github.projectHighlightsHint")}</p>
-                  </div>
+                <div className="mt-4">
+                  <label htmlFor="github-import-highlights" className="mb-1 block text-xs font-medium">{t("github.projectHighlights")}</label>
+                  <textarea
+                    id="github-import-highlights"
+                    rows={5}
+                    value={reviewDraft.highlightsText}
+                    onChange={(event) => updateReviewDraft((current) => ({ ...current, highlightsText: event.target.value }))}
+                    className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground"
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">{t("github.projectHighlightsHint")}</p>
                 </div>
 
                 <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border/70 pt-4">

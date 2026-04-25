@@ -343,7 +343,7 @@ function buildImportDraft(result: DeepAnalysisResult): GitHubProjectImportDraft 
     name: result.name ?? result.repoFullName,
     description: buildProjectDescription(result),
     role: null,
-    technologies: buildTechnologyList(result),
+    technologies: [],
     url: repoUrl,
     githubUrl: repoUrl,
     startDate: normalizeProjectDate(result.createdAt) ?? new Date().toISOString().slice(0, 7),

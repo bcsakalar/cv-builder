@@ -2,6 +2,7 @@ import type { CVDetail } from "@/services/cv.api";
 import type { ThemeConfig } from "@/stores/theme.store";
 import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
+import { getProjectsFooterSettings } from "@/lib/project-links";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
 import { getLanguageProficiencyLabelForLocale, getSectionLabelForLocale, translateForLocale } from "@/i18n/helpers";
@@ -17,6 +18,7 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
   const sectionLabel = (sectionKey: string) => getSectionLabelForLocale(sectionKey, cv.locale);
   const languageProficiencyLabel = (value: unknown) =>
     getLanguageProficiencyLabelForLocale(typeof value === "string" ? value : undefined, cv.locale);
+  const projectsFooter = getProjectsFooterSettings(cv.themeConfig);
 
   return (
     <div
@@ -110,7 +112,11 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
                         ))}
                       </ul>
                     )}
-                    {project.signalLine && <p className="mt-2 text-xs font-medium" style={{ color: theme.secondaryColor }}>{project.signalLine}</p>}
+                    {project.repositoryUrl && project.repositoryDisplayUrl && (
+                      <a href={project.repositoryUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-medium underline-offset-2 hover:underline" style={{ color: theme.primaryColor }}>
+                        {translateForLocale(cv.locale, "editorSections.projects.repositoryLinkLabel")}: {project.repositoryDisplayUrl}
+                      </a>
+                    )}
                     {project.technologies.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {project.technologies.map((technology) => (
@@ -124,6 +130,11 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
                   </div>
                 );
               })}
+              {projectsFooter.shouldRender && projectsFooter.url && projectsFooter.displayUrl && (
+                <a href={projectsFooter.url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline" style={{ color: theme.primaryColor }}>
+                  {translateForLocale(cv.locale, "editorSections.projects.moreProjectsCta")}: {projectsFooter.displayUrl}
+                </a>
+              )}
             </Section>
           )}
 

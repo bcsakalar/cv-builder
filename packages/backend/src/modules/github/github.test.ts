@@ -409,6 +409,9 @@ describe("githubService", () => {
         draft: {
           name: "platform-repo",
           role: null,
+          technologies: [],
+          url: "https://github.com/mock-dev/platform-repo",
+          githubUrl: "https://github.com/mock-dev/platform-repo",
           githubRepoData: expect.objectContaining({
             projectType: "fullstack",
             qualityScore: 84,
@@ -426,7 +429,6 @@ describe("githubService", () => {
         },
       });
 
-      expect(result.draft.technologies).toEqual(expect.arrayContaining(["Node.js", "React", "PostgreSQL", "Playwright", "Express", "Tailwind CSS", "Vitest", "Vite"]));
       expect(result.draft.highlights).toEqual(expect.arrayContaining([
         expect.stringContaining("full-stack workflow platform"),
         expect.stringContaining("automated quality gates"),
@@ -443,7 +445,6 @@ describe("githubService", () => {
         name: " Reviewed Platform ",
         role: " Lead Full-Stack Developer ",
         description: "Reviewed summary for CV import.",
-        technologies: ["TypeScript", "React", "TypeScript", "Playwright"],
         highlights: [" Led architecture across frontend and backend ", "Led architecture across frontend and backend", "Shipped CI/CD automation"],
       });
 
@@ -453,7 +454,7 @@ describe("githubService", () => {
           name: "Reviewed Platform",
           description: "Reviewed summary for CV import.",
           role: "Lead Full-Stack Developer",
-          technologies: ["TypeScript", "React", "Playwright"],
+          technologies: [],
           highlights: ["Led architecture across frontend and backend", "Shipped CI/CD automation"],
           url: "https://github.com/mock-dev/platform-repo",
           githubUrl: "https://github.com/mock-dev/platform-repo",

@@ -29,9 +29,10 @@ const LAYOUTS = [
 interface ThemeCustomizerProps {
   cvId: string;
   defaultThemeConfig?: Record<string, unknown>;
+  currentThemeConfig?: Record<string, unknown>;
 }
 
-export function ThemeCustomizer({ cvId, defaultThemeConfig }: ThemeCustomizerProps) {
+export function ThemeCustomizer({ cvId, defaultThemeConfig, currentThemeConfig }: ThemeCustomizerProps) {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
@@ -41,7 +42,7 @@ export function ThemeCustomizer({ cvId, defaultThemeConfig }: ThemeCustomizerPro
 
   const handleChange = (patch: Partial<ThemeConfig>) => {
     setTheme(patch);
-    updateTheme.mutate({ ...theme, ...patch } as Record<string, unknown>);
+    updateTheme.mutate({ ...(currentThemeConfig ?? {}), ...theme, ...patch } as Record<string, unknown>);
   };
 
   const handleReset = () => {
@@ -53,7 +54,7 @@ export function ThemeCustomizer({ cvId, defaultThemeConfig }: ThemeCustomizerPro
       resetTheme();
     }
 
-    updateTheme.mutate(nextTheme as unknown as Record<string, unknown>);
+    updateTheme.mutate({ ...(currentThemeConfig ?? {}), ...nextTheme } as unknown as Record<string, unknown>);
   };
 
   return (

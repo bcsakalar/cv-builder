@@ -1,14 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { CVDetail } from "@/services/cv.api";
-import { useSectionMutation } from "@/hooks/useCV";
+import { useSectionMutation, useUpdateTheme } from "@/hooks/useCV";
 import { useImproveProject } from "@/hooks/useAI";
 import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { buildPreviewProject } from "@/components/cv-preview/project-preview";
+import { useCVStore } from "@/stores/cv.store";
+import {
+  getProjectsFooterSettings,
+  PROJECTS_FOOTER_ENABLED_KEY,
+  PROJECTS_FOOTER_URL_KEY,
+} from "@/lib/project-links";
 
 const createSchema = (t: TFunction) => z.object({
   name: z.string().min(1, t("common.required")),
@@ -31,8 +37,35 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
   const { t } = useTranslation();
   const [isAdding, setIsAdding] = useState(false);
   const { addProject, removeProject } = useSectionMutation(cv.id);
+  const updateTheme = useUpdateTheme(cv.id);
+  const setSaveStatus = useCVStore((state) => state.setSaveStatus);
+  const footerSettings = getProjectsFooterSettings(cv.themeConfig);
+  const [footerEnabled, setFooterEnabled] = useState(footerSettings.enabled);
+  const [footerUrl, setFooterUrl] = useState(footerSettings.url ?? "");
 
   const projects = cv.projects as (FormData & { id: string })[];
+
+  useEffect(() => {
+    setFooterEnabled(footerSettings.enabled);
+    setFooterUrl(footerSettings.url ?? "");
+  }, [footerSettings.enabled, footerSettings.url]);
+
+  function persistProjectsFooter(nextEnabled: boolean, nextUrl: string) {
+    const normalizedUrl = nextUrl.trim();
+    setSaveStatus("saving");
+
+    updateTheme.mutate(
+      {
+        ...(cv.themeConfig ?? {}),
+        [PROJECTS_FOOTER_ENABLED_KEY]: nextEnabled,
+        [PROJECTS_FOOTER_URL_KEY]: normalizedUrl.length > 0 ? normalizedUrl : null,
+      },
+      {
+        onSuccess: () => setSaveStatus("saved"),
+        onError: () => setSaveStatus("error"),
+      }
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -60,6 +93,46 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
           <Plus size={16} /> {t("editorSections.projects.add")}
         </button>
       )}
+
+      <div className="rounded-lg border p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold">{t("editorSections.projects.moreProjectsTitle")}</h4>
+            <p className="text-xs text-muted-foreground">{t("editorSections.projects.moreProjectsDescription")}</p>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={footerEnabled}
+              onChange={(event) => {
+                const nextEnabled = event.target.checked;
+                setFooterEnabled(nextEnabled);
+                persistProjectsFooter(nextEnabled, footerUrl);
+              }}
+              className="h-4 w-4 rounded border-input"
+            />
+            {t("editorSections.projects.showMoreProjectsLink")}
+          </label>
+        </div>
+
+        <div className="mt-3 space-y-1">
+          <label htmlFor="projects-footer-url" className="block text-xs font-medium">
+            {t("editorSections.projects.githubProfileUrl")}
+          </label>
+          <input
+            id="projects-footer-url"
+            type="url"
+            value={footerUrl}
+            disabled={!footerEnabled}
+            placeholder="https://github.com/username"
+            onChange={(event) => setFooterUrl(event.target.value)}
+            onBlur={() => persistProjectsFooter(footerEnabled, footerUrl)}
+            className="w-full rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <p className="text-[11px] text-muted-foreground">{t("editorSections.projects.githubProfileUrlHint")}</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -168,6 +241,18 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
             </li>
           ))}
         </ul>
+      )}
+
+      {previewProject.repositoryUrl && previewProject.signalLine && (
+        <a
+          href={previewProject.repositoryUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          <Github size={12} />
+          {t("editorSections.projects.repositoryLinkLabel")}: {previewProject.signalLine}
+        </a>
       )}
 
       {/* Technologies */}

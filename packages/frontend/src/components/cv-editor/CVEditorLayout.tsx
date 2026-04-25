@@ -165,7 +165,7 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
           {showTheme && (
             <div className="border-b bg-card p-4">
               <Suspense fallback={<PanelFallback label={t("editor.loadingThemePanel", { defaultValue: "Loading theme controls…" })} />}>
-                <LazyThemeCustomizer cvId={cv.id} defaultThemeConfig={selectedTemplate.defaultThemeConfig} />
+                <LazyThemeCustomizer cvId={cv.id} defaultThemeConfig={selectedTemplate.defaultThemeConfig} currentThemeConfig={cv.themeConfig} />
               </Suspense>
             </div>
           )}
