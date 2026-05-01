@@ -212,6 +212,9 @@ export interface GitHubImpactAnalysis {
 export interface DeepAnalysisResult {
   // ── Original fields ──
   repoFullName: string;
+  analysisLocale?: "en" | "tr";
+  analysisVersion?: string;
+  model?: string | null;
   name: string;
   description: string | null;
   stars: number;
@@ -244,4 +247,9 @@ export interface DeepAnalysisResult {
   aiInsights: AIAnalysisInsight | null;
   readmeContent: string | null;
   impactAnalysis?: GitHubImpactAnalysis | null;
+  cvImprovement?: {
+    projectId: string;
+    description: string;
+    updatedAt: string;
+  } | null;
 }

@@ -21,6 +21,7 @@ jest.mock("../../lib/prisma", () => ({
       create: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      update: jest.fn(),
       delete: jest.fn(),
     },
   },
@@ -67,7 +68,7 @@ const CV_ID = "03d5953f-4341-4935-9e64-3831e40fb2f7";
 const mockUser = (prisma as unknown as { user: { findUnique: jest.Mock; update: jest.Mock } }).user;
 const mockCV = (prisma as unknown as { cV: { findFirst: jest.Mock } }).cV;
 const mockProject = (prisma as unknown as { project: { count: jest.Mock; create: jest.Mock } }).project;
-const mockAnalysis = (prisma as unknown as { gitHubAnalysis: { findMany: jest.Mock; findFirst: jest.Mock; delete: jest.Mock } }).gitHubAnalysis;
+const mockAnalysis = (prisma as unknown as { gitHubAnalysis: { create: jest.Mock; findMany: jest.Mock; findFirst: jest.Mock; update: jest.Mock; delete: jest.Mock } }).gitHubAnalysis;
 const mockCacheDelete = cacheDelete as jest.MockedFunction<typeof cacheDelete>;
 const mockCacheGet = cacheGet as jest.MockedFunction<typeof cacheGet>;
 const mockCacheSet = cacheSet as jest.MockedFunction<typeof cacheSet>;
@@ -173,6 +174,7 @@ describe("githubService", () => {
     jest.clearAllMocks();
     mockFetch.mockReset();
     mockQueueAdd.mockReset();
+    mockAnalysis.findFirst.mockResolvedValue(null);
   });
 
   describe("getConnectionStatus", () => {
@@ -370,8 +372,15 @@ describe("githubService", () => {
       expect(mockAnalysis.create).toHaveBeenCalledWith({
         data: {
           username: "mock-dev",
+          repoFullName: "mock-dev/platform-repo",
+          locale: "tr",
+          analysisVersion: "github-analysis-v2",
           status: "PENDING",
-          result: { repoFullName: "mock-dev/platform-repo" },
+          result: {
+            repoFullName: "mock-dev/platform-repo",
+            analysisLocale: "tr",
+            analysisVersion: "github-analysis-v2",
+          },
           userId: USER_ID,
         },
       });
@@ -385,6 +394,60 @@ describe("githubService", () => {
         })
       );
       expect(result).toEqual(createdAnalysis);
+    });
+
+    it("reuses an existing completed analysis for the same repo and locale", async () => {
+      const existingAnalysis = {
+        id: "analysis-existing",
+        username: "mock-dev",
+        repoFullName: "mock-dev/platform-repo",
+        locale: "en",
+        analysisVersion: "github-analysis-v2",
+        status: "COMPLETED",
+        result: { repoFullName: "mock-dev/platform-repo" },
+      };
+      mockAnalysis.findFirst.mockResolvedValue(existingAnalysis);
+
+      const result = await githubService.createAnalysis(USER_ID, "mock-dev/platform-repo", "en");
+
+      expect(result).toEqual(existingAnalysis);
+      expect(mockAnalysis.create).not.toHaveBeenCalled();
+      expect(mockAnalysis.update).not.toHaveBeenCalled();
+      expect(mockQueueAdd).not.toHaveBeenCalled();
+    });
+
+    it("force refreshes an existing analysis instead of creating a duplicate row", async () => {
+      const existingAnalysis = {
+        id: "analysis-existing",
+        username: "mock-dev",
+        repoFullName: "mock-dev/platform-repo",
+        locale: "en",
+        analysisVersion: "github-analysis-v2",
+        status: "COMPLETED",
+        result: { repoFullName: "mock-dev/platform-repo" },
+      };
+      const refreshedAnalysis = { ...existingAnalysis, status: "PENDING" };
+      mockAnalysis.findFirst.mockResolvedValue(existingAnalysis);
+      mockAnalysis.update.mockResolvedValue(refreshedAnalysis);
+
+      const result = await githubService.createAnalysis(USER_ID, "mock-dev/platform-repo", "en", { force: true });
+
+      expect(mockAnalysis.create).not.toHaveBeenCalled();
+      expect(mockAnalysis.update).toHaveBeenCalledWith({
+        where: { id: "analysis-existing" },
+        data: expect.objectContaining({
+          repoFullName: "mock-dev/platform-repo",
+          locale: "en",
+          analysisVersion: "github-analysis-v2",
+          status: "PENDING",
+          error: null,
+        }),
+      });
+      expect(mockQueueAdd).toHaveBeenCalledWith(
+        "analyze",
+        expect.objectContaining({ analysisId: "analysis-existing", repoFullName: "mock-dev/platform-repo", locale: "en" })
+      );
+      expect(result).toEqual(refreshedAnalysis);
     });
   });
 

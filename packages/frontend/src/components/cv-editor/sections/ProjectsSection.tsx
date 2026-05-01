@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,7 +6,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { CVDetail } from "@/services/cv.api";
 import { useSectionMutation, useUpdateTheme } from "@/hooks/useCV";
-import { useImproveProject } from "@/hooks/useAI";
+import { useApplyAIArtifact, useImproveProject } from "@/hooks/useAI";
 import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { buildPreviewProject } from "@/components/cv-preview/project-preview";
 import { useCVStore } from "@/stores/cv.store";
@@ -40,15 +40,12 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
   const updateTheme = useUpdateTheme(cv.id);
   const setSaveStatus = useCVStore((state) => state.setSaveStatus);
   const footerSettings = getProjectsFooterSettings(cv.themeConfig);
-  const [footerEnabled, setFooterEnabled] = useState(footerSettings.enabled);
-  const [footerUrl, setFooterUrl] = useState(footerSettings.url ?? "");
+  const footerSourceKey = `${cv.id}:${footerSettings.enabled}:${footerSettings.url ?? ""}`;
+  const [footerDraft, setFooterDraft] = useState<{ sourceKey: string; enabled: boolean; url: string } | null>(null);
+  const footerEnabled = footerDraft?.sourceKey === footerSourceKey ? footerDraft.enabled : footerSettings.enabled;
+  const footerUrl = footerDraft?.sourceKey === footerSourceKey ? footerDraft.url : footerSettings.url ?? "";
 
   const projects = cv.projects as (FormData & { id: string })[];
-
-  useEffect(() => {
-    setFooterEnabled(footerSettings.enabled);
-    setFooterUrl(footerSettings.url ?? "");
-  }, [footerSettings.enabled, footerSettings.url]);
 
   function persistProjectsFooter(nextEnabled: boolean, nextUrl: string) {
     const normalizedUrl = nextUrl.trim();
@@ -72,6 +69,7 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
       {projects.map((proj) => (
         <ProjectCard
           key={proj.id}
+          cvId={cv.id}
           project={proj}
           onRemove={() => removeProject.mutate(proj.id)}
         />
@@ -107,7 +105,7 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
               checked={footerEnabled}
               onChange={(event) => {
                 const nextEnabled = event.target.checked;
-                setFooterEnabled(nextEnabled);
+                setFooterDraft({ sourceKey: footerSourceKey, enabled: nextEnabled, url: footerUrl });
                 persistProjectsFooter(nextEnabled, footerUrl);
               }}
               className="h-4 w-4 rounded border-input"
@@ -126,7 +124,7 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
             value={footerUrl}
             disabled={!footerEnabled}
             placeholder="https://github.com/username"
-            onChange={(event) => setFooterUrl(event.target.value)}
+            onChange={(event) => setFooterDraft({ sourceKey: footerSourceKey, enabled: footerEnabled, url: event.target.value })}
             onBlur={() => persistProjectsFooter(footerEnabled, footerUrl)}
             className="w-full rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
           />
@@ -161,10 +159,11 @@ function ProjectForm({ orderIndex, onSubmit, onCancel }: { orderIndex: number; o
   );
 }
 
-function ProjectCard({ project, onRemove }: { project: FormData & { id: string }; onRemove: () => void }) {
+function ProjectCard({ cvId, project, onRemove }: { cvId: string; project: FormData & { id: string }; onRemove: () => void }) {
   const { t, i18n } = useTranslation();
   const improveMut = useImproveProject();
-  const [improved, setImproved] = useState<string | null>(null);
+  const applyArtifact = useApplyAIArtifact();
+  const [improved, setImproved] = useState<{ text: string; artifactId: string } | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const allHighlights = project.highlights ?? [];
@@ -200,8 +199,8 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
             <button
               onClick={() =>
                 improveMut.mutate(
-                  { name: project.name, description: project.description, technologies: project.technologies },
-                  { onSuccess: (data) => setImproved(data.improved) }
+                  { cvId, projectId: project.id, name: project.name, description: project.description, technologies: project.technologies },
+                  { onSuccess: (data) => setImproved({ text: data.improved, artifactId: data.artifact.id }) }
                 )
               }
               disabled={improveMut.isPending}
@@ -292,8 +291,19 @@ function ProjectCard({ project, onRemove }: { project: FormData & { id: string }
       {improved && (
         <div className="mt-3 rounded border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-800 dark:bg-purple-950/50">
           <p className="mb-2 text-xs font-medium text-purple-700 dark:text-purple-300">{t("editorSections.projects.improvedDescription")}</p>
-          <p className="text-sm">{improved}</p>
+          <p className="text-sm">{improved.text}</p>
           <div className="mt-2 flex gap-2">
+            <button
+              onClick={() =>
+                applyArtifact.mutate(improved.artifactId, {
+                  onSuccess: () => setImproved(null),
+                })
+              }
+              disabled={applyArtifact.isPending}
+              className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50"
+            >
+              {applyArtifact.isPending ? t("editorSections.projects.applyingImprovement") : t("editorSections.projects.applyImprovement")}
+            </button>
             <button
               onClick={() => setImproved(null)}
               className="rounded border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"

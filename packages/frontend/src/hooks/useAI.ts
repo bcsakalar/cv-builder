@@ -133,10 +133,13 @@ export function useImproveProject() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ name, description, technologies }: { name: string; description: string; technologies: string[] }) =>
-      aiApi.improveProject(name, description, technologies),
-    onSuccess: () => {
+    mutationFn: (input: { cvId?: string; projectId?: string; name: string; description: string; technologies: string[] }) =>
+      aiApi.improveProject(input),
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["ai", "artifacts"] });
+      if (data.artifact.cvId) {
+        qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId) });
+      }
     },
     onError: () => toast.error(translate("ai.toasts.improveProjectFailed")),
   });

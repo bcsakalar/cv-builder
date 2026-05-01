@@ -20,6 +20,7 @@ import { cacheDelete, cacheGet, cacheSet } from "../../lib/redis";
 import { env } from "../../config/env";
 import { attachImpactAnalysis, buildQuickRepoRecommendation } from "./github.scoring";
 import crypto from "node:crypto";
+import { GITHUB_ANALYSIS_VERSION } from "./github.constants";
 
 function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
@@ -309,6 +310,7 @@ function buildGitHubRepoData(result: DeepAnalysisResult): GitHubRepoData {
     qualityScore: result.codeQuality?.qualityScore ?? null,
     complexityLevel: result.aiInsights?.complexityLevel ?? null,
     projectSummary: result.aiInsights?.projectSummary ?? null,
+    cvReadyDescription: result.aiInsights?.cvReadyDescription ?? null,
     architectureAnalysis: result.aiInsights?.architectureAnalysis ?? null,
     techStackAssessment: result.aiInsights?.techStackAssessment ?? null,
     detectedSkills: result.aiInsights?.detectedSkills ?? [],
@@ -392,6 +394,72 @@ function getCompletedAnalysisResult(analysis: { status: string; result: Prisma.J
   }
 
   return result;
+}
+
+function getAnalysisRepoFullName(analysis: { repoFullName?: string | null; result?: Prisma.JsonValue | DeepAnalysisResult | null }): string | null {
+  if (hasText(analysis.repoFullName)) {
+    return compactText(analysis.repoFullName);
+  }
+
+  const result = analysis.result as unknown as Record<string, unknown> | null;
+  return typeof result?.repoFullName === "string" && hasText(result.repoFullName)
+    ? compactText(result.repoFullName)
+    : null;
+}
+
+function getAnalysisLocale(analysis: { locale?: string | null; result?: Prisma.JsonValue | DeepAnalysisResult | null }): "en" | "tr" {
+  if (analysis.locale === "tr" || analysis.locale === "en") {
+    return analysis.locale;
+  }
+
+  const result = analysis.result as unknown as Record<string, unknown> | null;
+  return result?.analysisLocale === "tr" ? "tr" : "en";
+}
+
+async function findReusableAnalysis(userId: string, repoFullName: string, locale: "en" | "tr") {
+  const byMetadata = await prisma.gitHubAnalysis.findFirst({
+    where: {
+      userId,
+      repoFullName,
+      locale,
+      analysisVersion: GITHUB_ANALYSIS_VERSION,
+      status: { in: ["PENDING", "PROCESSING", "COMPLETED"] },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (byMetadata) {
+    return byMetadata;
+  }
+
+  // Backward-compatible lookup for analyses created before repoFullName/locale columns existed.
+  const candidates = await prisma.gitHubAnalysis.findMany({
+    where: {
+      userId,
+      status: { in: ["PENDING", "PROCESSING", "COMPLETED"] },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+  });
+
+  return candidates.find((analysis) => {
+    const storedRepoFullName = getAnalysisRepoFullName(analysis);
+    return storedRepoFullName === repoFullName && getAnalysisLocale(analysis) === locale;
+  }) ?? null;
+}
+
+async function enqueueAnalysisJob(options: {
+  analysisId: string;
+  repoFullName: string;
+  userId: string;
+  locale: "en" | "tr";
+}) {
+  await getQueue(QUEUE_NAMES.GITHUB_ANALYSIS).add("analyze", {
+    analysisId: options.analysisId,
+    repoFullName: options.repoFullName,
+    userId: options.userId,
+    locale: options.locale,
+  });
 }
 
 function oauthStateKey(state: string): string {
@@ -703,32 +771,77 @@ export const githubService = {
     };
   },
 
-  async createAnalysis(userId: string, repoFullName: string, locale?: string) {
+  async createAnalysis(userId: string, repoFullName: string, locale?: string, options?: { force?: boolean }) {
     const username = repoFullName.split("/")[0]!;
     const analysisLocale = locale === "tr" ? "tr" : "en";
+    const force = options?.force === true;
 
-    logger.info("Creating GitHub analysis", { repoFullName });
+    logger.info("Creating GitHub analysis", { repoFullName, locale: analysisLocale, force });
+
+    const reusableAnalysis = await findReusableAnalysis(userId, repoFullName, analysisLocale);
+    if (reusableAnalysis && !force) {
+      logger.info("Reusing existing GitHub analysis", {
+        analysisId: reusableAnalysis.id,
+        repoFullName,
+        locale: analysisLocale,
+        status: reusableAnalysis.status,
+      });
+      return reusableAnalysis;
+    }
+
+    if (reusableAnalysis && force) {
+      const refreshedAnalysis = await prisma.gitHubAnalysis.update({
+        where: { id: reusableAnalysis.id },
+        data: {
+          username,
+          repoFullName,
+          locale: analysisLocale,
+          analysisVersion: GITHUB_ANALYSIS_VERSION,
+          status: "PENDING",
+          result: { repoFullName, analysisLocale, analysisVersion: GITHUB_ANALYSIS_VERSION, refreshedAt: new Date().toISOString() },
+          error: null,
+          startedAt: null,
+          completedAt: null,
+        },
+      });
+
+      await enqueueAnalysisJob({ analysisId: refreshedAnalysis.id, repoFullName, userId, locale: analysisLocale });
+      logger.info("GitHub analysis refresh job enqueued", { analysisId: refreshedAnalysis.id, repoFullName, locale: analysisLocale });
+      return refreshedAnalysis;
+    }
 
     const analysis = await prisma.gitHubAnalysis.create({
       data: {
         username,
+        repoFullName,
+        locale: analysisLocale,
+        analysisVersion: GITHUB_ANALYSIS_VERSION,
         status: "PENDING",
-        result: { repoFullName },
+        result: { repoFullName, analysisLocale, analysisVersion: GITHUB_ANALYSIS_VERSION },
         userId,
       },
     });
 
-    // Enqueue the analysis job
-    await getQueue(QUEUE_NAMES.GITHUB_ANALYSIS).add("analyze", {
-      analysisId: analysis.id,
-      repoFullName,
-      userId,
-      locale: analysisLocale,
-    });
+    await enqueueAnalysisJob({ analysisId: analysis.id, repoFullName, userId, locale: analysisLocale });
 
-    logger.info("GitHub analysis job enqueued", { analysisId: analysis.id, repoFullName });
+    logger.info("GitHub analysis job enqueued", { analysisId: analysis.id, repoFullName, locale: analysisLocale });
 
     return analysis;
+  },
+
+  async regenerateAnalysis(userId: string, analysisId: string, options?: { locale?: "en" | "tr"; force?: boolean }) {
+    const analysis = await prisma.gitHubAnalysis.findFirst({ where: { id: analysisId, userId } });
+    if (!analysis) {
+      throw ApiError.notFound("Analysis not found");
+    }
+
+    const repoFullName = getAnalysisRepoFullName(analysis);
+    if (!repoFullName) {
+      throw ApiError.badRequest("Analysis does not contain a repository name to regenerate");
+    }
+
+    const locale = options?.locale ?? getAnalysisLocale(analysis);
+    return this.createAnalysis(userId, repoFullName, locale, { force: options?.force ?? true });
   },
 
   async getImportPreview(userId: string, analysisId: string, cvId?: string) {
@@ -781,6 +894,7 @@ export const githubService = {
         endDate: draft.endDate,
         highlights: draft.highlights,
         isFromGitHub: draft.isFromGitHub,
+        githubAnalysisId: analysis.id,
         githubRepoData: draft.githubRepoData === null
           ? Prisma.JsonNull
           : (draft.githubRepoData as unknown as Prisma.InputJsonValue),

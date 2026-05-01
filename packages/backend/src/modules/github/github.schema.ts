@@ -13,6 +13,7 @@ export type ConnectGitHubInput = z.infer<typeof connectGitHubSchema>;
 export const analyzeRepoSchema = z.object({
   repoFullName: z.string().regex(/^[^/]+\/[^/]+$/, "Must be owner/repo format"),
   locale: z.enum(["en", "tr"]).optional(),
+  force: z.boolean().optional(),
 });
 
 export type AnalyzeRepoInput = z.infer<typeof analyzeRepoSchema>;
@@ -29,6 +30,13 @@ export const analysisIdParamsSchema = z.object({
 });
 
 export type AnalysisIdParamsInput = z.infer<typeof analysisIdParamsSchema>;
+
+export const regenerateAnalysisSchema = z.object({
+  locale: z.enum(["en", "tr"]).optional(),
+  force: z.boolean().optional(),
+});
+
+export type RegenerateAnalysisInput = z.infer<typeof regenerateAnalysisSchema>;
 
 const projectImportOverridesSchema = z.object({
   name: z.string().min(1).max(200).optional(),

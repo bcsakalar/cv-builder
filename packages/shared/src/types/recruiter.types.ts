@@ -51,6 +51,8 @@ export interface CandidateDocument {
   filePath: string;
   fileSize: number;
   extractionStatus: CandidateDocumentStatus;
+  extractedTextPreview: string | null;
+  extractedTextLength: number;
   parseError: string | null;
   processedAt: string | null;
   createdAt: string;
@@ -88,8 +90,15 @@ export interface CandidateEvaluationBreakdown {
 export interface CandidateEvaluation extends CandidateEvaluationBreakdown {
   id: string;
   recommendation: CandidateRecommendation;
+  matchedKeywords: string[];
+  matchedHardSkills: string[];
   missingKeywords: string[];
   missingHardSkills: string[];
+  matchEvidence: Array<{
+    term: string;
+    source: "mustHave" | "keyword";
+    evidence: string;
+  }>;
   strengths: string[];
   riskFlags: string[];
   shortSummary: string;

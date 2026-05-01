@@ -25,7 +25,8 @@ import type {
 } from "@cvbuilder/shared";
 import type { Prisma } from "@prisma/client";
 import { AiArtifactStatus, AiToolKind } from "@prisma/client";
-import { ollamaConfig } from "../../config/ollama";
+import { z } from "zod";
+import { ollamaConfig, repoAnalysisModelCandidates } from "../../config/ollama";
 import { logger } from "../../lib/logger";
 import { checkModelAvailable, checkOllamaHealth, getAvailableModels, ollama } from "../../lib/ollama";
 import { prisma } from "../../lib/prisma";
@@ -133,6 +134,215 @@ interface RepoAnalysisAttemptResult {
   qualityScore: number;
   directFieldCount: number;
 }
+
+const stringArraySchema = z.array(z.string().trim().min(1));
+const scoreSchema = z.coerce.number().transform((value) => Math.max(0, Math.min(100, Math.round(value))));
+
+const skillSuggestionPayloadSchema = z.object({
+  skills: stringArraySchema.min(1).max(20),
+});
+
+const projectImprovementPayloadSchema = z.object({
+  improved: z.string().trim().min(12).max(1200),
+});
+
+const atsPayloadSchema = z.object({
+  score: scoreSchema,
+  issues: stringArraySchema.max(10).default([]),
+  suggestions: stringArraySchema.max(10).default([]),
+});
+
+const cvReviewSectionPayloadSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  score: scoreSchema,
+  feedback: z.string().trim().min(1).max(800),
+});
+
+const cvReviewPayloadSchema = z.object({
+  overallScore: scoreSchema,
+  sections: z.array(cvReviewSectionPayloadSchema).min(1).max(8),
+  strengths: stringArraySchema.max(8).default([]),
+  improvements: stringArraySchema.max(10).default([]),
+  summary: z.string().trim().min(1).max(1200),
+});
+
+const jobMatchPayloadSchema = z.object({
+  matchScore: scoreSchema,
+  matchingSkills: stringArraySchema.max(20).default([]),
+  missingSkills: stringArraySchema.max(20).default([]),
+  keywordGaps: stringArraySchema.max(20).default([]),
+  suggestions: stringArraySchema.max(10).default([]),
+  summary: z.string().trim().min(1).max(1200),
+});
+
+const tailorPayloadSchema = z.object({
+  suggestedSummary: z.string().trim().min(1).max(1200),
+  skillsToAdd: stringArraySchema.max(15).default([]),
+  skillsToHighlight: stringArraySchema.max(15).default([]),
+  experienceTips: z.array(z.object({
+    company: z.string().trim().min(1).max(120),
+    suggestion: z.string().trim().min(1).max(800),
+  })).max(12).default([]),
+  overallStrategy: z.string().trim().min(1).max(1200),
+});
+
+const repoAnalysisOutputSchema = z.object({
+  projectSummary: z.string().trim().min(20),
+  architectureAnalysis: z.string().trim().min(20),
+  techStackAssessment: z.string().trim().min(20),
+  complexityLevel: z.enum(["simple", "medium", "complex"]),
+  detectedSkills: stringArraySchema.min(4).max(30),
+  strengths: stringArraySchema.min(2).max(10),
+  improvements: stringArraySchema.min(2).max(10),
+  cvReadyDescription: z.string().trim().min(20),
+  cvHighlights: stringArraySchema.min(4).max(6),
+});
+
+const skillSuggestionJsonSchema = {
+  type: "object",
+  properties: {
+    skills: {
+      type: "array",
+      minItems: 10,
+      maxItems: 10,
+      items: { type: "string" },
+    },
+  },
+  required: ["skills"],
+  additionalProperties: false,
+} satisfies Record<string, unknown>;
+
+const projectImprovementJsonSchema = {
+  type: "object",
+  properties: {
+    improved: { type: "string" },
+  },
+  required: ["improved"],
+  additionalProperties: false,
+} satisfies Record<string, unknown>;
+
+const atsCheckJsonSchema = {
+  type: "object",
+  properties: {
+    score: { type: "number", minimum: 0, maximum: 100 },
+    issues: { type: "array", items: { type: "string" } },
+    suggestions: { type: "array", items: { type: "string" } },
+  },
+  required: ["score", "issues", "suggestions"],
+  additionalProperties: false,
+} satisfies Record<string, unknown>;
+
+const cvReviewJsonSchema = {
+  type: "object",
+  properties: {
+    overallScore: { type: "number", minimum: 0, maximum: 100 },
+    sections: {
+      type: "array",
+      minItems: 4,
+      maxItems: 8,
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          score: { type: "number", minimum: 0, maximum: 100 },
+          feedback: { type: "string" },
+        },
+        required: ["name", "score", "feedback"],
+        additionalProperties: false,
+      },
+    },
+    strengths: { type: "array", items: { type: "string" } },
+    improvements: { type: "array", items: { type: "string" } },
+    summary: { type: "string" },
+  },
+  required: ["overallScore", "sections", "strengths", "improvements", "summary"],
+  additionalProperties: false,
+} satisfies Record<string, unknown>;
+
+const jobMatchJsonSchema = {
+  type: "object",
+  properties: {
+    matchScore: { type: "number", minimum: 0, maximum: 100 },
+    matchingSkills: { type: "array", items: { type: "string" } },
+    missingSkills: { type: "array", items: { type: "string" } },
+    keywordGaps: { type: "array", items: { type: "string" } },
+    suggestions: { type: "array", items: { type: "string" } },
+    summary: { type: "string" },
+  },
+  required: ["matchScore", "matchingSkills", "missingSkills", "keywordGaps", "suggestions", "summary"],
+  additionalProperties: false,
+} satisfies Record<string, unknown>;
+
+const tailorJsonSchema = {
+  type: "object",
+  properties: {
+    suggestedSummary: { type: "string" },
+    skillsToAdd: { type: "array", items: { type: "string" } },
+    skillsToHighlight: { type: "array", items: { type: "string" } },
+    experienceTips: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          company: { type: "string" },
+          suggestion: { type: "string" },
+        },
+        required: ["company", "suggestion"],
+        additionalProperties: false,
+      },
+    },
+    overallStrategy: { type: "string" },
+  },
+  required: ["suggestedSummary", "skillsToAdd", "skillsToHighlight", "experienceTips", "overallStrategy"],
+  additionalProperties: false,
+} satisfies Record<string, unknown>;
+
+const repoAnalysisJsonSchema = {
+  type: "object",
+  properties: {
+    projectSummary: { type: "string" },
+    architectureAnalysis: { type: "string" },
+    techStackAssessment: { type: "string" },
+    complexityLevel: { type: "string", enum: ["simple", "medium", "complex"] },
+    detectedSkills: {
+      type: "array",
+      minItems: 10,
+      maxItems: 20,
+      items: { type: "string" },
+    },
+    strengths: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string" },
+    },
+    improvements: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string" },
+    },
+    cvReadyDescription: { type: "string" },
+    cvHighlights: {
+      type: "array",
+      minItems: 4,
+      maxItems: 4,
+      items: { type: "string" },
+    },
+  },
+  required: [
+    "projectSummary",
+    "architectureAnalysis",
+    "techStackAssessment",
+    "complexityLevel",
+    "detectedSkills",
+    "strengths",
+    "improvements",
+    "cvReadyDescription",
+    "cvHighlights",
+  ],
+  additionalProperties: false,
+} satisfies Record<string, unknown>;
 
 function cvCacheKey(userId: string, cvId: string): string {
   return `cv:${userId}:${cvId}`;
@@ -370,6 +580,7 @@ async function persistArtifact<TOutput>(options: {
   cvId?: string | null;
   tool: AIToolKind;
   locale?: string;
+  model?: string;
   targetSection: AITargetSection;
   input?: Record<string, unknown>;
   output: TOutput;
@@ -383,7 +594,7 @@ async function persistArtifact<TOutput>(options: {
     status: options.status,
     title: buildArtifactTitle(options.tool),
     provider: "ollama",
-    model: ollamaConfig.defaultModel,
+    model: options.model ?? ollamaConfig.defaultModel,
     locale: normalizeLocale(options.locale),
     targetSection: options.targetSection,
     input: toInputJson(withPromptVersion(options.input)),
@@ -400,6 +611,7 @@ async function createFailureArtifact(options: {
   cvId?: string | null;
   tool: AIToolKind;
   locale?: string;
+  model?: string;
   targetSection: AITargetSection;
   input?: Record<string, unknown>;
   error: string;
@@ -412,7 +624,7 @@ async function createFailureArtifact(options: {
       status: AiArtifactStatus.FAILED,
       title: buildArtifactTitle(options.tool),
       provider: "ollama",
-      model: ollamaConfig.defaultModel,
+      model: options.model ?? ollamaConfig.defaultModel,
       locale: normalizeLocale(options.locale),
       targetSection: options.targetSection,
       input: toInputJson(withPromptVersion(options.input)),
@@ -432,6 +644,7 @@ async function runToolWithArtifact<TOutput>(options: {
   cvId?: string | null;
   tool: AIToolKind;
   locale?: string;
+  model?: string;
   targetSection: AITargetSection;
   input?: Record<string, unknown>;
   execute: () => Promise<TOutput>;
@@ -443,6 +656,7 @@ async function runToolWithArtifact<TOutput>(options: {
       cvId: options.cvId,
       tool: options.tool,
       locale: options.locale,
+      model: options.model,
       targetSection: options.targetSection,
       input: options.input,
       output,
@@ -456,6 +670,7 @@ async function runToolWithArtifact<TOutput>(options: {
       cvId: options.cvId,
       tool: options.tool,
       locale: options.locale,
+      model: options.model,
       targetSection: options.targetSection,
       input: options.input,
       error: message,
@@ -574,6 +789,70 @@ function extractJSON<T>(raw: string, fallback: T): T {
 
   logger.warn("Failed to parse AI JSON response", { raw: trimmed.slice(0, 300) });
   return fallback;
+}
+
+function normalizeJsonPayload(raw: string): unknown {
+  return extractJSON<unknown>(raw, {});
+}
+
+function validateStructuredPayload<T>(
+  raw: string,
+  schema: z.ZodType<T>,
+  label: string
+): T | null {
+  const parsed = normalizeJsonPayload(raw);
+  const result = schema.safeParse(parsed);
+
+  if (result.success) {
+    return result.data;
+  }
+
+  logger.warn("AI structured output validation failed", {
+    label,
+    issues: result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+    raw: raw.slice(0, 300),
+  });
+
+  return null;
+}
+
+function validateRepoAnalysisOutput(output: DeepRepoAnalysisOutput, label: string): DeepRepoAnalysisOutput {
+  const validation = repoAnalysisOutputSchema.safeParse(output);
+  if (validation.success) {
+    return validation.data;
+  }
+
+  logger.warn("Merged repo analysis did not fully satisfy schema; using normalized merge result", {
+    label,
+    issues: validation.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+  });
+
+  return output;
+}
+
+function parseSkillSuggestionPayload(raw: string): string[] {
+  const parsed = normalizeJsonPayload(raw);
+  const normalizedPayload = Array.isArray(parsed) ? { skills: parsed } : parsed;
+  const result = skillSuggestionPayloadSchema.safeParse(normalizedPayload);
+
+  if (!result.success) {
+    logger.warn("Skill suggestion output did not satisfy schema", {
+      issues: result.error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`),
+      raw: raw.slice(0, 300),
+    });
+    return [];
+  }
+
+  return result.data.skills;
+}
+
+function parseProjectImprovementPayload(raw: string): string {
+  const parsed = validateStructuredPayload(raw, projectImprovementPayloadSchema, "project_improvement");
+  if (parsed?.improved) {
+    return parsed.improved.trim();
+  }
+
+  return normalizeInsightText(raw);
 }
 
 function normalizeInsightText(value: unknown): string {
@@ -1041,6 +1320,26 @@ function deriveFallbackSkillSuggestions(cvData: Record<string, unknown>, existin
 }
 
 function parseAtsResult(result: string): AIATSResult {
+  const structured = validateStructuredPayload(result, atsPayloadSchema, "ats_check");
+  if (structured) {
+    return {
+      score: structured.score,
+      issues: structured.issues ?? [],
+      suggestions: structured.suggestions ?? [],
+      keywordGaps: [],
+      hardSkillGaps: [],
+      sectionScores: [],
+      recruiterReadability: {
+        score: 0,
+        averageSentenceLength: 0,
+        metricCoverage: 0,
+        actionVerbUsage: 0,
+        notes: [],
+      },
+      fixChecklist: [],
+    };
+  }
+
   const parsed = extractJSON<{ score?: number; issues?: string[]; suggestions?: string[] }>(result, {});
   return {
     score: typeof parsed.score === "number" ? Math.min(100, Math.max(0, parsed.score)) : 50,
@@ -1061,6 +1360,17 @@ function parseAtsResult(result: string): AIATSResult {
 }
 
 function parseReviewResult(result: string): AICVReviewResult {
+  const structured = validateStructuredPayload(result, cvReviewPayloadSchema, "cv_review");
+  if (structured) {
+    return {
+      overallScore: structured.overallScore,
+      sections: structured.sections,
+      strengths: structured.strengths ?? [],
+      improvements: structured.improvements ?? [],
+      summary: structured.summary,
+    };
+  }
+
   const parsed = extractJSON<Record<string, unknown>>(result, {});
   return {
     overallScore: typeof parsed.overallScore === "number" ? Math.min(100, Math.max(0, parsed.overallScore)) : 50,
@@ -1072,6 +1382,18 @@ function parseReviewResult(result: string): AICVReviewResult {
 }
 
 function parseJobMatchResult(result: string): AIJobMatchResult {
+  const structured = validateStructuredPayload(result, jobMatchPayloadSchema, "job_match");
+  if (structured) {
+    return {
+      matchScore: structured.matchScore,
+      matchingSkills: structured.matchingSkills ?? [],
+      missingSkills: structured.missingSkills ?? [],
+      keywordGaps: structured.keywordGaps ?? [],
+      suggestions: structured.suggestions ?? [],
+      summary: structured.summary,
+    };
+  }
+
   const parsed = extractJSON<Record<string, unknown>>(result, {});
   return {
     matchScore: typeof parsed.matchScore === "number" ? Math.min(100, Math.max(0, parsed.matchScore)) : 50,
@@ -1084,6 +1406,17 @@ function parseJobMatchResult(result: string): AIJobMatchResult {
 }
 
 function parseTailorResult(result: string): AITailorResult {
+  const structured = validateStructuredPayload(result, tailorPayloadSchema, "tailor_cv");
+  if (structured) {
+    return {
+      suggestedSummary: structured.suggestedSummary,
+      skillsToAdd: structured.skillsToAdd ?? [],
+      skillsToHighlight: structured.skillsToHighlight ?? [],
+      experienceTips: structured.experienceTips ?? [],
+      overallStrategy: structured.overallStrategy,
+    };
+  }
+
   const parsed = extractJSON<Record<string, unknown>>(result, {});
   return {
     suggestedSummary: typeof parsed.suggestedSummary === "string" ? parsed.suggestedSummary : "",
@@ -1108,24 +1441,136 @@ function extractTailorArtifact(artifact: ArtifactRecord): AITailorResult {
   return parseTailorResult(JSON.stringify(artifact.output ?? {}));
 }
 
+function cloneJsonObject(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function buildSyncedGitHubRepoData(value: unknown, improvedDescription: string): Prisma.InputJsonValue | undefined {
+  const data = cloneJsonObject(value);
+  if (!data) {
+    return undefined;
+  }
+
+  const updatedAt = new Date().toISOString();
+  return {
+    ...data,
+    cvReadyDescription: improvedDescription,
+    aiImprovedDescription: improvedDescription,
+    aiImprovedAt: updatedAt,
+  } as Prisma.InputJsonValue;
+}
+
+function buildSyncedGitHubAnalysisResult(value: unknown, projectId: string, improvedDescription: string): Prisma.InputJsonValue | undefined {
+  const result = cloneJsonObject(value);
+  if (!result) {
+    return undefined;
+  }
+
+  const updatedAt = new Date().toISOString();
+  const aiInsights = cloneJsonObject(result.aiInsights) ?? {};
+
+  return {
+    ...result,
+    aiInsights: {
+      ...aiInsights,
+      cvReadyDescription: improvedDescription,
+    },
+    cvImprovement: {
+      projectId,
+      description: improvedDescription,
+      updatedAt,
+    },
+  } as Prisma.InputJsonValue;
+}
+
+function extractArtifactProjectId(artifact: ArtifactRecord): string | null {
+  const input = artifact.input as Record<string, unknown> | null;
+  return typeof input?.projectId === "string" && input.projectId.trim() ? input.projectId : null;
+}
+
+async function applyProjectImprovement(userId: string, cvId: string, projectId: string, improvedDescription: string) {
+  return prisma.$transaction(async (tx) => {
+    const project = await tx.project.findFirst({
+      where: {
+        id: projectId,
+        cvId,
+        cv: { userId },
+      },
+      select: {
+        id: true,
+        cvId: true,
+        githubAnalysisId: true,
+        githubRepoData: true,
+      },
+    });
+
+    if (!project) {
+      throw ApiError.notFound("Project");
+    }
+
+    const syncedRepoData = buildSyncedGitHubRepoData(project.githubRepoData, improvedDescription);
+    await tx.project.update({
+      where: { id: project.id },
+      data: {
+        description: improvedDescription,
+        ...(syncedRepoData ? { githubRepoData: syncedRepoData } : {}),
+      },
+    });
+
+    let githubAnalysisUpdated = false;
+    if (project.githubAnalysisId) {
+      const analysis = await tx.gitHubAnalysis.findFirst({
+        where: { id: project.githubAnalysisId, userId },
+        select: { id: true, result: true },
+      });
+
+      const syncedAnalysisResult = analysis
+        ? buildSyncedGitHubAnalysisResult(analysis.result, project.id, improvedDescription)
+        : undefined;
+
+      if (analysis && syncedAnalysisResult) {
+        await tx.gitHubAnalysis.update({
+          where: { id: analysis.id },
+          data: { result: syncedAnalysisResult },
+        });
+        githubAnalysisUpdated = true;
+      }
+    }
+
+    return { githubAnalysisUpdated };
+  });
+}
+
 export const aiService = {
   async getHealth(): Promise<AIHealthResult> {
-    const [ollamaUp, modelReady, models] = await Promise.all([
+    const [ollamaUp, modelReady, structuredModelReady, models] = await Promise.all([
       checkOllamaHealth(),
       checkModelAvailable(ollamaConfig.defaultModel),
+      checkModelAvailable(ollamaConfig.structuredModel),
       getAvailableModels(),
     ]);
 
     const readinessIssues: string[] = [];
     if (!ollamaUp) readinessIssues.push("Ollama is unavailable");
     if (!modelReady) readinessIssues.push(`Model ${ollamaConfig.defaultModel} is not available`);
+    if (!structuredModelReady) readinessIssues.push(`Structured model ${ollamaConfig.structuredModel} is not available`);
 
     return {
       provider: "ollama",
       ollama: ollamaUp ? "connected" : "unavailable",
-      ready: ollamaUp && modelReady,
+      ready: ollamaUp && modelReady && structuredModelReady,
       readinessIssues,
       model: ollamaConfig.defaultModel,
+      models: {
+        writer: ollamaConfig.defaultModel,
+        structured: ollamaConfig.structuredModel,
+        repoAnalysis: ollamaConfig.repoAnalysisModel,
+        embedding: ollamaConfig.embeddingModel,
+      },
       modelAvailable: modelReady,
       availableModels: models,
     };
@@ -1215,29 +1660,21 @@ export const aiService = {
       cvId,
       tool: "skills",
       locale: effectiveLocale,
+      model: ollamaConfig.structuredModel,
       targetSection: "skills",
       input: { cvId },
       execute: async () => {
         try {
           const result = await ollama.generate({
+            model: ollamaConfig.structuredModel,
             prompt: buildPrompt(cv as unknown as Record<string, unknown>),
             system: localizeSystemPrompt(system, effectiveLocale, true),
-            temperature: 0.45,
-            json: true,
+            temperature: 0.25,
+            maxTokens: 768,
+            format: skillSuggestionJsonSchema,
           });
 
-          const parsed = extractJSON<unknown>(result, []);
-          let extractedSkills: string[] = [];
-
-          if (Array.isArray(parsed)) {
-            extractedSkills = parsed.filter((skill): skill is string => typeof skill === "string");
-          } else if (parsed && typeof parsed === "object") {
-            const values = Object.values(parsed as Record<string, unknown>);
-            const arr = values.find((value) => Array.isArray(value)) as unknown[] | undefined;
-            if (arr) {
-              extractedSkills = arr.filter((skill): skill is string => typeof skill === "string");
-            }
-          }
+          const extractedSkills = parseSkillSuggestionPayload(result);
 
           const normalizedSuggestions = sanitizeSkillSuggestions(extractedSkills, existingSkillNames);
           if (normalizedSuggestions.length > 0) {
@@ -1270,6 +1707,7 @@ export const aiService = {
       cvId,
       tool: "ats",
       locale: effectiveLocale,
+      model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId, ...(options?.jobDescription ? { jobDescription: options.jobDescription } : {}) },
       execute: async () => {
@@ -1277,10 +1715,12 @@ export const aiService = {
 
         try {
           const result = await ollama.generate({
-            prompt: buildPrompt(cv as unknown as Record<string, unknown>),
+            model: ollamaConfig.structuredModel,
+            prompt: buildPrompt(cv as unknown as Record<string, unknown>, options?.jobDescription),
             system: localizeSystemPrompt(system, effectiveLocale, true),
             temperature: 0.25,
-            json: true,
+            maxTokens: 1024,
+            format: atsCheckJsonSchema,
           });
 
           baseResult = parseAtsResult(result);
@@ -1351,25 +1791,28 @@ export const aiService = {
     name: string,
     description: string,
     technologies: string[],
-    locale?: string
+    locale?: string,
+    context?: { cvId?: string; projectId?: string }
   ): Promise<AIImproveTextResult> {
     const { system, buildPrompt } = AI_PROMPTS.improveProject;
 
     logger.info("Improving project description", { name });
     const { output, artifact } = await runToolWithArtifact({
       userId,
+      cvId: context?.cvId,
       tool: "project_improvement",
       locale,
       targetSection: "projects",
-      input: { name, description, technologies },
+      input: { name, description, technologies, projectId: context?.projectId },
       execute: async () => {
         const result = await ollama.generate({
           prompt: buildPrompt(name, description, technologies),
           system: localizeSystemPrompt(system, locale),
           temperature: 0.55,
+          format: projectImprovementJsonSchema,
         });
 
-        return result.trim();
+        return parseProjectImprovementPayload(result);
       },
     });
 
@@ -1387,14 +1830,17 @@ export const aiService = {
       cvId,
       tool: "review",
       locale: effectiveLocale,
+      model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId },
       execute: async () => {
         const result = await ollama.generate({
+          model: ollamaConfig.structuredModel,
           prompt: buildPrompt(cv as unknown as Record<string, unknown>),
           system: localizeSystemPrompt(system, effectiveLocale, true),
           temperature: 0.25,
-          json: true,
+          maxTokens: 2048,
+          format: cvReviewJsonSchema,
         });
 
         return parseReviewResult(result);
@@ -1415,14 +1861,17 @@ export const aiService = {
       cvId,
       tool: "job_match",
       locale: effectiveLocale,
+      model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId, jobDescription },
       execute: async () => {
         const result = await ollama.generate({
+          model: ollamaConfig.structuredModel,
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
           system: localizeSystemPrompt(system, effectiveLocale, true),
           temperature: 0.25,
-          json: true,
+          maxTokens: 2048,
+          format: jobMatchJsonSchema,
         });
 
         return parseJobMatchResult(result);
@@ -1443,14 +1892,17 @@ export const aiService = {
       cvId,
       tool: "tailor",
       locale: effectiveLocale,
+      model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId, jobDescription },
       execute: async () => {
         const result = await ollama.generate({
+          model: ollamaConfig.structuredModel,
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
           system: localizeSystemPrompt(system, effectiveLocale, true),
           temperature: 0.35,
-          json: true,
+          maxTokens: 2048,
+          format: tailorJsonSchema,
         });
 
         return parseTailorResult(result);
@@ -1551,6 +2003,25 @@ export const aiService = {
         break;
       }
 
+      case AiToolKind.PROJECT_IMPROVEMENT: {
+        const improvedDescription = extractArtifactString(artifact).trim();
+        if (!improvedDescription) {
+          throw ApiError.badRequest("Project improvement artifact has no content to apply");
+        }
+
+        const projectId = extractArtifactProjectId(artifact);
+        if (!projectId) {
+          throw ApiError.badRequest("Project improvement artifact is missing the project ID");
+        }
+
+        const syncResult = await applyProjectImprovement(userId, artifact.cvId, projectId, improvedDescription);
+        actions.push({ type: "project_updated", message: "Updated project description from AI suggestion" });
+        if (syncResult.githubAnalysisUpdated) {
+          actions.push({ type: "github_analysis_updated", message: "Synced the linked GitHub analysis narrative" });
+        }
+        break;
+      }
+
       case AiToolKind.TAILOR: {
         const tailor = extractTailorArtifact(artifact);
         const summary = tailor.suggestedSummary.trim();
@@ -1610,11 +2081,7 @@ export const aiService = {
   async deepAnalyzeRepo(repoData: DeepRepoAnalysisInput, locale?: string): Promise<DeepRepoAnalysisOutput> {
     const { system, buildPrompt, buildCompactPrompt } = AI_PROMPTS.deepRepoAnalysis;
     const fallback = buildFallbackRepoAnalysis(repoData);
-    const candidateModels = uniqueInsightItems([
-      ollamaConfig.repoAnalysisModel,
-      ollamaConfig.codeModel,
-      ollamaConfig.defaultModel,
-    ], 3, { minLength: 2, maxLength: 80 });
+    const candidateModels = uniqueInsightItems(repoAnalysisModelCandidates, 5, { minLength: 2, maxLength: 80 });
 
     const runAttempt = async (
       prompt: string,
@@ -1628,12 +2095,15 @@ export const aiService = {
         system: localizeSystemPrompt(system, locale, true),
         temperature,
         topP: 0.9,
-        json: true,
+        numCtx: ollamaConfig.repoAnalysisNumCtx,
+        maxTokens: ollamaConfig.repoAnalysisMaxTokens,
+        format: repoAnalysisJsonSchema,
       });
 
       const parsed = extractJSON<Record<string, unknown>>(result, {});
       const merged = mergeRepoAnalysis(parsed, fallback);
-      const scored = scoreRepoAnalysis(parsed, merged);
+      const validated = validateRepoAnalysisOutput(merged, `${repoData.name}:${attemptLabel}:${model}`);
+      const scored = scoreRepoAnalysis(parsed, validated);
 
       logger.info("Completed repo analysis attempt", {
         name: repoData.name,

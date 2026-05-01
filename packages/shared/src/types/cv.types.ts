@@ -221,6 +221,7 @@ export interface Project {
   highlights: string[];
   isFromGitHub: boolean;
   githubRepoData: GitHubRepoData | null;
+  githubAnalysisId: string | null;
   orderIndex: number;
 }
 
@@ -239,6 +240,9 @@ export interface GitHubRepoData {
   qualityScore?: number | null;
   complexityLevel?: GitHubComplexityLevel | null;
   projectSummary?: string | null;
+  cvReadyDescription?: string | null;
+  aiImprovedDescription?: string | null;
+  aiImprovedAt?: string | null;
   architectureAnalysis?: string | null;
   techStackAssessment?: string | null;
   detectedSkills?: string[];

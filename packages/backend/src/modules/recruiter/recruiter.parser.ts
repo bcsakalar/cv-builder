@@ -4,9 +4,13 @@ const SKILL_LEXICON = [
   "typescript",
   "javascript",
   "node.js",
+  "nodejs",
   "node",
   "react",
+  "react.js",
+  "reactjs",
   "next.js",
+  "nextjs",
   "next",
   "vue",
   "angular",
@@ -15,6 +19,8 @@ const SKILL_LEXICON = [
   "nestjs",
   "fastify",
   "graphql",
+  "rest api",
+  "restful api",
   "rest",
   "postgresql",
   "postgres",
@@ -29,6 +35,8 @@ const SKILL_LEXICON = [
   "gcp",
   "terraform",
   "ci/cd",
+  "cicd",
+  "continuous integration",
   "github actions",
   "playwright",
   "vitest",
@@ -40,6 +48,7 @@ const SKILL_LEXICON = [
   "rust",
   "c#",
   "tailwind",
+  "tailwind css",
   "css",
   "html",
   "sql",
@@ -53,6 +62,12 @@ const SKILL_LEXICON = [
   "flask",
   "fastapi",
   "linux",
+  "zustand",
+  "tanstack query",
+  "tanstack router",
+  "bullmq",
+  "ollama",
+  "llm",
 ] as const;
 
 const EMAIL_REGEX = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -166,16 +181,19 @@ function extractTopSkills(text: string): string[] {
     SKILL_LEXICON.filter((skill) => normalized.includes(skill)).map((skill) => {
       if (skill === "typescript") return "TypeScript";
       if (skill === "javascript") return "JavaScript";
-      if (skill === "node.js" || skill === "node") return "Node.js";
-      if (skill === "next.js" || skill === "next") return "Next.js";
-      if (skill === "ci/cd") return "CI/CD";
+      if (skill === "node.js" || skill === "nodejs" || skill === "node") return "Node.js";
+      if (skill === "react.js" || skill === "reactjs" || skill === "react") return "React";
+      if (skill === "next.js" || skill === "nextjs" || skill === "next") return "Next.js";
+      if (skill === "ci/cd" || skill === "cicd" || skill === "continuous integration") return "CI/CD";
       if (skill === "c#") return "C#";
       if (skill === "aws") return "AWS";
       if (skill === "gcp") return "GCP";
       if (skill === "postgresql" || skill === "postgres") return "PostgreSQL";
       if (skill === "sql") return "SQL";
-      if (skill === "react") return "React";
       if (skill === "github actions") return "GitHub Actions";
+      if (skill === "rest api" || skill === "restful api" || skill === "rest") return "REST API";
+      if (skill === "tailwind" || skill === "tailwind css") return "Tailwind CSS";
+      if (skill === "llm") return "LLM";
       return skill
         .split(/\s+/)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -291,7 +309,7 @@ export function parseCandidateFromText(text: string): ParsedCandidateProfile {
     .slice(0, 8);
   const topSkills = extractTopSkills(cleanedText);
   const summary = extractSummary(lines, fullName, headline);
-  const rawTextSnippet = cleanedText.length > 1500 ? `${cleanedText.slice(0, 1497).trim()}...` : cleanedText;
+  const rawTextSnippet = cleanedText.length > 5000 ? `${cleanedText.slice(0, 4997).trim()}...` : cleanedText;
   const yearsOfExperience = extractYearsOfExperience(cleanedText.toLowerCase());
   const completeness = buildCompleteness({
     fullName,

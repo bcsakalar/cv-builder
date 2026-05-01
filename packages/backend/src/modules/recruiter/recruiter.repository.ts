@@ -297,8 +297,11 @@ export const recruiterRepository = {
     linkQualityScore: number;
     riskPenalty: number;
     recommendation: "STRONG_MATCH" | "POTENTIAL_MATCH" | "WEAK_MATCH";
+    matchedKeywords: string[];
+    matchedHardSkills: string[];
     missingKeywords: string[];
     missingHardSkills: string[];
+    matchEvidence: Array<{ term: string; source: "mustHave" | "keyword"; evidence: string }>;
     strengths: string[];
     riskFlags: string[];
     shortSummary: string;
@@ -315,8 +318,11 @@ export const recruiterRepository = {
         linkQualityScore: data.linkQualityScore,
         riskPenalty: data.riskPenalty,
         recommendation: data.recommendation,
+        matchedKeywords: data.matchedKeywords as Prisma.InputJsonValue,
+        matchedHardSkills: data.matchedHardSkills as Prisma.InputJsonValue,
         missingKeywords: data.missingKeywords as Prisma.InputJsonValue,
         missingHardSkills: data.missingHardSkills as Prisma.InputJsonValue,
+        matchEvidence: data.matchEvidence as Prisma.InputJsonValue,
         strengths: data.strengths as Prisma.InputJsonValue,
         riskFlags: data.riskFlags as Prisma.InputJsonValue,
         shortSummary: data.shortSummary,
@@ -332,8 +338,11 @@ export const recruiterRepository = {
         linkQualityScore: data.linkQualityScore,
         riskPenalty: data.riskPenalty,
         recommendation: data.recommendation,
+        matchedKeywords: data.matchedKeywords as Prisma.InputJsonValue,
+        matchedHardSkills: data.matchedHardSkills as Prisma.InputJsonValue,
         missingKeywords: data.missingKeywords as Prisma.InputJsonValue,
         missingHardSkills: data.missingHardSkills as Prisma.InputJsonValue,
+        matchEvidence: data.matchEvidence as Prisma.InputJsonValue,
         strengths: data.strengths as Prisma.InputJsonValue,
         riskFlags: data.riskFlags as Prisma.InputJsonValue,
         shortSummary: data.shortSummary,

@@ -32,6 +32,8 @@ export const improveExperienceBodySchema = z.object({
 });
 
 export const improveProjectBodySchema = z.object({
+  cvId: z.string().uuid("Invalid CV ID").optional(),
+  projectId: z.string().uuid("Invalid project ID").optional(),
   name: z.string().trim().min(1),
   description: z.string().trim().min(1),
   technologies: z.array(z.string().trim()).default([]),

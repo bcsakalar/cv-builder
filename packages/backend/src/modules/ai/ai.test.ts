@@ -9,12 +9,15 @@ const mockCacheDelete = jest.fn();
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
+    $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback((jest.requireMock("../../lib/prisma") as { prisma: unknown }).prisma)),
     cV: {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
     gitHubAnalysis: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
     },
     aiArtifact: {
       create: jest.fn(),
@@ -29,6 +32,10 @@ jest.mock("../../lib/prisma", () => ({
     },
     summary: {
       upsert: jest.fn(),
+    },
+    project: {
+      findFirst: jest.fn(),
+      update: jest.fn(),
     },
   },
 }));
@@ -75,6 +82,8 @@ const mockSkillCount = (prisma as unknown as { skill: { count: jest.Mock; findMa
 const mockSkillFindMany = (prisma as unknown as { skill: { count: jest.Mock; findMany: jest.Mock; createMany: jest.Mock } }).skill.findMany;
 const mockSkillCreateMany = (prisma as unknown as { skill: { count: jest.Mock; findMany: jest.Mock; createMany: jest.Mock } }).skill.createMany;
 const mockSummaryUpsert = (prisma as unknown as { summary: { upsert: jest.Mock } }).summary.upsert;
+const mockProject = (prisma as unknown as { project: { findFirst: jest.Mock; update: jest.Mock } }).project;
+const mockGitHubAnalysis = (prisma as unknown as { gitHubAnalysis: { findMany: jest.Mock; findFirst: jest.Mock; update: jest.Mock } }).gitHubAnalysis;
 
 const MOCK_CV = {
   id: CV_ID,
@@ -363,6 +372,58 @@ describe("aiService", () => {
       });
       expect(mockCVUpdate).toHaveBeenCalledWith({ where: { id: CV_ID }, data: { isAtsOptimized: true } });
       expect(result.actions.map((action) => action.type)).toEqual(["summary_updated", "skills_added", "cv_flagged"]);
+    });
+
+    it("applies a project improvement artifact and syncs linked GitHub analysis", async () => {
+      mockAiArtifactFindFirst.mockResolvedValue(
+        buildArtifactRecord({
+          tool: "PROJECT_IMPROVEMENT",
+          targetSection: "projects",
+          title: "Project description rewrite",
+          input: { promptVersion: "developer-cv-v2", projectId: "project-1" },
+          output: "Built a polished full-stack CV workflow with strong GitHub analysis and recruiter-ready positioning.",
+        })
+      );
+      mockProject.findFirst.mockResolvedValue({
+        id: "project-1",
+        cvId: CV_ID,
+        githubAnalysisId: "analysis-1",
+        githubRepoData: { projectSummary: "Old summary" },
+      });
+      mockProject.update.mockResolvedValue({ id: "project-1" });
+      mockGitHubAnalysis.findFirst.mockResolvedValue({
+        id: "analysis-1",
+        result: {
+          repoFullName: "mock-dev/platform-repo",
+          aiInsights: { cvReadyDescription: "Old CV description" },
+        },
+      });
+      mockGitHubAnalysis.update.mockResolvedValue({ id: "analysis-1" });
+
+      const result = await aiService.applyArtifact(USER_ID, "artifact-1");
+
+      expect(mockProject.update).toHaveBeenCalledWith({
+        where: { id: "project-1" },
+        data: expect.objectContaining({
+          description: "Built a polished full-stack CV workflow with strong GitHub analysis and recruiter-ready positioning.",
+          githubRepoData: expect.objectContaining({
+            aiImprovedDescription: "Built a polished full-stack CV workflow with strong GitHub analysis and recruiter-ready positioning.",
+          }),
+        }),
+      });
+      expect(mockGitHubAnalysis.update).toHaveBeenCalledWith({
+        where: { id: "analysis-1" },
+        data: {
+          result: expect.objectContaining({
+            aiInsights: expect.objectContaining({
+              cvReadyDescription: "Built a polished full-stack CV workflow with strong GitHub analysis and recruiter-ready positioning.",
+            }),
+            cvImprovement: expect.objectContaining({ projectId: "project-1" }),
+          }),
+        },
+      });
+      expect(result.actions.map((action) => action.type)).toEqual(["project_updated", "github_analysis_updated"]);
+      expect(mockCacheDelete).toHaveBeenCalledWith(`cv:${USER_ID}:${CV_ID}`);
     });
   });
 

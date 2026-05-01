@@ -41,10 +41,18 @@ export interface RepoDetails {
 export interface GitHubAnalysis {
   id: string;
   username: string;
+  repoFullName: string | null;
+  locale: AppLocale;
+  analysisVersion: string;
+  model: string | null;
   status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
   result: DeepAnalysisResult | null;
   error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  lastAnalyzedAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ConnectionStatus {
@@ -89,8 +97,13 @@ export const githubApi = {
     return res.data.data;
   },
 
-  async analyze(input: { repoFullName: string; locale?: AppLocale }): Promise<GitHubAnalysis> {
+  async analyze(input: { repoFullName: string; locale?: AppLocale; force?: boolean }): Promise<GitHubAnalysis> {
     const res = await api.post("/github/analyze", input);
+    return res.data.data;
+  },
+
+  async regenerateAnalysis(id: string, input?: { locale?: AppLocale; force?: boolean }): Promise<GitHubAnalysis> {
+    const res = await api.post(`/github/analyses/${id}/regenerate`, input ?? {});
     return res.data.data;
   },
 

@@ -46,8 +46,19 @@ function mapEvaluation(value: RecruiterCandidateDetailRecord["evaluation"]): Can
     linkQualityScore: value.linkQualityScore,
     riskPenalty: value.riskPenalty,
     recommendation: value.recommendation,
+    matchedKeywords: toStringArray(value.matchedKeywords),
+    matchedHardSkills: toStringArray(value.matchedHardSkills),
     missingKeywords: toStringArray(value.missingKeywords),
     missingHardSkills: toStringArray(value.missingHardSkills),
+    matchEvidence: Array.isArray(value.matchEvidence)
+      ? value.matchEvidence.filter((item): item is { term: string; source: "mustHave" | "keyword"; evidence: string } => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+          const record = item as Record<string, unknown>;
+          return typeof record.term === "string"
+            && (record.source === "mustHave" || record.source === "keyword")
+            && typeof record.evidence === "string";
+        })
+      : [],
     strengths: toStringArray(value.strengths),
     riskFlags: toStringArray(value.riskFlags),
     shortSummary: value.shortSummary,
@@ -87,6 +98,10 @@ function mapDocument(document: RecruiterBatchDetailRecord["documents"][number]) 
     filePath: document.filePath,
     fileSize: document.fileSize,
     extractionStatus: document.extractionStatus,
+    extractedTextPreview: document.extractedText
+      ? `${document.extractedText.slice(0, 1200).trim()}${document.extractedText.length > 1200 ? "..." : ""}`
+      : null,
+    extractedTextLength: document.extractedText?.length ?? 0,
     parseError: document.parseError,
     processedAt: document.processedAt?.toISOString() ?? null,
     createdAt: document.createdAt.toISOString(),
@@ -231,6 +246,7 @@ async function runCandidateEvaluation(candidateId: string, userId: string) {
       completenessScore: candidate.completenessScore,
       yearsOfExperience: candidate.yearsOfExperience,
       rawTextSnippet: candidate.rawTextSnippet,
+      fullText: candidate.document.extractedText ?? candidate.rawTextSnippet,
       email: candidate.email,
       phone: candidate.phone,
     },
@@ -457,6 +473,7 @@ export const recruiterService = {
             completenessScore: parsedCandidate.completenessScore,
             yearsOfExperience: parsedCandidate.yearsOfExperience,
             rawTextSnippet: parsedCandidate.rawTextSnippet,
+            fullText: extractedText,
             email: parsedCandidate.email,
             phone: parsedCandidate.phone,
           },

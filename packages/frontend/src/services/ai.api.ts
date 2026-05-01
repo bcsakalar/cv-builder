@@ -52,8 +52,14 @@ export const aiApi = {
     return res.data.data;
   },
 
-  async improveProject(name: string, description: string, technologies: string[]): Promise<AIImproveTextResult> {
-    const res = await api.post("/ai/improve-project", { name, description, technologies });
+  async improveProject(input: {
+    cvId?: string;
+    projectId?: string;
+    name: string;
+    description: string;
+    technologies: string[];
+  }): Promise<AIImproveTextResult> {
+    const res = await api.post("/ai/improve-project", input);
     return res.data.data;
   },
 

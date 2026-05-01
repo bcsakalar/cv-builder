@@ -249,6 +249,11 @@ function HistoryItem({
           timeStyle: "short",
         })}
       </p>
+      {artifact.model && (
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          {t("ai.history.model", { model: artifact.model, defaultValue: "Model: {{model}}" })}
+        </p>
+      )}
     </button>
   );
 }
@@ -467,6 +472,14 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
               <p>
                 {t("ai.health.model", { model: healthQuery.data.model })}
               </p>
+              {healthQuery.data.models && (
+                <div className="grid gap-1 pt-1 sm:grid-cols-2">
+                  <p>{t("ai.health.writerModel", { model: healthQuery.data.models.writer, defaultValue: "Writer: {{model}}" })}</p>
+                  <p>{t("ai.health.analysisModel", { model: healthQuery.data.models.structured, defaultValue: "Analyzer: {{model}}" })}</p>
+                  <p>{t("ai.health.repoModel", { model: healthQuery.data.models.repoAnalysis, defaultValue: "Repo: {{model}}" })}</p>
+                  <p>{t("ai.health.embeddingModel", { model: healthQuery.data.models.embedding, defaultValue: "Embedding: {{model}}" })}</p>
+                </div>
+              )}
               {!healthQuery.data.ready && healthQuery.data.readinessIssues.length > 0 && (
                 <p>{healthQuery.data.readinessIssues.join(" • ")}</p>
               )}

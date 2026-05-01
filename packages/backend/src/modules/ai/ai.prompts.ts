@@ -137,18 +137,19 @@ function summarizeSourceSnippets(
 
 export const AI_PROMPTS = {
   generateSummary: {
-    system: `You are a professional CV writer. Write a concise, compelling professional summary (2-4 sentences) that serves as a personal brand statement. Rules:
-- Start with the person's professional identity (e.g. "Experienced Full-Stack Developer", "Results-driven Software Engineer")
-- Mention years of experience or seniority level if inferable from the CV timeline
-- Highlight 2-3 core expertise areas or technologies they specialize in
-- End with their value proposition — what unique value they bring
-- Write in first person WITHOUT using "I" (e.g. "Passionate about...", "Experienced in...")
-- Do NOT list specific project names, company names, or detailed achievements
-- Do NOT include specific metrics or numbers from individual projects
-- Keep it general and professional — this is a "who am I" career positioning statement
-- Output ONLY the summary text, nothing else — no explanations, no labels, no quotes`,
+    system: `You are a senior technical recruiter and CV writer for software developers. Write a concise, human professional summary (2-4 sentences) that sounds natural, specific, and credible.
+
+  Rules:
+  - Ground the summary in the person's actual CV evidence: title, experience, projects, GitHub-imported work, technologies, and delivery signals.
+  - Start with a clear developer identity, but avoid generic clichés like "passionate", "results-driven", or "dynamic" unless strongly justified by evidence.
+  - Mention 2-4 core engineering strengths such as full-stack delivery, backend APIs, frontend product UI, data modeling, testing, DevOps, AI integration, or system design.
+  - If GitHub/projects show stronger evidence than formal jobs, lean into project ownership and shipped systems without naming every project.
+  - Keep it recruiter-readable, not robotic: vary sentence rhythm, no keyword stuffing, no exaggerated claims.
+  - Do NOT invent years, users, revenue, team size, scale, or metrics.
+  - Do NOT use first person pronouns (I, me, my) and do NOT write in third-person with the candidate's name.
+  - Output ONLY the summary text, nothing else — no explanations, no labels, no quotes.`,
     buildPrompt: (cvData: Record<string, unknown>) =>
-      `Write a professional summary (personal brand statement) for this person. Focus on their overall professional identity, not specific projects:\n\n${cvToContext(cvData)}`,
+      `Write a natural developer CV summary for this person. Use the strongest evidence from personal info, skills, experiences, and projects/GitHub data. Do not sound AI-generated.\n\n${cvToContext(cvData)}`,
   },
 
   improveExperience: {
@@ -163,20 +164,20 @@ export const AI_PROMPTS = {
   },
 
   suggestSkills: {
-    system: `You are a career advisor. Based on the CV data, suggest exactly 10 relevant technical and soft skills that would strengthen this CV. You MUST respond with ONLY a valid JSON array of strings. No explanation, no markdown, no code fences.
+    system: `You are a career advisor. Based on the CV data, suggest exactly 10 relevant technical and soft skills that would strengthen this CV. You MUST respond with ONLY a valid JSON object. No explanation, no markdown, no code fences.
 
 Example output:
-["React", "Node.js", "Team Leadership", "Docker", "CI/CD", "Agile", "REST APIs", "PostgreSQL", "Communication", "Problem Solving"]`,
+  {"skills":["React", "Node.js", "Team Leadership", "Docker", "CI/CD", "Agile", "REST APIs", "PostgreSQL", "Communication", "Problem Solving"]}`,
     buildPrompt: (cvData: Record<string, unknown>) =>
-      `Suggest 10 skills for this person. Respond ONLY with a JSON array.\n\n${cvToContext(cvData)}`,
+      `Suggest 10 skills for this person. Respond ONLY with a JSON object containing a "skills" array.\n\n${cvToContext(cvData)}`,
   },
 
   atsCheck: {
-    system: `You are an ATS (Applicant Tracking System) expert. Analyze the CV and provide a detailed assessment. You MUST respond with ONLY valid JSON in this exact format — no explanation, no markdown:
+    system: `You are an ATS and technical recruiter screening expert for software developer CVs. Analyze the CV for keyword coverage, section completeness, scan readability, developer hard-skill clarity, and target-job fit when a job description exists. You MUST respond with ONLY valid JSON in this exact format — no explanation, no markdown:
 
 {"score": <number 0-100>, "issues": ["issue1", "issue2"], "suggestions": ["suggestion1", "suggestion2"]}`,
-    buildPrompt: (cvData: Record<string, unknown>) =>
-      `Analyze this CV for ATS compatibility. Respond ONLY with JSON.\n\n${cvToContext(cvData)}`,
+    buildPrompt: (cvData: Record<string, unknown>, jobDescription?: string) =>
+      `Analyze this developer CV for ATS compatibility. Prioritize concrete hard skills, role keywords, measurable impact, project evidence, and recruiter skim-readability. Respond ONLY with JSON.\n\n${cvToContext(cvData)}${jobDescription ? `\n\n## Target Job Description:\n${jobDescription}` : ""}`,
   },
 
   generateCoverLetter: {
@@ -195,21 +196,29 @@ Example output:
 - Highlight technical complexity and impact
 - Use strong action verbs
 - Mention technologies naturally
-- Output ONLY the improved description text, nothing else`,
+- Output ONLY a valid JSON object with this shape: {"improved":"string"}`,
     buildPrompt: (name: string, description: string, technologies: string[]) =>
       `Improve this project description.\n\nProject: ${name}\nTechnologies: ${technologies.join(", ")}\nOriginal Description:\n${description}`,
   },
 
   reviewCV: {
-    system: `You are a senior career consultant. Review the CV comprehensively and provide actionable feedback. You MUST respond with ONLY valid JSON in this exact format:
+    system: `You are a senior technical recruiter and developer career consultant. Review the CV like a hiring manager screening a software developer portfolio. Focus on developer positioning, technical credibility, project evidence, stack clarity, impact phrasing, ATS readability, and missing signals.
+
+  Rules:
+  - Be specific and actionable; avoid generic feedback.
+  - Reward strong GitHub/project evidence when formal experience is limited.
+  - Do not invent facts or metrics.
+  - Section names should be recruiter-friendly, e.g. "Summary", "Experience", "Projects", "Skills", "Developer Signals".
+  - Improvements should be concrete edits the user can make.
+  - You MUST respond with ONLY valid JSON in this exact format:
 
 {"overallScore": <number 0-100>, "sections": [{"name": "string", "score": <number 0-100>, "feedback": "string"}], "strengths": ["string"], "improvements": ["string"], "summary": "string"}`,
     buildPrompt: (cvData: Record<string, unknown>) =>
-      `Review this CV comprehensively. Respond ONLY with JSON.\n\n${cvToContext(cvData)}`,
+      `Review this developer CV comprehensively. Call out exact strengths, exact gaps, and the highest-leverage improvements for software engineering roles. Respond ONLY with JSON.\n\n${cvToContext(cvData)}`,
   },
 
   jobMatch: {
-    system: `You are a hiring consultant. Compare the CV against the job description and assess fit. You MUST respond with ONLY valid JSON:
+    system: `You are a technical recruiter. Compare the developer CV against the job description and assess fit using hard skills, project evidence, role keywords, seniority, domain alignment, and missing signals. You MUST respond with ONLY valid JSON:
 
 {"matchScore": <number 0-100>, "matchingSkills": ["string"], "missingSkills": ["string"], "keywordGaps": ["string"], "suggestions": ["string"], "summary": "string"}`,
     buildPrompt: (cvData: Record<string, unknown>, jobDescription: string) =>
@@ -217,7 +226,7 @@ Example output:
   },
 
   tailorCV: {
-    system: `You are a career strategist. Suggest specific modifications to tailor this CV for the target job. You MUST respond with ONLY valid JSON:
+    system: `You are a developer CV optimization strategist. Suggest specific, truthful modifications to tailor this CV for the target job without fabricating experience. Use existing evidence from projects, GitHub analyses, technologies, and experience. You MUST respond with ONLY valid JSON:
 
 {"suggestedSummary": "string", "skillsToAdd": ["string"], "skillsToHighlight": ["string"], "experienceTips": [{"company": "string", "suggestion": "string"}], "overallStrategy": "string"}`,
     buildPrompt: (cvData: Record<string, unknown>, jobDescription: string) =>

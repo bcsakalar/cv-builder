@@ -119,6 +119,10 @@ interface AIAnalysisInsight {
 }
 
 type AnalysisResult = DeepAnalysisResult & {
+  analysisLocale?: "en" | "tr";
+  analysisVersion?: string;
+  model?: string | null;
+  cvImprovement?: { projectId: string; description: string; updatedAt: string } | null;
   languages: LanguageBreakdown[];
   recentCommits: RecentCommit[];
   fileTree?: FileTreeInfo;
@@ -244,7 +248,22 @@ export function AnalysisDetail({ result, analysisId, onClose }: AnalysisDetailPr
             {t("github.metrics.quality")}: {data.codeQuality.qualityScore}/100
           </span>
         )}
+        {data.analysisLocale && (
+          <span className="flex items-center gap-1"><Sparkles size={14} /> {data.analysisLocale.toUpperCase()}</span>
+        )}
+        {data.model && (
+          <span className="flex items-center gap-1"><Package size={14} /> {data.model}</span>
+        )}
       </div>
+
+      {data.cvImprovement?.description && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs dark:border-emerald-900/50 dark:bg-emerald-950/30">
+          <p className="font-medium text-emerald-800 dark:text-emerald-200">
+            {t("github.syncedCvImprovement", { defaultValue: "CV project description was improved and synced" })}
+          </p>
+          <p className="mt-1 text-emerald-900/80 dark:text-emerald-100/80">{data.cvImprovement.description}</p>
+        </div>
+      )}
 
       {/* Tab bar */}
       {hasDeepData && (

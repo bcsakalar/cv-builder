@@ -28,6 +28,9 @@ vi.mock("@/hooks/useGitHub", () => ({
     ],
     isLoading: false,
   }),
+  useGitHubAnalyses: () => ({
+    data: [],
+  }),
   useAnalyzeRepo: () => ({
     mutate: analyzeMutate,
     isPending: false,
@@ -62,7 +65,7 @@ describe("RepoSelector", () => {
     await user.click(screen.getByTestId("github-analyze-1"));
 
     expect(analyzeMutate).toHaveBeenCalledWith(
-      { repoFullName: "mock-dev/demo-repo", locale: "tr" },
+      { repoFullName: "mock-dev/demo-repo", locale: "tr", force: false },
       expect.objectContaining({ onSuccess: expect.any(Function) })
     );
   });

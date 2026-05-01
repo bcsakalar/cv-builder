@@ -68,4 +68,36 @@ Built distributed APIs with PostgreSQL, Redis, Docker, and CI/CD pipelines.
     expect(result.overallScore).toBeGreaterThanOrEqual(75);
     expect(result.missingHardSkills).toHaveLength(0);
   });
+
+  it("uses full extracted text and aliases when the visible snippet is weak", () => {
+    const result = scoreCandidate(
+      {
+        title: "Full-Stack Engineer",
+        description: "Looking for React, Node.js, PostgreSQL, REST API, CI/CD and Docker experience.",
+        mustHaveSkills: ["React", "Node.js", "PostgreSQL", "REST API"],
+        niceToHaveSkills: ["CI/CD", "Docker"],
+        minimumYearsExperience: 3,
+      },
+      {
+        fullName: "Alex Developer",
+        headline: "Software Engineer",
+        summary: "Full-stack developer focused on product delivery.",
+        topSkills: [],
+        completenessScore: 58,
+        yearsOfExperience: 4,
+        rawTextSnippet: "Alex Developer\nSoftware Engineer\nContact details only.",
+        fullText: `Alex Developer has 4 years of experience building ReactJS frontends and NodeJS services.
+        Delivered Postgres-backed RESTful APIs, Dockerized deployments, and GitHub Actions continuous integration pipelines.`,
+        email: "alex@example.com",
+        phone: null,
+      },
+      []
+    );
+
+    expect(result.mustHaveScore).toBe(100);
+    expect(result.matchedHardSkills).toEqual(expect.arrayContaining(["React", "Node.js", "PostgreSQL", "REST API"]));
+    expect(result.matchedKeywords).toEqual(expect.arrayContaining(["CI/CD", "Docker"]));
+    expect(result.matchEvidence.length).toBeGreaterThan(0);
+    expect(result.overallScore).toBeGreaterThanOrEqual(65);
+  });
 });

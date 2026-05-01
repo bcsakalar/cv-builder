@@ -352,14 +352,17 @@ model Project {
   highlights     Json     @default("[]")
   isFromGitHub   Boolean  @default(false) @map("is_from_github")
   githubRepoData Json?    @map("github_repo_data")
+  githubAnalysisId String? @map("github_analysis_id") @db.Uuid
   orderIndex     Int      @default(0) @map("order_index")
   cvId           String   @map("cv_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  cv CV @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  cv             CV              @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  githubAnalysis GitHubAnalysis? @relation(fields: [githubAnalysisId], references: [id], onDelete: SetNull)
 
   @@index([cvId])
+  @@index([githubAnalysisId])
   @@map("projects")
 }
 
@@ -568,17 +571,28 @@ model AiArtifact {
 model GitHubAnalysis {
   id                String         @id @default(uuid()) @db.Uuid
   username          String         @db.VarChar(100)
+  repoFullName      String?        @map("repo_full_name") @db.VarChar(250)
+  locale            String         @default("en") @db.VarChar(5)
+  analysisVersion   String         @default("github-analysis-v2") @map("analysis_version") @db.VarChar(60)
+  model             String?        @db.VarChar(120)
   status            AnalysisStatus @default(PENDING)
   result            Json?
   error             String?        @db.Text
+  startedAt         DateTime?      @map("started_at")
+  completedAt       DateTime?      @map("completed_at")
+  lastAnalyzedAt    DateTime?      @map("last_analyzed_at")
   userId            String         @map("user_id") @db.Uuid
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects Project[]
 
   @@index([userId])
+  @@index([userId, repoFullName])
+  @@index([userId, repoFullName, locale])
   @@index([status])
+  @@unique([userId, repoFullName, locale, analysisVersion])
   @@map("github_analyses")
 }
 
@@ -720,8 +734,11 @@ model CandidateEvaluation {
   linkQualityScore   Int                    @map("link_quality_score")
   riskPenalty        Int                    @map("risk_penalty")
   recommendation     CandidateRecommendation
+  matchedKeywords    Json                   @default("[]") @map("matched_keywords")
+  matchedHardSkills  Json                   @default("[]") @map("matched_hard_skills")
   missingKeywords    Json                   @default("[]") @map("missing_keywords")
   missingHardSkills  Json                   @default("[]") @map("missing_hard_skills")
+  matchEvidence      Json                   @default("[]") @map("match_evidence")
   strengths          Json                   @default("[]")
   riskFlags          Json                   @default("[]") @map("risk_flags")
   shortSummary       String                 @map("short_summary") @db.Text

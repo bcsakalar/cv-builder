@@ -257,6 +257,8 @@
       "highlightsCount_one": "{{count}} öne çıkan nokta",
       "highlightsCount_other": "{{count}} öne çıkan nokta",
       "improvedDescription": "AI ile iyileştirilmiş açıklama",
+      "applyImprovement": "Projeye uygula",
+      "applyingImprovement": "Uygulanıyor...",
       "improveWithAi": "AI ile iyileştir",
       "viewOnGithub": "GitHub'da görüntüle",
       "visitProject": "Projeyi ziyaret et"

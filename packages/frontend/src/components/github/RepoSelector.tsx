@@ -1,7 +1,7 @@
-import { useGitHubRepos, useAnalyzeRepo } from "@/hooks/useGitHub";
+import { useGitHubAnalyses, useGitHubRepos, useAnalyzeRepo } from "@/hooks/useGitHub";
 import { AnalysisProgress } from "./AnalysisProgress";
-import { Star, GitFork, ExternalLink, Search as SearchIcon, Loader2, Sparkles, Target } from "lucide-react";
-import { useState } from "react";
+import { Star, GitFork, ExternalLink, Search as SearchIcon, Loader2, Sparkles, Target, RefreshCcw, CheckCircle2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/stores/app.store";
 import { normalizeAppLocale, type AppLocale } from "@/i18n/locale";
@@ -14,6 +14,7 @@ export function RepoSelector({ selectedCvId }: RepoSelectorProps) {
   const { t } = useTranslation();
   const appLocale = useAppStore((state) => state.locale);
   const { data: repos, isLoading } = useGitHubRepos(1, selectedCvId);
+  const { data: analyses = [] } = useGitHubAnalyses(selectedCvId);
   const analyzeMutation = useAnalyzeRepo();
   const [search, setSearch] = useState("");
   const [analysisLocale, setAnalysisLocale] = useState<AppLocale>(appLocale);
@@ -27,10 +28,25 @@ export function RepoSelector({ selectedCvId }: RepoSelectorProps) {
       r.language?.toLowerCase().includes(search.toLowerCase())
   );
 
-  function handleAnalyze(repoFullName: string) {
-    analyzeMutation.mutate({ repoFullName, locale: analysisLocale }, {
+  const analysesByRepo = useMemo(() => {
+    const map = new Map<string, typeof analyses[number]>();
+    for (const analysis of analyses) {
+      const repoFullName = analysis.repoFullName ?? analysis.result?.repoFullName;
+      if (!repoFullName) continue;
+      const key = `${repoFullName}::${analysis.locale ?? analysis.result?.analysisLocale ?? "en"}`;
+      if (!map.has(key)) {
+        map.set(key, analysis);
+      }
+    }
+    return map;
+  }, [analyses]);
+
+  function handleAnalyze(repoFullName: string, force = false) {
+    analyzeMutation.mutate({ repoFullName, locale: analysisLocale, force }, {
       onSuccess: (analysis) => {
-        setActiveAnalyses((prev) => ({ ...prev, [repoFullName]: analysis.id }));
+        if (analysis.status === "PENDING" || analysis.status === "PROCESSING") {
+          setActiveAnalyses((prev) => ({ ...prev, [repoFullName]: analysis.id }));
+        }
       },
     });
   }
@@ -92,7 +108,11 @@ export function RepoSelector({ selectedCvId }: RepoSelectorProps) {
       </p>
 
       <div className="space-y-2">
-        {filtered?.map((repo) => (
+        {filtered?.map((repo) => {
+          const existingAnalysis = analysesByRepo.get(`${repo.fullName}::${analysisLocale}`);
+          const hasCompletedAnalysis = existingAnalysis?.status === "COMPLETED";
+
+          return (
           <div key={repo.id} className="space-y-2">
             <div className="flex items-center gap-3 rounded-lg border p-3 hover:bg-accent/50">
               <div className="flex-1 min-w-0">
@@ -113,6 +133,12 @@ export function RepoSelector({ selectedCvId }: RepoSelectorProps) {
                     }`}>
                       <Target size={10} className="mr-1 inline" />
                       {repo.fitScore}% {t("github.fit", { defaultValue: "fit" })}
+                    </span>
+                  )}
+                  {hasCompletedAnalysis && (
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                      <CheckCircle2 size={10} className="mr-1 inline" />
+                      {t("github.alreadyAnalyzed", { defaultValue: "Analyzed" })} · {analysisLocale.toUpperCase()}
                     </span>
                   )}
                 </div>
@@ -148,8 +174,22 @@ export function RepoSelector({ selectedCvId }: RepoSelectorProps) {
                   disabled={analyzeMutation.isPending || !!activeAnalyses[repo.fullName]}
                   className="rounded bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {activeAnalyses[repo.fullName] ? t("github.analyzing") : t("github.analyze")}
+                  {activeAnalyses[repo.fullName]
+                    ? t("github.analyzing")
+                    : hasCompletedAnalysis
+                      ? t("github.useExistingAnalysis", { defaultValue: "Use existing" })
+                      : t("github.analyze")}
                 </button>
+                {hasCompletedAnalysis && (
+                  <button
+                    onClick={() => handleAnalyze(repo.fullName, true)}
+                    disabled={analyzeMutation.isPending || !!activeAnalyses[repo.fullName]}
+                    className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                    title={t("github.forceRefreshAnalysis", { defaultValue: "Force refresh analysis" })}
+                  >
+                    <RefreshCcw size={12} />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -161,7 +201,8 @@ export function RepoSelector({ selectedCvId }: RepoSelectorProps) {
               />
             )}
           </div>
-        ))}
+          );
+        })}
 
         {filtered?.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">{t("github.noReposFound")}</p>

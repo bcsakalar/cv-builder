@@ -101,8 +101,17 @@ export const aiController = {
   },
 
   async improveProject(req: Request, res: Response) {
-    const { name, description, technologies } = req.body as { name: string; description: string; technologies: string[] };
-    const improved = await aiService.improveProject(currentUserId(req), name, description, technologies, getLocale(req));
+    const { cvId, projectId, name, description, technologies } = req.body as {
+      cvId?: string;
+      projectId?: string;
+      name: string;
+      description: string;
+      technologies: string[];
+    };
+    const improved = await aiService.improveProject(currentUserId(req), name, description, technologies, getLocale(req), {
+      cvId,
+      projectId,
+    });
     sendSuccess(res, improved);
   },
 

@@ -3,10 +3,10 @@ import { createRoute } from "@tanstack/react-router";
 import { rootRoute } from "../__root";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { useGitHubStatus, useGitHubAnalyses, useDeleteGitHubAnalysis } from "@/hooks/useGitHub";
+import { useGitHubStatus, useGitHubAnalyses, useDeleteGitHubAnalysis, useRegenerateGitHubAnalysis } from "@/hooks/useGitHub";
 import { useGetCVs } from "@/hooks/useCV";
 import { useQueryClient } from "@tanstack/react-query";
-import { Github, Clock, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { Github, Clock, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight, Trash2, RefreshCcw, Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getDateLocale, getStatusLabel } from "@/i18n/helpers";
 import { toast } from "sonner";
@@ -31,17 +31,13 @@ function GitHubPage() {
   const qc = useQueryClient();
   const { data: status } = useGitHubStatus();
   const { data: cvs = [] } = useGetCVs();
-  const [selectedCvId, setSelectedCvId] = useState<string>("");
-  const { data: analyses } = useGitHubAnalyses(selectedCvId || undefined);
-  const deleteAnalysisMutation = useDeleteGitHubAnalysis(selectedCvId || undefined);
+  const [selectedCvId, setSelectedCvId] = useState<string | null>(null);
+  const effectiveSelectedCvId = selectedCvId === null ? cvs[0]?.id ?? "" : selectedCvId;
+  const { data: analyses } = useGitHubAnalyses(effectiveSelectedCvId || undefined);
+  const deleteAnalysisMutation = useDeleteGitHubAnalysis(effectiveSelectedCvId || undefined);
+  const regenerateAnalysisMutation = useRegenerateGitHubAnalysis(effectiveSelectedCvId || undefined);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const dateLocale = getDateLocale(i18n.language);
-
-  useEffect(() => {
-    if (!selectedCvId && cvs.length > 0) {
-      setSelectedCvId(cvs[0]?.id ?? "");
-    }
-  }, [cvs, selectedCvId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -84,7 +80,7 @@ function GitHubPage() {
                   {t("github.selectedCvContext", { defaultValue: "Selected CV context" })}
                 </label>
                 <select
-                  value={selectedCvId}
+                  value={effectiveSelectedCvId}
                   onChange={(event) => setSelectedCvId(event.target.value)}
                   className="w-full rounded-lg border px-3 py-2 text-sm"
                 >
@@ -104,7 +100,7 @@ function GitHubPage() {
             <div>
               <h2 className="mb-4 text-lg font-semibold">{t("github.yourRepos")}</h2>
               <Suspense fallback={<SectionFallback label={t("github.loadingRepos", { defaultValue: "Loading repositories…" })} />}>
-                <LazyRepoSelector selectedCvId={selectedCvId || undefined} />
+                <LazyRepoSelector selectedCvId={effectiveSelectedCvId || undefined} />
               </Suspense>
             </div>
 
@@ -115,7 +111,8 @@ function GitHubPage() {
                 <div className="space-y-2">
                   {analyses.map((a) => {
                     const isExpanded = expandedId === a.id;
-                    const repoName = a.result?.repoFullName;
+                    const repoName = a.repoFullName ?? a.result?.repoFullName;
+                    const locale = a.locale ?? a.result?.analysisLocale ?? "en";
 
                     return (
                       <div key={a.id} className="space-y-0">
@@ -138,12 +135,35 @@ function GitHubPage() {
                           <div className="flex-1">
                             <p className="text-sm font-medium">{repoName ?? a.username}</p>
                             <p className="text-xs text-muted-foreground">
-                              {getStatusLabel(a.status)} • {new Date(a.createdAt).toLocaleDateString(dateLocale)}
+                              {getStatusLabel(a.status)} • {locale.toUpperCase()} • {new Date(a.lastAnalyzedAt ?? a.completedAt ?? a.createdAt).toLocaleDateString(dateLocale)}
+                              {a.model ? ` • ${a.model}` : ""}
                             </p>
                             {a.status === "FAILED" && a.error && (
                               <p className="mt-0.5 text-xs text-red-500">{a.error}</p>
                             )}
                           </div>
+                          {repoName && (
+                            <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => regenerateAnalysisMutation.mutate({ id: a.id, locale, force: true })}
+                                disabled={regenerateAnalysisMutation.isPending || a.status === "PENDING" || a.status === "PROCESSING"}
+                                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                                title={t("github.refreshAnalysis", { defaultValue: "Refresh analysis" })}
+                              >
+                                <RefreshCcw size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => regenerateAnalysisMutation.mutate({ id: a.id, locale: locale === "tr" ? "en" : "tr", force: true })}
+                                disabled={regenerateAnalysisMutation.isPending || a.status === "PENDING" || a.status === "PROCESSING"}
+                                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                                title={t("github.regenerateOtherLanguage", { defaultValue: "Regenerate in the other language" })}
+                              >
+                                <Languages size={14} />
+                              </button>
+                            </div>
+                          )}
                           {(a.status === "COMPLETED" || a.status === "FAILED") && (
                             <button
                               type="button"

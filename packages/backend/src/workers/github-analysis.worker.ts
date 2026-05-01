@@ -8,6 +8,8 @@ import { redis } from "../lib/redis";
 import { decrypt } from "../utils/helpers";
 import { logger } from "../lib/logger";
 import { aiService } from "../modules/ai/ai.service";
+import { ollamaConfig } from "../config/ollama";
+import { GITHUB_ANALYSIS_VERSION } from "../modules/github/github.constants";
 
 interface GitHubAnalysisJobData {
   analysisId: string;
@@ -930,6 +932,7 @@ export function startGitHubAnalysisWorker() {
     QUEUE_NAMES.GITHUB_ANALYSIS,
     async (job) => {
       const { analysisId, repoFullName, userId, locale } = job.data;
+      const analysisLocale = locale === "tr" ? "tr" : "en";
 
       logger.info("Processing deep GitHub analysis job", {
         jobId: job.id,
@@ -940,7 +943,16 @@ export function startGitHubAnalysisWorker() {
       // Mark as PROCESSING
       await prisma.gitHubAnalysis.update({
         where: { id: analysisId },
-        data: { status: "PROCESSING" },
+        data: {
+          status: "PROCESSING",
+          repoFullName,
+          locale: analysisLocale,
+          analysisVersion: GITHUB_ANALYSIS_VERSION,
+          model: ollamaConfig.repoAnalysisModel,
+          startedAt: new Date(),
+          completedAt: null,
+          error: null,
+        },
       });
 
       await publishProgress(analysisId, {
@@ -1410,7 +1422,7 @@ export function startGitHubAnalysisWorker() {
               buildTools: dependencyInfo.buildTools,
               linters: dependencyInfo.linters,
             } : null,
-          }, locale);
+          }, analysisLocale);
         } catch (aiError) {
           logger.error("AI deep analysis failed", {
             repoFullName,
@@ -1463,7 +1475,7 @@ export function startGitHubAnalysisWorker() {
                 buildTools: dependencyInfo.buildTools,
                 linters: dependencyInfo.linters,
               } : null,
-            }, locale);
+            }, analysisLocale);
           } catch (retryError) {
             logger.error("AI retry also failed", { repoFullName, error: retryError instanceof Error ? retryError.message : String(retryError) });
           }
@@ -1504,6 +1516,9 @@ export function startGitHubAnalysisWorker() {
         const result = {
           // Original fields
           repoFullName,
+          analysisLocale,
+          analysisVersion: GITHUB_ANALYSIS_VERSION,
+          model: ollamaConfig.repoAnalysisModel,
           name: repo.name,
           description: repo.description,
           stars: repo.stargazers_count,
@@ -1550,7 +1565,14 @@ export function startGitHubAnalysisWorker() {
           where: { id: analysisId },
           data: {
             status: "COMPLETED",
+            repoFullName,
+            locale: analysisLocale,
+            analysisVersion: GITHUB_ANALYSIS_VERSION,
+            model: ollamaConfig.repoAnalysisModel,
             result,
+            error: null,
+            completedAt: new Date(),
+            lastAnalyzedAt: new Date(),
           },
         });
 
@@ -1580,6 +1602,7 @@ export function startGitHubAnalysisWorker() {
             data: {
               status: "PENDING",
               error: null,
+              startedAt: null,
             },
           });
 
@@ -1593,6 +1616,10 @@ export function startGitHubAnalysisWorker() {
           data: {
             status: "FAILED",
             error: errorMessage,
+            repoFullName,
+            locale: analysisLocale,
+            analysisVersion: GITHUB_ANALYSIS_VERSION,
+            model: ollamaConfig.repoAnalysisModel,
           },
         });
 

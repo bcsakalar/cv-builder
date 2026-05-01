@@ -70,6 +70,36 @@ function getServiceUrl(env, key, fallback) {
   return env[key] || process.env[key] || fallback;
 }
 
+function csv(value) {
+  return String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function modelMatches(availableModel, configuredModel) {
+  if (availableModel === configuredModel) return true;
+  if (!configuredModel.includes(":")) {
+    return availableModel.startsWith(`${configuredModel}:`);
+  }
+  return false;
+}
+
+function getRequiredOllamaModels(env) {
+  return unique([
+    ...csv(env.OLLAMA_REQUIRED_MODELS),
+    env.OLLAMA_MODEL || "qwen3.5:9b",
+    env.OLLAMA_CODE_MODEL || "qwen3.5:9b",
+    env.OLLAMA_REPO_ANALYSIS_MODEL || "qwen2.5-coder:14b",
+    env.OLLAMA_STRUCTURED_MODEL || "granite4.1:8b",
+    env.OLLAMA_EMBEDDING_MODEL || "bge-m3",
+  ]);
+}
+
 function printResult(ok, label, details) {
   const prefix = ok ? "[ok]" : "[fail]";
   console.log(`${prefix} ${label}${details ? ` - ${details}` : ""}`);
@@ -107,15 +137,39 @@ async function main() {
   printResult(redisOk, "Redis", `${redis.hostname}:${redis.port || 6379}`);
 
   let ollamaOk = false;
+  let ollamaModels = [];
   try {
     const response = await fetch(new URL("/api/tags", ollama).toString());
     ollamaOk = response.ok;
+    if (response.ok) {
+      const data = await response.json();
+      ollamaModels = Array.isArray(data.models)
+        ? data.models.map((model) => model.name).filter(Boolean)
+        : [];
+    }
   } catch {
     ollamaOk = false;
   }
 
   results.push(ollamaOk);
   printResult(ollamaOk, "Ollama", ollama.origin);
+
+  if (ollamaOk) {
+    const requiredModels = getRequiredOllamaModels(env);
+    const missingModels = requiredModels.filter(
+      (model) => !ollamaModels.some((availableModel) => modelMatches(availableModel, model))
+    );
+    const modelsOk = missingModels.length === 0;
+
+    results.push(modelsOk);
+    printResult(
+      modelsOk,
+      "Ollama models",
+      modelsOk
+        ? requiredModels.join(", ")
+        : `missing ${missingModels.join(", ")} — run npm run ollama:setup`
+    );
+  }
 
   const success = results.every(Boolean);
   console.log(`\n${success ? "Environment is ready." : "Environment is not ready."}`);

@@ -23,6 +23,7 @@ router.get("/repos/:owner/:repo", asyncHandler(githubController.repoDetails));
 router.post("/analyze", asyncHandler(githubController.analyze));
 router.get("/analyses", asyncHandler(githubController.getAnalyses));
 router.get("/analyses/:id", asyncHandler(githubController.getAnalysis));
+router.post("/analyses/:id/regenerate", asyncHandler(githubController.regenerateAnalysis));
 router.delete("/analyses/:id", asyncHandler(githubController.deleteAnalysis));
 router.get("/analyses/:id/stream", asyncHandler(githubController.streamAnalysis));
 

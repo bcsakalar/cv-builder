@@ -257,6 +257,8 @@
       "highlightsCount_one": "{{count}} highlight",
       "highlightsCount_other": "{{count}} highlights",
       "improvedDescription": "AI-improved description",
+      "applyImprovement": "Apply to project",
+      "applyingImprovement": "Applying...",
       "improveWithAi": "Improve with AI",
       "viewOnGithub": "View on GitHub",
       "visitProject": "Visit project"

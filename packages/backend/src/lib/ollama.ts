@@ -15,9 +15,23 @@ export interface OllamaGenerateOptions {
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
+  numCtx?: number;
   topP?: number;
+  seed?: number;
+  keepAlive?: string;
   /** Force JSON output format (Ollama native) */
   json?: boolean;
+  /** Ollama native structured output format. Can be "json" or a JSON schema. */
+  format?: "json" | Record<string, unknown>;
+}
+
+export interface OllamaChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+export interface OllamaChatOptions extends Omit<OllamaGenerateOptions, "prompt" | "system" | "stream"> {
+  messages: OllamaChatMessage[];
 }
 
 export interface OllamaGenerateResponse {
@@ -30,6 +44,13 @@ export interface OllamaGenerateResponse {
 export interface OllamaEmbeddingResponse {
   embedding?: number[];
   embeddings?: number[][];
+}
+
+interface OllamaChatResponse {
+  model: string;
+  message?: OllamaChatMessage;
+  done: boolean;
+  total_duration?: number;
 }
 
 interface OllamaModelInfo {
@@ -70,6 +91,36 @@ function stripThinkingTags(text: string): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildModelOptions(options: {
+  temperature?: number;
+  topP?: number;
+  maxTokens?: number;
+  numCtx?: number;
+  seed?: number;
+}): Record<string, unknown> {
+  const {
+    temperature = 0.7,
+    topP,
+    maxTokens = ollamaConfig.defaultMaxTokens,
+    numCtx = ollamaConfig.defaultNumCtx,
+    seed,
+  } = options;
+
+  return {
+    temperature,
+    num_ctx: numCtx,
+    num_predict: maxTokens,
+    ...(typeof topP === "number" ? { top_p: topP } : {}),
+    ...(typeof seed === "number" ? { seed } : {}),
+  };
+}
+
+function buildFormat(options: { json?: boolean; format?: "json" | Record<string, unknown> }): "json" | Record<string, unknown> | undefined {
+  if (options.format) return options.format;
+  if (options.json) return "json";
+  return undefined;
 }
 
 // ── Core fetch with retry ────────────────────────────────
@@ -127,6 +178,21 @@ async function ollamaFetch<T>(
   throw new Error("Ollama fetch failed unexpectedly");
 }
 
+async function ollamaGet<T>(endpoint: string, timeoutMs = 5000): Promise<T> {
+  const response = await fetch(`${ollamaConfig.baseUrl}${endpoint}`, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(
+      `Ollama API error ${response.status}: ${response.statusText}${errorBody ? ` — ${errorBody}` : ""}`
+    );
+  }
+
+  return response.json() as Promise<T>;
+}
+
 // ── Generate ─────────────────────────────────────────────
 
 export async function generate(
@@ -137,8 +203,13 @@ export async function generate(
     prompt,
     system,
     temperature = 0.7,
+    maxTokens,
+    numCtx,
     topP,
+    seed,
+    keepAlive = ollamaConfig.keepAlive,
     json = false,
+    format,
   } = options;
 
   logger.debug("Ollama generate", { model, promptLength: prompt.length });
@@ -148,18 +219,17 @@ export async function generate(
     prompt,
     system,
     stream: false,
-    options: {
-      temperature,
-      ...(typeof topP === "number" ? { top_p: topP } : {}),
-    },
+    keep_alive: keepAlive,
+    options: buildModelOptions({ temperature, topP, maxTokens, numCtx, seed }),
   };
 
   // Disable reasoning traces where the local model supports it so downstream
   // consumers receive cleaner output and more stable JSON.
   body.think = false;
 
-  if (json) {
-    body.format = "json";
+  const outputFormat = buildFormat({ json, format });
+  if (outputFormat) {
+    body.format = outputFormat;
   }
 
   const response = await ollamaFetch<OllamaGenerateResponse>(
@@ -170,6 +240,47 @@ export async function generate(
   const raw = response.response ?? "";
   if (!raw) {
     logger.warn("Ollama returned empty response", { model, promptLength: prompt.length });
+  }
+
+  return stripThinkingTags(raw);
+}
+
+// ── Chat ────────────────────────────────────────────────
+
+export async function chat(options: OllamaChatOptions): Promise<string> {
+  const {
+    model = ollamaConfig.defaultModel,
+    messages,
+    temperature = 0.7,
+    maxTokens,
+    numCtx,
+    topP,
+    seed,
+    keepAlive = ollamaConfig.keepAlive,
+    json = false,
+    format,
+  } = options;
+
+  logger.debug("Ollama chat", { model, messageCount: messages.length });
+
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    stream: false,
+    think: false,
+    keep_alive: keepAlive,
+    options: buildModelOptions({ temperature, topP, maxTokens, numCtx, seed }),
+  };
+
+  const outputFormat = buildFormat({ json, format });
+  if (outputFormat) {
+    body.format = outputFormat;
+  }
+
+  const response = await ollamaFetch<OllamaChatResponse>("/api/chat", body);
+  const raw = response.message?.content ?? "";
+  if (!raw) {
+    logger.warn("Ollama returned empty chat response", { model, messageCount: messages.length });
   }
 
   return stripThinkingTags(raw);
@@ -186,6 +297,11 @@ export async function generateStreaming(
     prompt,
     system,
     temperature = 0.7,
+    maxTokens,
+    numCtx,
+    topP,
+    seed,
+    keepAlive = ollamaConfig.keepAlive,
   } = options;
 
   const url = `${ollamaConfig.baseUrl}/api/generate`;
@@ -203,7 +319,8 @@ export async function generateStreaming(
           system,
           stream: true,
           think: false,
-          options: { temperature },
+          keep_alive: keepAlive,
+          options: buildModelOptions({ temperature, topP, maxTokens, numCtx, seed }),
         }),
         signal: AbortSignal.timeout(ollamaConfig.timeout),
       });
@@ -284,9 +401,36 @@ export async function generateStreaming(
 // ── Embeddings ───────────────────────────────────────────
 
 export async function generateEmbedding(text: string): Promise<number[]> {
+  const embedRequest = {
+    model: ollamaConfig.embeddingModel,
+    input: text,
+    keep_alive: ollamaConfig.keepAlive,
+  };
+
+  try {
+    const embedResponse = await ollamaFetch<OllamaEmbeddingResponse>(
+      "/api/embed",
+      embedRequest
+    );
+
+    if (Array.isArray(embedResponse.embedding) && embedResponse.embedding.length > 0) {
+      return embedResponse.embedding;
+    }
+
+    if (Array.isArray(embedResponse.embeddings?.[0]) && embedResponse.embeddings[0].length > 0) {
+      return embedResponse.embeddings[0];
+    }
+  } catch (error) {
+    logger.warn("Ollama /api/embed failed, retrying with legacy /api/embeddings", {
+      model: ollamaConfig.embeddingModel,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const legacyRequest = {
     model: ollamaConfig.embeddingModel,
     prompt: text,
+    keep_alive: ollamaConfig.keepAlive,
   };
 
   try {
@@ -303,26 +447,10 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       return response.embeddings[0];
     }
   } catch (error) {
-    logger.warn("Legacy Ollama embeddings endpoint failed, retrying with /api/embed", {
+    logger.warn("Legacy Ollama embeddings endpoint failed", {
       model: ollamaConfig.embeddingModel,
       error: error instanceof Error ? error.message : String(error),
     });
-  }
-
-  const embedResponse = await ollamaFetch<OllamaEmbeddingResponse>(
-    "/api/embed",
-    {
-      model: ollamaConfig.embeddingModel,
-      input: text,
-    }
-  );
-
-  if (Array.isArray(embedResponse.embedding) && embedResponse.embedding.length > 0) {
-    return embedResponse.embedding;
-  }
-
-  if (Array.isArray(embedResponse.embeddings?.[0]) && embedResponse.embeddings[0].length > 0) {
-    return embedResponse.embeddings[0];
   }
 
   throw new Error("Ollama embedding response did not contain an embedding vector");
@@ -332,7 +460,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
 export async function checkOllamaHealth(): Promise<boolean> {
   try {
-    const response = await fetch(ollamaConfig.baseUrl, {
+    const response = await fetch(`${ollamaConfig.baseUrl}/api/tags`, {
       signal: AbortSignal.timeout(5000),
     });
     return response.ok;
@@ -345,14 +473,9 @@ export async function checkModelAvailable(
   model = ollamaConfig.defaultModel
 ): Promise<boolean> {
   try {
-    const response = await fetch(`${ollamaConfig.baseUrl}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) return false;
-
-    const data = (await response.json()) as { models: OllamaModelInfo[] };
+    const data = await ollamaGet<{ models: OllamaModelInfo[] }>("/api/tags");
     return data.models.some(
-      (m) => m.name === model || m.name.startsWith(`${model}:`) || m.model === model || m.model.startsWith(`${model}:`)
+      (m) => m.name === model || (!model.includes(":") && m.name.startsWith(`${model}:`)) || m.model === model || (!model.includes(":") && m.model.startsWith(`${model}:`))
     );
   } catch {
     return false;
@@ -361,15 +484,22 @@ export async function checkModelAvailable(
 
 export async function getAvailableModels(): Promise<string[]> {
   try {
-    const response = await fetch(`${ollamaConfig.baseUrl}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) return [];
-
-    const data = (await response.json()) as { models: OllamaModelInfo[] };
+    const data = await ollamaGet<{ models: OllamaModelInfo[] }>("/api/tags");
     return data.models.map((m) => m.name);
   } catch {
     return [];
+  }
+}
+
+export async function getModelDetails(model: string): Promise<Record<string, unknown> | null> {
+  try {
+    return await ollamaFetch<Record<string, unknown>>("/api/show", { model });
+  } catch (error) {
+    logger.warn("Failed to read Ollama model details", {
+      model,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
   }
 }
 
@@ -377,9 +507,11 @@ export async function getAvailableModels(): Promise<string[]> {
 
 export const ollama = {
   generate,
+  chat,
   generateStreaming,
   generateEmbedding,
   checkHealth: checkOllamaHealth,
   checkModelAvailable,
   getAvailableModels,
+  getModelDetails,
 };

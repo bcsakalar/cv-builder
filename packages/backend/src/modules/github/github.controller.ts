@@ -7,7 +7,7 @@ import Redis from "ioredis";
 import { env } from "../../config/env";
 import { requireAuthUser } from "../../middleware/auth";
 import { githubService } from "./github.service";
-import { connectGitHubSchema, analyzeRepoSchema, importPreviewSchema, importToCVSchema, bulkImportToCVSchema, analysisIdParamsSchema } from "./github.schema";
+import { connectGitHubSchema, analyzeRepoSchema, importPreviewSchema, importToCVSchema, bulkImportToCVSchema, analysisIdParamsSchema, regenerateAnalysisSchema } from "./github.schema";
 import { sendCreated, sendSuccess } from "../../utils/api-response";
 import { ApiError } from "../../utils/api-error";
 import { progressChannel } from "../../workers/github-analysis.worker";
@@ -83,9 +83,17 @@ export const githubController = {
   },
 
   async analyze(req: Request, res: Response) {
-    const { repoFullName, locale: requestedLocale } = analyzeRepoSchema.parse(req.body);
+    const { repoFullName, locale: requestedLocale, force } = analyzeRepoSchema.parse(req.body);
     const locale = resolveAnalysisLocale(req, requestedLocale);
-    const analysis = await githubService.createAnalysis(currentUserId(req), repoFullName, locale);
+    const analysis = await githubService.createAnalysis(currentUserId(req), repoFullName, locale, { force });
+    sendCreated(res, analysis);
+  },
+
+  async regenerateAnalysis(req: Request, res: Response) {
+    const { id } = analysisIdParamsSchema.parse(req.params);
+    const { locale: requestedLocale, force } = regenerateAnalysisSchema.parse(req.body ?? {});
+    const locale = requestedLocale ? resolveAnalysisLocale(req, requestedLocale) : undefined;
+    const analysis = await githubService.regenerateAnalysis(currentUserId(req), id, { locale, force });
     sendCreated(res, analysis);
   },
 

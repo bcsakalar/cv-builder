@@ -10,6 +10,8 @@
   ],
   "scripts": {
     "doctor": "node scripts/local-doctor.mjs",
+    "ollama:setup": "node scripts/setup-ollama-models.mjs",
+    "ollama:check": "node scripts/setup-ollama-models.mjs --check",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:debug": "node scripts/run-local-debug.mjs",
     "dev:backend": "npm run dev -w packages/backend",

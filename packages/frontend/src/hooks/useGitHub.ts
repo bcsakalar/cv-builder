@@ -107,6 +107,21 @@ export function useAnalyzeRepo() {
   });
 }
 
+export function useRegenerateGitHubAnalysis(cvId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, locale, force = true }: { id: string; locale?: "en" | "tr"; force?: boolean }) =>
+      githubApi.regenerateAnalysis(id, { locale, force }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ghKeys.all });
+      qc.invalidateQueries({ queryKey: ghKeys.analyses(cvId) });
+      toast.success(translate("toasts.github.analysisStarted"));
+    },
+    onError: () => toast.error(translate("toasts.github.analysisFailed")),
+  });
+}
+
 export function useImportPreview() {
   return useMutation({
     mutationFn: ({ analysisId, cvId }: { analysisId: string; cvId?: string }) => githubApi.getImportPreview(analysisId, cvId),

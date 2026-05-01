@@ -21,7 +21,7 @@ import {
   UploadCloud,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useCreateRecruiterBatch,
@@ -141,19 +141,14 @@ export function RecruiterWorkbench() {
   const [mustHaveText, setMustHaveText] = useState("");
   const [niceToHaveText, setNiceToHaveText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState("");
-  const [selectedCandidateId, setSelectedCandidateId] = useState("");
+  const [selectedJobIdOverride, setSelectedJobId] = useState<string | null>(null);
+  const [selectedCandidateIdOverride, setSelectedCandidateId] = useState("");
   const [filters, setFilters] = useState<RecruiterCandidateFilters>(DEFAULT_FILTERS);
 
   const jobsQuery = useRecruiterJobs();
   const createJobMutation = useCreateRecruiterJob();
 
-  useEffect(() => {
-    const firstJob = jobsQuery.data?.[0];
-    if (!selectedJobId && firstJob) {
-      setSelectedJobId(firstJob.id);
-    }
-  }, [jobsQuery.data, selectedJobId]);
+  const selectedJobId = selectedJobIdOverride ?? jobsQuery.data?.[0]?.id ?? "";
 
   const selectedJobFromList = useMemo(
     () => jobsQuery.data?.find((job) => job.id === selectedJobId) ?? null,
@@ -165,25 +160,13 @@ export function RecruiterWorkbench() {
   const latestBatchId = jobDetailQuery.data?.batches[0]?.id ?? "";
   const latestBatchQuery = useRecruiterBatch(latestBatchId, isLive);
   const candidatesQuery = useRecruiterCandidates(selectedJobId, filters, isLive);
-  const candidateQuery = useRecruiterCandidate(selectedCandidateId);
   const uploadBatchMutation = useCreateRecruiterBatch(selectedJobId);
+  const candidateList = candidatesQuery.data?.items ?? [];
+  const selectedCandidateId = candidateList.some((item) => item.id === selectedCandidateIdOverride)
+    ? selectedCandidateIdOverride
+    : candidateList[0]?.id ?? "";
+  const candidateQuery = useRecruiterCandidate(selectedCandidateId);
   const reEvaluateMutation = useReEvaluateCandidate(selectedCandidateId);
-
-  useEffect(() => {
-    const items = candidatesQuery.data?.items ?? [];
-    if (!items.length) {
-      setSelectedCandidateId("");
-      return;
-    }
-
-    if (!selectedCandidateId || !items.some((item) => item.id === selectedCandidateId)) {
-      setSelectedCandidateId(items[0]?.id ?? "");
-    }
-  }, [candidatesQuery.data?.items, selectedCandidateId]);
-
-  useEffect(() => {
-    setSelectedCandidateId("");
-  }, [selectedJobId]);
 
   const summaryStats = useMemo(() => {
     const detail = jobDetailQuery.data;
@@ -253,7 +236,6 @@ export function RecruiterWorkbench() {
   }
 
   const candidate = candidateQuery.data;
-  const candidateList = candidatesQuery.data?.items ?? [];
   const batchHistory = jobDetailQuery.data?.batches ?? [];
   const latestBatch = latestBatchQuery.data;
 
@@ -765,6 +747,54 @@ export function RecruiterWorkbench() {
                               ) : null}
                             </div>
 
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="rounded-2xl border p-4">
+                                <p className="mb-3 text-sm font-medium">
+                                  {t("recruiter.candidateDetail.matchedHardSkills", { defaultValue: "Matched hard skills" })}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {candidate.evaluation.matchedHardSkills.map((item) => (
+                                    <Chip key={item} tone="success">{item}</Chip>
+                                  ))}
+                                  {!candidate.evaluation.matchedHardSkills.length ? <p className="text-sm text-muted-foreground">—</p> : null}
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border p-4">
+                                <p className="mb-3 text-sm font-medium">
+                                  {t("recruiter.candidateDetail.matchedKeywords", { defaultValue: "Matched keywords" })}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {candidate.evaluation.matchedKeywords.map((item) => (
+                                    <Chip key={item}>{item}</Chip>
+                                  ))}
+                                  {!candidate.evaluation.matchedKeywords.length ? <p className="text-sm text-muted-foreground">—</p> : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            {candidate.evaluation.matchEvidence.length > 0 ? (
+                              <div className="rounded-2xl border p-4">
+                                <p className="mb-3 text-sm font-medium">
+                                  {t("recruiter.candidateDetail.matchEvidence", { defaultValue: "Match evidence from CV text" })}
+                                </p>
+                                <div className="space-y-2">
+                                  {candidate.evaluation.matchEvidence.slice(0, 8).map((item, index) => (
+                                    <div key={`${item.term}-${index}`} className="rounded-xl bg-background/70 p-3 text-xs">
+                                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                                        <Chip tone={item.source === "mustHave" ? "success" : "default"}>{item.term}</Chip>
+                                        <span className="text-muted-foreground">
+                                          {item.source === "mustHave"
+                                            ? t("recruiter.candidateDetail.mustHaveEvidence", { defaultValue: "must-have" })
+                                            : t("recruiter.candidateDetail.keywordEvidence", { defaultValue: "keyword" })}
+                                        </span>
+                                      </div>
+                                      <p className="leading-relaxed text-muted-foreground">{item.evidence}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
                             <div className="grid gap-4 md:grid-cols-3">
                               <div className="rounded-2xl border p-4">
                                 <p className="mb-3 text-sm font-medium">{t("recruiter.candidateDetail.strengths")}</p>
@@ -825,9 +855,26 @@ export function RecruiterWorkbench() {
                           <div className="space-y-2 text-sm text-muted-foreground">
                             <p>{candidate.document.originalFileName}</p>
                             <p>{t("recruiter.candidateDetail.documentStatus", { status: candidate.document.extractionStatus })}</p>
+                            <p>
+                              {t("recruiter.candidateDetail.extractedTextLength", {
+                                count: candidate.document.extractedTextLength,
+                                defaultValue: "Extracted text: {{count}} characters",
+                              })}
+                            </p>
                             <p>{t("recruiter.candidateDetail.completeness", { score: candidate.completenessScore })}</p>
                           </div>
                         </div>
+
+                        {candidate.document.extractedTextPreview ? (
+                          <div className="rounded-2xl border p-4">
+                            <p className="mb-3 text-sm font-medium">
+                              {t("recruiter.candidateDetail.extractedTextPreview", { defaultValue: "Extracted PDF text preview" })}
+                            </p>
+                            <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
+                              {candidate.document.extractedTextPreview}
+                            </pre>
+                          </div>
+                        ) : null}
 
                         <div className="rounded-2xl border p-4">
                           <p className="mb-3 text-sm font-medium">{t("recruiter.candidateDetail.rawPreview")}</p>

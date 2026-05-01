@@ -123,6 +123,11 @@ vi.mock("@/hooks/useRecruiter", () => ({
             recommendation: "STRONG_MATCH",
             missingKeywords: [],
             missingHardSkills: [],
+            matchedKeywords: ["Docker"],
+            matchedHardSkills: ["TypeScript", "Node.js", "PostgreSQL"],
+            matchEvidence: [
+              { term: "Node.js", source: "mustHave", evidence: "Built Node.js services with PostgreSQL." },
+            ],
             strengths: ["Strong TypeScript backend experience"],
             riskFlags: [],
             shortSummary: "High-confidence shortlist candidate.",
@@ -172,6 +177,8 @@ vi.mock("@/hooks/useRecruiter", () => ({
         extractionStatus: "EXTRACTED",
         parseError: null,
         processedAt: "2026-01-01T00:04:00.000Z",
+        extractedTextPreview: "Jane Doe\nSenior Backend Engineer\nTypeScript Node.js PostgreSQL",
+        extractedTextLength: 64,
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:04:00.000Z",
       },
@@ -206,6 +213,11 @@ vi.mock("@/hooks/useRecruiter", () => ({
         recommendation: "STRONG_MATCH",
         missingKeywords: [],
         missingHardSkills: [],
+        matchedKeywords: ["Docker"],
+        matchedHardSkills: ["TypeScript", "Node.js", "PostgreSQL"],
+        matchEvidence: [
+          { term: "Node.js", source: "mustHave", evidence: "Built Node.js services with PostgreSQL." },
+        ],
         strengths: ["Strong TypeScript backend experience"],
         riskFlags: [],
         shortSummary: "High-confidence shortlist candidate.",
@@ -235,6 +247,9 @@ describe("RecruiterWorkbench", () => {
     expect(screen.getByText("High-volume candidate review workspace")).toBeInTheDocument();
     expect(screen.getAllByText("Jane Doe").length).toBeGreaterThan(0);
     expect(screen.getByText("High-confidence shortlist candidate.")).toBeInTheDocument();
+    expect(screen.getByText("Matched hard skills")).toBeInTheDocument();
+    expect(screen.getByText("Match evidence from CV text")).toBeInTheDocument();
+    expect(screen.getByText(/Extracted text: 64 characters/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /re-score candidate/i }));
 

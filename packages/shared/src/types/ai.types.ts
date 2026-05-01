@@ -26,6 +26,12 @@ export interface AIHealthResult {
   ready: boolean;
   readinessIssues: string[];
   model: string;
+  models?: {
+    writer: string;
+    structured: string;
+    repoAnalysis: string;
+    embedding: string;
+  };
   modelAvailable: boolean;
   availableModels: string[];
 }
@@ -163,7 +169,14 @@ export interface AIGitHubProfileSummaryResponse {
 }
 
 export interface AIArtifactApplyAction {
-  type: "summary_updated" | "skills_added" | "cv_flagged" | "artifact_state_updated" | "noop";
+  type:
+    | "summary_updated"
+    | "skills_added"
+    | "project_updated"
+    | "github_analysis_updated"
+    | "cv_flagged"
+    | "artifact_state_updated"
+    | "noop";
   message: string;
   count?: number;
 }
