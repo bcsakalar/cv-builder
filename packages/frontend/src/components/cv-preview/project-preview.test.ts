@@ -42,6 +42,21 @@ describe("buildPreviewProject", () => {
     expect(result.technologies).toEqual([]);
   });
 
+  it("falls back to the full GitHub AI description for previously truncated imports", () => {
+    const fullDescription = "Designed and implemented a local-first TypeScript CLI for job discovery, scraping, and application assistance with SQLite, Playwright, and Ollama integration.";
+
+    const result = buildPreviewProject({
+      name: "Scraper",
+      description: "Designed and implemented a local-first TypeScript CLI for job discovery, scraping, and application assistance with SQLite, Playwright, and Ollama inte...",
+      isFromGitHub: true,
+      githubRepoData: {
+        cvReadyDescription: fullDescription,
+      },
+    }, "en");
+
+    expect(result.description).toBe(fullDescription);
+  });
+
   it("preserves date metadata for manually entered projects", () => {
     const result = buildPreviewProject({
       name: "Manual Project",

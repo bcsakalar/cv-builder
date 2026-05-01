@@ -61,52 +61,6 @@ function uniqueStrings(values: Array<string | null | undefined>, limit = Number.
   return result;
 }
 
-function truncateSentences(value: string, sentenceCount: number): string {
-  const normalized = compactText(value);
-  const sentences = normalized.match(/[^.!?]+[.!?]?/g)?.map((item) => item.trim()).filter(Boolean) ?? [];
-  if (sentences.length <= sentenceCount) {
-    return normalized;
-  }
-
-  return sentences.slice(0, sentenceCount).join(" ").trim();
-}
-
-function truncateLength(value: string, maxLength: number): string {
-  const normalized = compactText(value);
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, maxLength - 1).trim()}…`;
-}
-
-function splitSentences(value: string): string[] {
-  return compactText(value)
-    .match(/[^.!?]+[.!?]?/g)
-    ?.map((item) => item.trim())
-    .filter(Boolean) ?? [];
-}
-
-function mergeNarrativeParts(values: Array<string | null | undefined>, sentenceLimit: number): string {
-  const seen = new Set<string>();
-  const sentences: string[] = [];
-
-  for (const value of values) {
-    if (!hasText(value)) continue;
-    for (const sentence of splitSentences(value)) {
-      const key = sentence.toLocaleLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      sentences.push(sentence);
-      if (sentences.length >= sentenceLimit) {
-        return sentences.join(" ");
-      }
-    }
-  }
-
-  return sentences.join(" ");
-}
-
 function formatHumanList(values: string[]): string {
   if (values.length === 0) return "";
   if (values.length === 1) return values[0]!;
@@ -152,14 +106,14 @@ function buildTechnologyList(result: DeepAnalysisResult): string[] {
 
 function buildProjectDescription(result: DeepAnalysisResult): string {
   const ai = result.aiInsights;
-  const preferred = mergeNarrativeParts([
+  const preferred = uniqueStrings([
     ai?.cvReadyDescription,
     ai?.projectSummary,
     result.description,
-  ], 5);
+  ], 1)[0];
 
-  if (hasText(preferred)) {
-    return truncateLength(truncateSentences(preferred, 5), 440);
+  if (preferred) {
+    return preferred;
   }
 
   const projectType = result.fileTree?.projectType ?? "unknown";
@@ -174,10 +128,7 @@ function buildProjectDescription(result: DeepAnalysisResult): string {
   const typeLabel = projectType === "unknown" ? "software" : projectType;
 
   if (hasText(stack)) {
-    return truncateLength(
-      `Built a ${typeLabel} project using ${stack}. ${qualitySignals.length > 0 ? `Backed delivery with ${formatHumanList(qualitySignals)}.` : "Structured the repository with a maintainable, production-oriented engineering workflow."}`,
-      440
-    );
+    return `Built a ${typeLabel} project using ${stack}. ${qualitySignals.length > 0 ? `Backed delivery with ${formatHumanList(qualitySignals)}.` : "Structured the repository with a maintainable, production-oriented engineering workflow."}`;
   }
 
   return `Built a ${typeLabel} project with a production-focused engineering setup and maintainable delivery workflow.`;

@@ -39,6 +39,27 @@ function joinParts(parts: Array<string | null | undefined>): string | null {
   return filtered.length > 0 ? filtered.join(" · ") : null;
 }
 
+function resolveProjectDescription(
+  description: string | null,
+  githubRepoData: GitHubRepoData | null,
+  isFromGitHub: boolean
+): string | null {
+  if (!isFromGitHub) {
+    return description;
+  }
+
+  const fullGitHubDescription = asText(githubRepoData?.cvReadyDescription) ?? asText(githubRepoData?.projectSummary);
+  if (!fullGitHubDescription) {
+    return description;
+  }
+
+  if (!description) {
+    return fullGitHubDescription;
+  }
+
+  return /(?:…|\.\.\.)$/.test(description) ? fullGitHubDescription : description;
+}
+
 export function buildPreviewProject(
   project: Record<string, unknown>,
   locale?: string,
@@ -53,10 +74,11 @@ export function buildPreviewProject(
   const dateRange = formatPreviewDateRange(project.startDate, project.endDate, false, locale);
   const repositoryUrl = isFromGitHub ? (asText(project.githubUrl) ?? asText(project.url)) : null;
   const visibleTechnologies = isFromGitHub ? [] : technologies;
+  const description = resolveProjectDescription(asText(project.description), githubRepoData, isFromGitHub);
 
   return {
     name: asText(project.name) ?? "",
-    description: asText(project.description),
+    description,
     metaLine: joinParts([asText(project.role), isFromGitHub ? null : (dateRange || null)]),
     signalLine: repositoryUrl ? formatProjectLink(repositoryUrl) : null,
     repositoryUrl,

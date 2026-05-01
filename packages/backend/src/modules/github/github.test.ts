@@ -498,6 +498,29 @@ describe("githubService", () => {
       ]));
     });
 
+    it("preserves the full AI-ready description without truncating it", async () => {
+      const fullDescription = [
+        "Designed and implemented a local-first TypeScript CLI for job discovery, scraping, and application assistance, utilizing SQLite for data storage, Playwright for browser automation, and Ollama for language model integration.",
+        "Built robust browser workflows for job applications and packaged the tool with maintainable command modules.",
+        "Added automated tests and an interactive dashboard to support data visibility and long-term maintenance.",
+      ].join(" ");
+
+      mockAnalysis.findFirst.mockResolvedValue(buildCompletedAnalysis({
+        description: "Short repository description",
+        aiInsights: {
+          ...buildCompletedAnalysisResult().aiInsights,
+          cvReadyDescription: fullDescription,
+          projectSummary: "Short AI summary",
+        },
+      }));
+
+      const result = await githubService.getImportPreview(USER_ID, "analysis-1");
+
+      expect(result.draft.description).toBe(fullDescription);
+      expect(result.draft.description).not.toContain("…");
+      expect(result.draft.description).not.toContain("Short AI summary");
+    });
+
     it("applies reviewed overrides and invalidates cached CV detail after importing a project", async () => {
       mockCV.findFirst.mockResolvedValue({ id: CV_ID, userId: USER_ID });
       mockAnalysis.findFirst.mockResolvedValue(buildCompletedAnalysis());
