@@ -39,7 +39,7 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().length(32),
 
   // CORS
-  CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  CORS_ORIGIN: z.string().default("http://localhost:5173,http://localhost:5174"),
 
   // GitHub OAuth
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),

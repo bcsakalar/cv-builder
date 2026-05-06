@@ -177,13 +177,15 @@ export function RecruiterWorkbench() {
   const [notesDraft, setNotesDraft] = useState<string>("");
   const [tagsDraft, setTagsDraft] = useState<string>("");
 
-  // sync drafts when candidate changes
+  // sync drafts when candidate changes (React "adjusting state during render" pattern)
   const candidateId = candidateQuery.data?.id;
-  const lastSyncedRef = useRef<string | null>(null);
-  if (candidateId && candidateId !== lastSyncedRef.current) {
-    lastSyncedRef.current = candidateId;
-    setNotesDraft(candidateQuery.data?.notes ?? "");
-    setTagsDraft((candidateQuery.data?.tags ?? []).join(", "));
+  const [prevCandidateId, setPrevCandidateId] = useState<string | undefined>(undefined);
+  if (candidateId !== prevCandidateId) {
+    setPrevCandidateId(candidateId);
+    if (candidateId) {
+      setNotesDraft(candidateQuery.data?.notes ?? "");
+      setTagsDraft((candidateQuery.data?.tags ?? []).join(", "));
+    }
   }
 
   const toggleCompare = (id: string) => {
