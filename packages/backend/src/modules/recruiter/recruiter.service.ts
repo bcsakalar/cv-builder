@@ -188,6 +188,8 @@ function mapCandidate(record: RecruiterCandidateDetailRecord): CandidateProfile 
     completenessScore: record.completenessScore,
     missingFields: toStringArray(record.missingFields),
     rawTextSnippet: record.rawTextSnippet,
+    notes: record.notes ?? null,
+    tags: Array.isArray(record.tags) ? record.tags : [],
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     document: mapDocument(record.document),
@@ -378,8 +380,104 @@ export const recruiterService = {
     return mapCandidate(candidate);
   },
 
+  async exportCandidatesCsv(userId: string, jobId: string): Promise<string> {
+    const job = await recruiterRepository.getJobForUser(jobId, userId);
+    if (!job) {
+      throw ApiError.notFound("Job");
+    }
+
+    const items = await recruiterRepository.listCandidates(userId, jobId, {
+      page: 1,
+      limit: 10_000,
+    } as RecruiterCandidateFiltersInput);
+
+    const rows = items.map(mapCandidateListItem);
+
+    const headers = [
+      "id",
+      "fullName",
+      "headline",
+      "email",
+      "yearsOfExperience",
+      "completenessScore",
+      "topSkills",
+      "overallScore",
+      "mustHaveScore",
+      "keywordScore",
+      "experienceScore",
+      "readabilityScore",
+      "linkQualityScore",
+      "riskPenalty",
+      "recommendation",
+      "brokenLinkCount",
+      "accessibleLinkCount",
+      "updatedAt",
+    ] as const;
+
+    const escape = (value: unknown): string => {
+      if (value === null || value === undefined) return "";
+      const s = Array.isArray(value) ? value.join("; ") : String(value);
+      if (/[",\n\r]/.test(s)) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+
+    const lines: string[] = [headers.join(",")];
+    for (const row of rows) {
+      const ev = row.evaluation;
+      lines.push(
+        [
+          row.id,
+          row.fullName,
+          row.headline,
+          row.email,
+          row.yearsOfExperience,
+          row.completenessScore,
+          row.topSkills,
+          ev?.overallScore,
+          ev?.mustHaveScore,
+          ev?.keywordScore,
+          ev?.experienceScore,
+          ev?.readabilityScore,
+          ev?.linkQualityScore,
+          ev?.riskPenalty,
+          ev?.recommendation,
+          row.brokenLinkCount,
+          row.accessibleLinkCount,
+          row.updatedAt,
+        ]
+          .map(escape)
+          .join(",")
+      );
+    }
+
+    return lines.join("\n") + "\n";
+  },
+
   async reEvaluateCandidate(userId: string, candidateId: string) {
     return runCandidateEvaluation(candidateId, userId);
+  },
+
+  async updateCandidateMetadata(
+    userId: string,
+    candidateId: string,
+    data: { notes?: string | null; tags?: string[] }
+  ) {
+    const existing = await recruiterRepository.getCandidateForUser(candidateId, userId);
+    if (!existing) {
+      throw ApiError.notFound("Candidate");
+    }
+    const updated = await recruiterRepository.updateCandidateMetadata(candidateId, userId, data);
+    return mapCandidate(updated);
+  },
+
+  async compareCandidates(userId: string, candidateIds: string[]) {
+    const records = await recruiterRepository.listCandidatesByIds(userId, candidateIds);
+    if (records.length !== candidateIds.length) {
+      throw ApiError.notFound("Candidate");
+    }
+    return records.map(mapCandidate);
   },
 
   async processBatch(userId: string, batchId: string) {

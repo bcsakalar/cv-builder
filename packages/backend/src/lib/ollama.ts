@@ -503,10 +503,59 @@ export async function getModelDetails(model: string): Promise<Record<string, unk
   }
 }
 
+// ── Generate with multi-model fallback ───────────────────
+
+/**
+ * Generate with an ordered list of model candidates. The first
+ * model that returns a non-empty response wins. If all candidates
+ * fail or return empty output, the last error is rethrown.
+ *
+ * Returns both the response and the model that produced it so
+ * callers (and audit log) know which fallback was used.
+ */
+export async function generateWithFallback(
+  options: Omit<OllamaGenerateOptions, "model"> & { models: string[] }
+): Promise<{ response: string; model: string }> {
+  const { models, ...rest } = options;
+  if (models.length === 0) {
+    throw new Error("generateWithFallback requires at least one model");
+  }
+
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < models.length; i++) {
+    const candidate = models[i]!;
+    try {
+      const response = await generate({ ...rest, model: candidate });
+      if (response && response.trim()) {
+        if (i > 0) {
+          logger.warn("Ollama primary model failed, used fallback", {
+            primary: models[0],
+            used: candidate,
+            attempt: i + 1,
+          });
+        }
+        return { response, model: candidate };
+      }
+      lastError = new Error(`Ollama model "${candidate}" returned empty response`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.warn("Ollama model failed, trying next fallback", {
+        model: candidate,
+        error: lastError.message,
+        remaining: models.length - i - 1,
+      });
+    }
+  }
+
+  throw lastError ?? new Error("All Ollama fallback models failed");
+}
+
 // ── Exported client ──────────────────────────────────────
 
 export const ollama = {
   generate,
+  generateWithFallback,
   chat,
   generateStreaming,
   generateEmbedding,

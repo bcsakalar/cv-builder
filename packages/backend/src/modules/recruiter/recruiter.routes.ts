@@ -14,6 +14,8 @@ import {
   recruiterCandidateIdParamSchema,
   recruiterJobIdParamSchema,
   reEvaluateCandidateSchema,
+  updateCandidateMetadataSchema,
+  compareCandidatesSchema,
 } from "./recruiter.schema";
 
 const router = Router();
@@ -91,6 +93,12 @@ router.get(
 );
 
 router.get(
+  "/jobs/:jobId/candidates/export.csv",
+  validate({ params: recruiterJobIdParamSchema }),
+  asyncHandler(recruiterController.exportCandidatesCsv)
+);
+
+router.get(
   "/candidates/:candidateId",
   validate({ params: recruiterCandidateIdParamSchema }),
   asyncHandler(recruiterController.getCandidate)
@@ -100,6 +108,18 @@ router.post(
   "/candidates/:candidateId/re-evaluate",
   validate({ params: recruiterCandidateIdParamSchema, body: reEvaluateCandidateSchema }),
   asyncHandler(recruiterController.reEvaluateCandidate)
+);
+
+router.patch(
+  "/candidates/:candidateId/metadata",
+  validate({ params: recruiterCandidateIdParamSchema, body: updateCandidateMetadataSchema }),
+  asyncHandler(recruiterController.updateCandidateMetadata)
+);
+
+router.post(
+  "/candidates/compare",
+  validate({ body: compareCandidatesSchema }),
+  asyncHandler(recruiterController.compareCandidates)
 );
 
 export { router as recruiterRoutes };

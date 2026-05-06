@@ -47,4 +47,17 @@ export const recruiterApi = {
 
   reEvaluateCandidate: (candidateId: string, payload: ReevaluateCandidateInput = { force: true }) =>
     api.post(`/recruiter/candidates/${candidateId}/re-evaluate`, payload).then(unwrap<CandidateProfile>),
+
+  exportCandidatesCsv: async (jobId: string): Promise<Blob> => {
+    const res = await api.get(`/recruiter/jobs/${jobId}/candidates/export.csv`, {
+      responseType: "blob",
+    });
+    return res.data as Blob;
+  },
+
+  updateCandidateMetadata: (candidateId: string, data: { notes?: string | null; tags?: string[] }) =>
+    api.patch(`/recruiter/candidates/${candidateId}/metadata`, data).then(unwrap<CandidateProfile>),
+
+  compareCandidates: (candidateIds: string[]) =>
+    api.post(`/recruiter/candidates/compare`, { candidateIds }).then(unwrap<CandidateProfile[]>),
 };

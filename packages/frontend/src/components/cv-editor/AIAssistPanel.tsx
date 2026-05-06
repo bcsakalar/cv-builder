@@ -18,6 +18,7 @@ import {
   useDismissAIArtifact,
   useGenerateCoverLetter,
   useGenerateSummary,
+  useStreamingSummary,
   useJobMatch,
   useReviewCV,
   useSuggestSkills,
@@ -324,9 +325,13 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
   const [matchJobDescription, setMatchJobDescription] = useState("");
   const [tailorJobDescription, setTailorJobDescription] = useState("");
   const [coverJobDescription, setCoverJobDescription] = useState("");
+  const [coverTone, setCoverTone] = useState<"formal" | "conversational" | "technical">("formal");
+  const [coverAlternatives, setCoverAlternatives] = useState(false);
   const [atsJobDescription, setAtsJobDescription] = useState("");
 
   const summaryMut = useGenerateSummary();
+  const summaryStream = useStreamingSummary();
+  const [streamSummary, setStreamSummary] = useState(true);
   const skillsMut = useSuggestSkills();
   const atsMut = useATSCheck();
   const coverMut = useGenerateCoverLetter();
@@ -733,19 +738,42 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
 
           {activeTab === "summary" && (
             <div className="space-y-3">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  data-testid="ai-summary-stream-toggle"
+                  checked={streamSummary}
+                  onChange={(e) => setStreamSummary(e.target.checked)}
+                />
+                {t("ai.actions.streamLive", "Stream live")}
+              </label>
               <button
                 data-testid="ai-summary-submit"
                 type="button"
                 onClick={() => {
                   setSelectedArtifactId(null);
-                  summaryMut.mutate(cvId);
+                  if (streamSummary) {
+                    summaryStream.startStream(cvId);
+                  } else {
+                    summaryMut.mutate(cvId);
+                  }
                 }}
-                disabled={summaryMut.isPending || aiUnavailable}
+                disabled={summaryMut.isPending || summaryStream.isStreaming || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50"
               >
-                {summaryMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {(summaryMut.isPending || summaryStream.isStreaming) ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                 {t("ai.actions.generateSummary")}
               </button>
+
+              {summaryStream.isStreaming && summaryStream.text ? (
+                <div data-testid="ai-summary-stream" className="rounded-lg border bg-card p-4">
+                  <p className="text-sm whitespace-pre-line">{summaryStream.text}<span className="ml-1 inline-block h-3 w-2 animate-pulse bg-purple-600" /></p>
+                </div>
+              ) : null}
+
+              {summaryStream.error ? (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{summaryStream.error}</div>
+              ) : null}
 
               {summaryText ? (
                 <div data-testid="ai-summary-result" className="space-y-3 rounded-lg border bg-card p-4">
@@ -915,12 +943,48 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
                 className="w-full rounded-lg border p-2 text-xs"
                 rows={3}
               />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{t("ai.coverLetter.tone", "Tone")}:</span>
+                {(["formal", "conversational", "technical"] as const).map((tone) => (
+                  <button
+                    key={tone}
+                    type="button"
+                    onClick={() => setCoverTone(tone)}
+                    data-testid={`ai-cover-tone-${tone}`}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] capitalize transition ${
+                      coverTone === tone
+                        ? "border-amber-600 bg-amber-600 text-white"
+                        : "border-border bg-background hover:bg-muted"
+                    }`}
+                  >
+                    {t(`ai.coverLetter.tones.${tone}`, tone)}
+                  </button>
+                ))}
+              </div>
+
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  data-testid="ai-cover-alternatives"
+                  checked={coverAlternatives}
+                  onChange={(e) => setCoverAlternatives(e.target.checked)}
+                  className="h-3.5 w-3.5"
+                />
+                {t("ai.coverLetter.alternatives", "Generate 2 alternative drafts")}
+              </label>
+
               <button
                 data-testid="ai-cover-submit"
                 type="button"
                 onClick={() => {
                   setSelectedArtifactId(null);
-                  coverMut.mutate({ cvId, jobDescription: coverJobDescription || undefined });
+                  coverMut.mutate({
+                    cvId,
+                    jobDescription: coverJobDescription || undefined,
+                    tone: coverTone,
+                    alternatives: coverAlternatives,
+                  });
                 }}
                 disabled={coverMut.isPending || aiUnavailable}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
@@ -934,6 +998,36 @@ export function AIAssistPanel({ cvId }: AIAssistPanelProps) {
                   <div className="rounded border bg-amber-50 p-3 dark:bg-amber-950/50">
                     <p className="text-sm whitespace-pre-line">{coverLetterText}</p>
                   </div>
+
+                  {coverMut.data?.alternatives && coverMut.data.alternatives.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        {t("ai.coverLetter.alternativesHeading", "Alternative drafts")}
+                      </p>
+                      {coverMut.data.alternatives.map((alt, idx) => (
+                        <div
+                          key={idx}
+                          data-testid={`ai-cover-alt-${idx}`}
+                          className="rounded border border-dashed bg-muted/40 p-3"
+                        >
+                          <div className="mb-1 flex items-center justify-between">
+                            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              {t("ai.coverLetter.variant", "Variant")} {idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(alt)}
+                              className="text-[11px] text-amber-700 hover:underline dark:text-amber-400"
+                            >
+                              {t("common.copy", "Copy")}
+                            </button>
+                          </div>
+                          <p className="text-sm whitespace-pre-line">{alt}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <ResultActions
                     artifact={currentArtifact}
                     onCopy={() => copyToClipboard(coverLetterText)}

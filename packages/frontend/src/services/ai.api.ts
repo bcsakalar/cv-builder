@@ -73,8 +73,16 @@ export const aiApi = {
     return res.data.data;
   },
 
-  async generateCoverLetter(cvId: string, jobDescription?: string): Promise<AICoverLetterResponse> {
-    const res = await api.post(`/ai/cover-letter/${cvId}`, { jobDescription });
+  async generateCoverLetter(
+    cvId: string,
+    jobDescription?: string,
+    options?: { tone?: "formal" | "conversational" | "technical"; alternatives?: boolean }
+  ): Promise<AICoverLetterResponse> {
+    const res = await api.post(`/ai/cover-letter/${cvId}`, {
+      jobDescription,
+      tone: options?.tone,
+      alternatives: options?.alternatives,
+    });
     return res.data.data;
   },
 

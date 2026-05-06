@@ -95,8 +95,18 @@ export const aiController = {
 
   async generateCoverLetter(req: Request, res: Response) {
     const cvId = req.params.cvId as string;
-    const { jobDescription } = req.body as { jobDescription?: string };
-    const coverLetter = await aiService.generateCoverLetter(currentUserId(req), cvId, jobDescription, getLocale(req));
+    const { jobDescription, tone, alternatives } = req.body as {
+      jobDescription?: string;
+      tone?: "formal" | "conversational" | "technical";
+      alternatives?: boolean;
+    };
+    const coverLetter = await aiService.generateCoverLetter(
+      currentUserId(req),
+      cvId,
+      jobDescription,
+      getLocale(req),
+      { tone, alternatives }
+    );
     sendSuccess(res, coverLetter);
   },
 

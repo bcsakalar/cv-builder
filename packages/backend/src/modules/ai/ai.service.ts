@@ -31,6 +31,8 @@ import { logger } from "../../lib/logger";
 import { checkModelAvailable, checkOllamaHealth, getAvailableModels, ollama } from "../../lib/ollama";
 import { prisma } from "../../lib/prisma";
 import { cacheDelete } from "../../lib/redis";
+import { withAICache } from "../../lib/ai-cache";
+import { approximateTokens, recordAIAudit } from "../../lib/ai-audit";
 import { ApiError } from "../../utils/api-error";
 import { aiRepository, AI_ARTIFACT_SELECT } from "./ai.repository";
 import { AI_PROMPTS, localizeSystemPrompt } from "./ai.prompts";
@@ -40,6 +42,31 @@ type ArtifactRecord = Prisma.AiArtifactGetPayload<{ select: typeof AI_ARTIFACT_S
 
 const PROMPT_VERSION = "developer-cv-v2";
 const MAX_HISTORY_ITEMS = 10;
+
+/**
+ * Internal helper: wraps `ollama.generateWithFallback` so that every AI
+ * call automatically gets retry-on-empty + fallback-model behaviour while
+ * preserving the simple `Promise<string>` contract the call sites expect.
+ *
+ * Build a candidate list = [primary, ...repoAnalysisFallbackModels?, fallbackModel],
+ * de-duplicated, then return only the response text. The model that actually
+ * produced the output is logged via the existing fallback warning inside
+ * `generateWithFallback`.
+ */
+async function generateWithDefaultFallback(
+  args: Parameters<typeof ollama.generate>[0]
+): Promise<string> {
+  const { model, ...rest } = args;
+  const primary = model ?? ollamaConfig.defaultModel;
+  const candidates = [primary, ollamaConfig.fallbackModel].filter(
+    (m, idx, arr): m is string => Boolean(m) && arr.indexOf(m) === idx
+  );
+  const { response } = await ollama.generateWithFallback({
+    ...rest,
+    models: candidates,
+  });
+  return response;
+}
 
 const TOOL_TO_DB: Record<AIToolKind, AiToolKind> = {
   summary: AiToolKind.SUMMARY,
@@ -648,9 +675,42 @@ async function runToolWithArtifact<TOutput>(options: {
   targetSection: AITargetSection;
   input?: Record<string, unknown>;
   execute: () => Promise<TOutput>;
+  /** When true, the executor result is memoized in Redis keyed by (tool, locale, model, input). */
+  cacheable?: boolean;
+  /** Override default cache TTL (seconds). */
+  cacheTtlSeconds?: number;
 }): Promise<{ output: TOutput; artifact: AIArtifact<TOutput> }> {
+  const auditBase = {
+    tool: options.tool,
+    userId: options.userId,
+    cvId: options.cvId ?? null,
+    model: options.model ?? ollamaConfig.defaultModel,
+    locale: normalizeLocale(options.locale),
+    promptTokensApprox: approximateTokens(options.input),
+  };
+  const startedAt = Date.now();
+  let cached = false;
+
   try {
-    const output = await options.execute();
+    let output: TOutput;
+    if (options.cacheable) {
+      const cacheKey = {
+        tool: options.tool,
+        locale: options.locale,
+        model: options.model,
+        input: options.input,
+      };
+      const result = await withAICache<TOutput>(
+        cacheKey,
+        options.cacheTtlSeconds ?? 1800,
+        options.execute
+      );
+      output = result.value;
+      cached = result.cached;
+    } else {
+      output = await options.execute();
+    }
+
     const artifact = await persistArtifact({
       userId: options.userId,
       cvId: options.cvId,
@@ -662,9 +722,24 @@ async function runToolWithArtifact<TOutput>(options: {
       output,
     });
 
+    recordAIAudit({
+      ...auditBase,
+      durationMs: Date.now() - startedAt,
+      success: true,
+      cached,
+      outputTokensApprox: approximateTokens(output),
+    });
+
     return { output, artifact };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    recordAIAudit({
+      ...auditBase,
+      durationMs: Date.now() - startedAt,
+      success: false,
+      cached,
+      error: message,
+    });
     await createFailureArtifact({
       userId: options.userId,
       cvId: options.cvId,
@@ -1601,7 +1676,7 @@ export const aiService = {
       targetSection: "summary",
       input: { cvId },
       execute: async () => {
-        const result = await ollama.generate({
+        const result = await generateWithDefaultFallback({
           prompt: buildPrompt(cv as unknown as Record<string, unknown>),
           system: localizeSystemPrompt(system, effectiveLocale),
           temperature: 0.6,
@@ -1631,7 +1706,7 @@ export const aiService = {
       targetSection: "experience",
       input: { description, jobTitle, company },
       execute: async () => {
-        const result = await ollama.generate({
+        const result = await generateWithDefaultFallback({
           prompt: buildPrompt(description, jobTitle, company),
           system: localizeSystemPrompt(system, locale),
           temperature: 0.55,
@@ -1663,9 +1738,11 @@ export const aiService = {
       model: ollamaConfig.structuredModel,
       targetSection: "skills",
       input: { cvId },
+      cacheable: true,
+      cacheTtlSeconds: 1800,
       execute: async () => {
         try {
-          const result = await ollama.generate({
+          const result = await generateWithDefaultFallback({
             model: ollamaConfig.structuredModel,
             prompt: buildPrompt(cv as unknown as Record<string, unknown>),
             system: localizeSystemPrompt(system, effectiveLocale, true),
@@ -1710,11 +1787,13 @@ export const aiService = {
       model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId, ...(options?.jobDescription ? { jobDescription: options.jobDescription } : {}) },
+      cacheable: true,
+      cacheTtlSeconds: 900,
       execute: async () => {
         let baseResult: AIATSResult;
 
         try {
-          const result = await ollama.generate({
+          const result = await generateWithDefaultFallback({
             model: ollamaConfig.structuredModel,
             prompt: buildPrompt(cv as unknown as Record<string, unknown>, options?.jobDescription),
             system: localizeSystemPrompt(system, effectiveLocale, true),
@@ -1739,31 +1818,92 @@ export const aiService = {
     return { ...output, artifact };
   },
 
-  async generateCoverLetter(userId: string, cvId: string, jobDescription?: string, locale?: string): Promise<AICoverLetterResponse> {
+  async generateCoverLetter(
+    userId: string,
+    cvId: string,
+    jobDescription?: string,
+    locale?: string,
+    options?: { tone?: "formal" | "conversational" | "technical"; alternatives?: boolean }
+  ): Promise<AICoverLetterResponse> {
     const cv = await getCVData(userId, cvId);
     const effectiveLocale = resolveCvLocale(cv, locale);
+    const tone = options?.tone ?? "formal";
+    const wantAlternatives = options?.alternatives ?? false;
     const { system, buildPrompt } = AI_PROMPTS.generateCoverLetter;
 
-    logger.info("Generating cover letter", { cvId, locale: effectiveLocale });
+    const TONE_GUIDANCE: Record<string, string> = {
+      formal:
+        "Use a polished, professional, and respectful tone suitable for traditional corporate roles. Avoid slang and contractions.",
+      conversational:
+        "Use a warm, approachable, and personable tone — like a confident professional speaking naturally. Contractions are fine.",
+      technical:
+        "Use a precise, technically detailed tone — reference concrete technologies, architectures, and measurable outcomes. Suitable for senior engineering roles.",
+    };
+
+    const toneSystemSuffix = `\n\nTONE GUIDANCE (${tone}): ${TONE_GUIDANCE[tone]}`;
+
+    logger.info("Generating cover letter", { cvId, locale: effectiveLocale, tone, alternatives: wantAlternatives });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
       tool: "cover_letter",
       locale: effectiveLocale,
       targetSection: "coverLetter",
-      input: { cvId, ...(jobDescription ? { jobDescription } : {}) },
+      input: {
+        cvId,
+        tone,
+        alternatives: wantAlternatives,
+        ...(jobDescription ? { jobDescription } : {}),
+      },
       execute: async () => {
-        const result = await ollama.generate({
+        const primary = await generateWithDefaultFallback({
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
-          system: localizeSystemPrompt(system, effectiveLocale),
+          system: localizeSystemPrompt(system, effectiveLocale) + toneSystemSuffix,
           temperature: 0.65,
         });
 
-        return result.trim();
+        const primaryText = primary.trim();
+
+        if (!wantAlternatives) {
+          return JSON.stringify({ coverLetter: primaryText, alternatives: [] satisfies string[] });
+        }
+
+        // Generate two alternatives with slightly different angles + higher temperature
+        const altPromises = [0, 1].map((idx) =>
+          generateWithDefaultFallback({
+            prompt:
+              buildPrompt(cv as unknown as Record<string, unknown>, jobDescription) +
+              `\n\nDIRECTIVE: Provide an ALTERNATIVE version (variant ${idx + 1}) with a different opening hook and emphasis. Do not repeat the previous draft.`,
+            system: localizeSystemPrompt(system, effectiveLocale) + toneSystemSuffix,
+            temperature: 0.8,
+          })
+            .then((s) => s.trim())
+            .catch((error) => {
+              logger.warn("Cover letter alternative failed", {
+                variant: idx + 1,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              return "";
+            })
+        );
+
+        const alternatives = (await Promise.all(altPromises)).filter((s) => s.length > 0);
+        return JSON.stringify({ coverLetter: primaryText, alternatives });
       },
     });
 
-    return { coverLetter: output, artifact };
+    // Decode bundled output (artifact stores the JSON string)
+    let coverLetter: string;
+    let alternatives: string[] = [];
+    try {
+      const parsed = JSON.parse(output) as { coverLetter: string; alternatives?: string[] };
+      coverLetter = parsed.coverLetter;
+      alternatives = parsed.alternatives ?? [];
+    } catch {
+      coverLetter = output;
+    }
+
+    return { coverLetter, alternatives, tone, artifact: artifact as AIArtifact<string> };
   },
 
   async generateSummaryStreaming(
@@ -1805,7 +1945,7 @@ export const aiService = {
       targetSection: "projects",
       input: { name, description, technologies, projectId: context?.projectId },
       execute: async () => {
-        const result = await ollama.generate({
+        const result = await generateWithDefaultFallback({
           prompt: buildPrompt(name, description, technologies),
           system: localizeSystemPrompt(system, locale),
           temperature: 0.55,
@@ -1833,8 +1973,10 @@ export const aiService = {
       model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId },
+      cacheable: true,
+      cacheTtlSeconds: 1800,
       execute: async () => {
-        const result = await ollama.generate({
+        const result = await generateWithDefaultFallback({
           model: ollamaConfig.structuredModel,
           prompt: buildPrompt(cv as unknown as Record<string, unknown>),
           system: localizeSystemPrompt(system, effectiveLocale, true),
@@ -1864,8 +2006,10 @@ export const aiService = {
       model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId, jobDescription },
+      cacheable: true,
+      cacheTtlSeconds: 1800,
       execute: async () => {
-        const result = await ollama.generate({
+        const result = await generateWithDefaultFallback({
           model: ollamaConfig.structuredModel,
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
           system: localizeSystemPrompt(system, effectiveLocale, true),
@@ -1895,8 +2039,10 @@ export const aiService = {
       model: ollamaConfig.structuredModel,
       targetSection: "general",
       input: { cvId, jobDescription },
+      cacheable: true,
+      cacheTtlSeconds: 1800,
       execute: async () => {
-        const result = await ollama.generate({
+        const result = await generateWithDefaultFallback({
           model: ollamaConfig.structuredModel,
           prompt: buildPrompt(cv as unknown as Record<string, unknown>, jobDescription),
           system: localizeSystemPrompt(system, effectiveLocale, true),
@@ -1933,7 +2079,7 @@ export const aiService = {
       targetSection: "github",
       input: { analysisCount: analyses.length },
       execute: async () => {
-        const result = await ollama.generate({
+        const result = await generateWithDefaultFallback({
           prompt: buildPrompt(analyses as unknown as Record<string, unknown>[]),
           system: localizeSystemPrompt(system, locale),
           temperature: 0.6,
@@ -2089,7 +2235,7 @@ export const aiService = {
       temperature: number,
       model: string
     ): Promise<RepoAnalysisAttemptResult> => {
-      const result = await ollama.generate({
+      const result = await generateWithDefaultFallback({
         model,
         prompt,
         system: localizeSystemPrompt(system, locale, true),

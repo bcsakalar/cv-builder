@@ -18,12 +18,29 @@ import { ReferencesSection } from "./sections/ReferencesSection";
 import { HobbiesSection } from "./sections/HobbiesSection";
 import { CustomSectionEditor } from "./sections/CustomSectionEditor";
 import { CVPreview } from "../cv-preview/CVPreview";
-import { ChevronRight, Palette, FileDown, Sparkles } from "lucide-react";
+import { ChevronRight, GripVertical, Palette, FileDown, Sparkles } from "lucide-react";
 import { resolveTemplatePreview, useThemeStore } from "@/stores/theme.store";
 import { useTemplates } from "@/hooks/useTemplates";
-import { useUpdateCV } from "@/hooks/useCV";
+import { useUpdateCV, useUpdateSectionOrder } from "@/hooks/useCV";
 import { useTranslation } from "react-i18next";
 import { getSectionLabelForLocale, getTemplateName } from "@/i18n/helpers";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface CVEditorLayoutProps {
   cv: CVDetail;
@@ -51,8 +68,30 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
   const setActiveTemplate = useThemeStore((s) => s.setActiveTemplate);
   const { data: templates = [] } = useTemplates();
   const updateCV = useUpdateCV(cv.id);
+  const updateOrder = useUpdateSectionOrder(cv.id);
 
   const sectionOrder = (cv.sectionOrder as string[]) || Object.keys(CV_SECTIONS);
+  const [order, setOrder] = useState<string[]>(sectionOrder);
+  useEffect(() => {
+    setOrder(sectionOrder);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cv.id]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = order.indexOf(String(active.id));
+    const newIndex = order.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(order, oldIndex, newIndex);
+    setOrder(next);
+    updateOrder.mutate(next, { onError: () => setOrder(order) });
+  };
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? cv.template;
 
   useEffect(() => {
@@ -85,24 +124,23 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Section nav */}
       <nav className="w-52 shrink-0 overflow-y-auto border-r bg-card p-2">
-        {sectionOrder.map((key) => {
-          const section = CV_SECTIONS[key];
-          if (!section) return null;
-          return (
-            <button
-              key={key}
-              onClick={() => setActiveSection(key)}
-              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
-                activeSection === key
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-accent text-muted-foreground"
-              }`}
-            >
-              <ChevronRight size={14} />
-              {getSectionLabelForLocale(key, cv.locale)}
-            </button>
-          );
-        })}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={order} strategy={verticalListSortingStrategy}>
+            {order.map((key) => {
+              const section = CV_SECTIONS[key];
+              if (!section) return null;
+              return (
+                <SortableSectionItem
+                  key={key}
+                  id={key}
+                  label={getSectionLabelForLocale(key, cv.locale)}
+                  active={activeSection === key}
+                  onSelect={() => setActiveSection(key)}
+                />
+              );
+            })}
+          </SortableContext>
+        </DndContext>
       </nav>
 
       {/* Editor pane */}
@@ -196,6 +234,54 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
         className="absolute right-2 top-20 z-10 rounded-md border bg-card px-2 py-1 text-xs shadow"
       >
         {showPreview ? t("editor.hidePreview") : t("editor.showPreview")} {t("editor.preview")}
+      </button>
+    </div>
+  );
+}
+
+function SortableSectionItem({
+  id,
+  label,
+  active,
+  onSelect,
+}: {
+  id: string;
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-testid={`section-nav-${id}`}
+      className={`mb-1 flex w-full items-center gap-1 rounded-lg pr-2 transition-colors ${
+        active ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground"
+      }`}
+    >
+      <button
+        type="button"
+        aria-label="Drag handle"
+        data-testid={`section-drag-${id}`}
+        className="cursor-grab touch-none px-1 py-2 active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={14} />
+      </button>
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex flex-1 items-center gap-2 px-1 py-2 text-left text-sm"
+      >
+        <ChevronRight size={14} />
+        {label}
       </button>
     </div>
   );

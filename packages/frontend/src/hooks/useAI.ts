@@ -118,8 +118,17 @@ export function useGenerateCoverLetter() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ cvId, jobDescription }: { cvId: string; jobDescription?: string }) =>
-      aiApi.generateCoverLetter(cvId, jobDescription),
+    mutationFn: ({
+      cvId,
+      jobDescription,
+      tone,
+      alternatives,
+    }: {
+      cvId: string;
+      jobDescription?: string;
+      tone?: "formal" | "conversational" | "technical";
+      alternatives?: boolean;
+    }) => aiApi.generateCoverLetter(cvId, jobDescription, { tone, alternatives }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
     },

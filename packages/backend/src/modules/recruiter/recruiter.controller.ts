@@ -46,6 +46,14 @@ export const recruiterController = {
     sendSuccess(res, result, "Candidates retrieved successfully");
   },
 
+  async exportCandidatesCsv(req: Request, res: Response) {
+    const jobId = param(req, "jobId");
+    const csv = await recruiterService.exportCandidatesCsv(currentUserId(req), jobId);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="candidates-${jobId}.csv"`);
+    res.status(200).send(csv);
+  },
+
   async getCandidate(req: Request, res: Response) {
     const candidate = await recruiterService.getCandidate(currentUserId(req), param(req, "candidateId"));
     sendSuccess(res, candidate, "Candidate retrieved successfully");
@@ -54,5 +62,19 @@ export const recruiterController = {
   async reEvaluateCandidate(req: Request, res: Response) {
     const candidate = await recruiterService.reEvaluateCandidate(currentUserId(req), param(req, "candidateId"));
     sendSuccess(res, candidate, "Candidate re-evaluated successfully");
+  },
+
+  async updateCandidateMetadata(req: Request, res: Response) {
+    const candidate = await recruiterService.updateCandidateMetadata(
+      currentUserId(req),
+      param(req, "candidateId"),
+      req.body
+    );
+    sendSuccess(res, candidate, "Candidate metadata updated");
+  },
+
+  async compareCandidates(req: Request, res: Response) {
+    const candidates = await recruiterService.compareCandidates(currentUserId(req), req.body.candidateIds);
+    sendSuccess(res, candidates, "Candidates compared");
   },
 };

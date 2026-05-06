@@ -44,6 +44,22 @@ jest.mock("../../lib/ollama", () => ({
   ollama: {
     generate: (...args: unknown[]) => mockGenerate(...args),
     generateStreaming: (...args: unknown[]) => mockGenerateStreaming(...args),
+    generateWithFallback: async (options: { models: string[]; [key: string]: unknown }) => {
+      const { models, ...rest } = options;
+      let lastError: unknown = new Error("no models");
+      for (const model of models) {
+        try {
+          const response = await mockGenerate({ ...rest, model });
+          if (typeof response === "string" && response.trim()) {
+            return { response, model };
+          }
+          lastError = new Error("empty response");
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError;
+    },
   },
   checkOllamaHealth: () => mockCheckOllamaHealth(),
   checkModelAvailable: () => mockCheckModelAvailable(),

@@ -158,8 +158,13 @@ export interface AITailorResponse extends AITailorResult {
   artifact: AIArtifact<AITailorResult>;
 }
 
+export type AICoverLetterTone = "formal" | "conversational" | "technical";
+
 export interface AICoverLetterResponse {
   coverLetter: string;
+  /** Optional alternative drafts (different angles/openings). Empty when not requested. */
+  alternatives?: string[];
+  tone?: AICoverLetterTone;
   artifact: AIArtifact<string>;
 }
 

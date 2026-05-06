@@ -124,6 +124,8 @@ export interface CandidateProfile {
   completenessScore: number;
   missingFields: string[];
   rawTextSnippet: string;
+  notes: string | null;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
   document: CandidateDocument;

@@ -236,6 +236,15 @@ vi.mock("@/hooks/useRecruiter", () => ({
     mutate: reEvaluateMutate,
     isPending: false,
   }),
+  useUpdateCandidateMetadata: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useCompareCandidates: () => ({
+    mutate: vi.fn(),
+    data: undefined,
+    isPending: false,
+  }),
 }));
 
 describe("RecruiterWorkbench", () => {

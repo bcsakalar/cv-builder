@@ -32,7 +32,10 @@ import {
   useRecruiterCandidates,
   useRecruiterJob,
   useRecruiterJobs,
+  useUpdateCandidateMetadata,
+  useCompareCandidates,
 } from "@/hooks/useRecruiter";
+import { recruiterApi } from "@/services/recruiter.api";
 
 const ACTIVE_BATCH_STATUSES = new Set<RecruiterBatchStatus>(["PENDING", "PROCESSING"]);
 
@@ -167,6 +170,40 @@ export function RecruiterWorkbench() {
     : candidateList[0]?.id ?? "";
   const candidateQuery = useRecruiterCandidate(selectedCandidateId);
   const reEvaluateMutation = useReEvaluateCandidate(selectedCandidateId);
+  const updateMetadataMutation = useUpdateCandidateMetadata(selectedCandidateId);
+  const compareMutation = useCompareCandidates();
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [showCompare, setShowCompare] = useState(false);
+  const [notesDraft, setNotesDraft] = useState<string>("");
+  const [tagsDraft, setTagsDraft] = useState<string>("");
+
+  // sync drafts when candidate changes
+  const candidateId = candidateQuery.data?.id;
+  const lastSyncedRef = useRef<string | null>(null);
+  if (candidateId && candidateId !== lastSyncedRef.current) {
+    lastSyncedRef.current = candidateId;
+    setNotesDraft(candidateQuery.data?.notes ?? "");
+    setTagsDraft((candidateQuery.data?.tags ?? []).join(", "));
+  }
+
+  const toggleCompare = (id: string) => {
+    setCompareIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(-5)));
+  };
+
+  const runCompare = () => {
+    if (compareIds.length >= 2) {
+      compareMutation.mutate(compareIds);
+      setShowCompare(true);
+    }
+  };
+
+  const saveMetadata = () => {
+    const tags = tagsDraft
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    updateMetadataMutation.mutate({ notes: notesDraft.trim() || null, tags });
+  };
 
   const summaryStats = useMemo(() => {
     const detail = jobDetailQuery.data;
@@ -575,11 +612,49 @@ export function RecruiterWorkbench() {
                     count: candidatesQuery.data?.meta.total ?? 0,
                     page: candidatesQuery.data?.meta.page ?? 1,
                   })}
+                  actions={
+                    selectedJobId && (candidatesQuery.data?.meta.total ?? 0) > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          data-testid="recruiter-compare-open"
+                          onClick={runCompare}
+                          disabled={compareIds.length < 2 || compareMutation.isPending}
+                          className="rounded-md border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                        >
+                          {t("recruiter.actions.compare", "Compare")} ({compareIds.length})
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="recruiter-export-csv"
+                          onClick={async () => {
+                          try {
+                            const blob = await recruiterApi.exportCandidatesCsv(selectedJobId);
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `candidates-${selectedJobId}.csv`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                          } catch {
+                            // toast handled by axios interceptor
+                          }
+                        }}
+                        className="rounded-md border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-muted"
+                      >
+                        {t("recruiter.actions.exportCsv", "Export CSV")}
+                      </button>
+                      </div>
+                    ) : null
+                  }
                 >
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y text-sm">
                       <thead>
                         <tr className="text-left text-muted-foreground">
+                          <th className="pb-3 pr-2 font-medium w-8"></th>
                           <th className="pb-3 pr-4 font-medium">{t("recruiter.table.candidate")}</th>
                           <th className="pb-3 pr-4 font-medium">{t("recruiter.table.score")}</th>
                           <th className="pb-3 pr-4 font-medium">{t("recruiter.table.skills")}</th>
@@ -596,6 +671,15 @@ export function RecruiterWorkbench() {
                               selectedCandidateId === item.id ? "bg-primary/5" : ""
                             }`}
                           >
+                            <td className="py-3 pr-2" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                data-testid={`recruiter-compare-${item.id}`}
+                                checked={compareIds.includes(item.id)}
+                                onChange={() => toggleCompare(item.id)}
+                                aria-label="Select for compare"
+                              />
+                            </td>
                             <td className="py-3 pr-4">
                               <div>
                                 <p className="font-medium">{item.fullName || t("recruiter.common.unknownCandidate")}</p>
@@ -882,6 +966,48 @@ export function RecruiterWorkbench() {
                             {candidate.rawTextSnippet}
                           </pre>
                         </div>
+
+                        <div className="rounded-2xl border p-4 space-y-3" data-testid="recruiter-notes-section">
+                          <p className="text-sm font-medium">{t("recruiter.notes.title", "Notes & Tags")}</p>
+                          <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">{t("recruiter.notes.tagsLabel", "Tags (comma separated)")}</label>
+                            <input
+                              type="text"
+                              data-testid="recruiter-tags-input"
+                              value={tagsDraft}
+                              onChange={(e) => setTagsDraft(e.target.value)}
+                              placeholder="senior, react, remote"
+                              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              {(candidate.tags ?? []).map((tag) => (
+                                <Chip key={tag} tone="success">{tag}</Chip>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">{t("recruiter.notes.notesLabel", "Notes")}</label>
+                            <textarea
+                              data-testid="recruiter-notes-input"
+                              value={notesDraft}
+                              onChange={(e) => setNotesDraft(e.target.value)}
+                              rows={4}
+                              placeholder={t("recruiter.notes.placeholder", "Internal notes about this candidate...")}
+                              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            data-testid="recruiter-save-metadata"
+                            onClick={saveMetadata}
+                            disabled={updateMetadataMutation.isPending}
+                            className="inline-flex items-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                          >
+                            {updateMetadataMutation.isPending
+                              ? t("recruiter.notes.saving", "Saving...")
+                              : t("recruiter.notes.save", "Save notes & tags")}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -954,6 +1080,62 @@ export function RecruiterWorkbench() {
           )}
         </div>
       </div>
+      {showCompare && compareMutation.data && compareMutation.data.length > 0 ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          data-testid="recruiter-comparison-modal"
+          onClick={() => setShowCompare(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-6xl overflow-auto rounded-2xl bg-background p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">{t("recruiter.compare.title", "Candidate comparison")}</h3>
+              <button
+                type="button"
+                onClick={() => setShowCompare(false)}
+                className="rounded-md border px-3 py-1 text-sm hover:bg-muted"
+                data-testid="recruiter-comparison-close"
+              >
+                {t("common.close", "Close")}
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Field</th>
+                    {compareMutation.data.map((c) => (
+                      <th key={c.id} className="pb-2 pr-4 font-medium">{c.fullName || c.email || c.id.slice(0, 8)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {[
+                    { label: "Overall", get: (c: typeof compareMutation.data[number]) => c.evaluation?.overallScore ?? "—" },
+                    { label: "Must-have", get: (c: typeof compareMutation.data[number]) => c.evaluation?.mustHaveScore ?? "—" },
+                    { label: "Keywords", get: (c: typeof compareMutation.data[number]) => c.evaluation?.keywordScore ?? "—" },
+                    { label: "Experience", get: (c: typeof compareMutation.data[number]) => c.evaluation?.experienceScore ?? "—" },
+                    { label: "Readability", get: (c: typeof compareMutation.data[number]) => c.evaluation?.readabilityScore ?? "—" },
+                    { label: "Recommendation", get: (c: typeof compareMutation.data[number]) => c.evaluation?.recommendation ?? "—" },
+                    { label: "Years exp.", get: (c: typeof compareMutation.data[number]) => c.yearsOfExperience ?? "—" },
+                    { label: "Tags", get: (c: typeof compareMutation.data[number]) => (c.tags ?? []).join(", ") || "—" },
+                    { label: "Notes", get: (c: typeof compareMutation.data[number]) => c.notes ?? "—" },
+                  ].map((row) => (
+                    <tr key={row.label}>
+                      <td className="py-2 pr-4 font-medium">{row.label}</td>
+                      {compareMutation.data!.map((c) => (
+                        <td key={c.id} className="py-2 pr-4">{String(row.get(c))}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

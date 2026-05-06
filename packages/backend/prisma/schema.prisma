@@ -680,6 +680,8 @@ model CandidateProfile {
   completenessScore Int      @default(0) @map("completeness_score")
   missingFields     Json     @default("[]") @map("missing_fields")
   rawTextSnippet    String   @map("raw_text_snippet") @db.Text
+  notes             String?  @db.Text
+  tags              String[] @default([])
   jobId             String   @map("job_id") @db.Uuid
   batchId           String   @map("batch_id") @db.Uuid
   documentId        String   @unique @map("document_id") @db.Uuid

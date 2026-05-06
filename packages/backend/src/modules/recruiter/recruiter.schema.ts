@@ -68,6 +68,17 @@ export const reEvaluateCandidateSchema = z.object({
   force: z.boolean().default(true),
 });
 
+export const updateCandidateMetadataSchema = z.object({
+  notes: z.preprocess(emptyStringToNull, z.string().trim().max(5000).nullable().optional()),
+  tags: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
+});
+
+export const compareCandidatesSchema = z.object({
+  candidateIds: z.array(z.string().uuid()).min(2).max(5),
+});
+
 export type CreateRecruiterJobInput = z.infer<typeof createRecruiterJobSchema>;
 export type RecruiterCandidateFiltersInput = z.infer<typeof recruiterCandidateFiltersSchema>;
 export type ReEvaluateCandidateInput = z.infer<typeof reEvaluateCandidateSchema>;
+export type UpdateCandidateMetadataInput = z.infer<typeof updateCandidateMetadataSchema>;
+export type CompareCandidatesInput = z.infer<typeof compareCandidatesSchema>;

@@ -71,7 +71,7 @@ services:
       - "3001:3001"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: sh -lc "cd /app/packages/backend && npx prisma generate && cd /app && npx tsx watch packages/backend/src/server.ts"
+    command: sh -lc "cd /app/packages/backend && npx prisma generate && npx prisma db push --accept-data-loss --skip-generate && cd /app && npx tsx watch packages/backend/src/server.ts"
     volumes:
       - ./packages/backend/src:/app/packages/backend/src
       - ./packages/backend/prisma:/app/packages/backend/prisma
@@ -95,7 +95,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:3001/api
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./packages/frontend/src:/app/packages/frontend/src
       - ./packages/frontend/index.html:/app/packages/frontend/index.html

@@ -91,6 +91,13 @@ vi.mock("@/hooks/useAI", () => ({
     mutate: summaryMutate,
     reset: vi.fn(),
   }),
+  useStreamingSummary: () => ({
+    text: "",
+    isStreaming: false,
+    error: null,
+    startStream: vi.fn(),
+    reset: vi.fn(),
+  }),
   useSuggestSkills: () => createIdleMutation(),
   useATSCheck: () => createIdleMutation(atsData),
   useGenerateCoverLetter: () => createIdleMutation(),

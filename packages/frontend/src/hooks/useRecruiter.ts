@@ -109,3 +109,23 @@ export function useReEvaluateCandidate(candidateId: string) {
     onError: (error) => toast.error(error.message),
   });
 }
+
+export function useUpdateCandidateMetadata(candidateId: string) {
+  const qc = useQueryClient();
+  return useMutation<CandidateProfile, Error, { notes?: string | null; tags?: string[] }>({
+    mutationFn: (data) => recruiterApi.updateCandidateMetadata(candidateId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: recruiterKeys.all });
+      qc.invalidateQueries({ queryKey: recruiterKeys.candidate(candidateId) });
+      toast.success(translate("toasts.recruiter.candidateUpdated", { defaultValue: "Candidate updated" }));
+    },
+    onError: (error) => toast.error(error.message),
+  });
+}
+
+export function useCompareCandidates() {
+  return useMutation<CandidateProfile[], Error, string[]>({
+    mutationFn: (ids) => recruiterApi.compareCandidates(ids),
+    onError: (error) => toast.error(error.message),
+  });
+}

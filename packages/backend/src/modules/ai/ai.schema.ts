@@ -39,8 +39,12 @@ export const improveProjectBodySchema = z.object({
   technologies: z.array(z.string().trim()).default([]),
 });
 
+export const coverLetterToneSchema = z.enum(["formal", "conversational", "technical"]);
+
 export const coverLetterBodySchema = z.object({
   jobDescription: z.string().trim().min(1).optional(),
+  tone: coverLetterToneSchema.optional().default("formal"),
+  alternatives: z.coerce.boolean().optional().default(false),
 });
 
 export const atsCheckBodySchema = z.object({

@@ -375,4 +375,22 @@ export const recruiterRepository = {
       where: buildCandidateWhere(userId, jobId, filters),
     });
   },
+
+  async updateCandidateMetadata(candidateId: string, userId: string, data: { notes?: string | null; tags?: string[] }) {
+    return prisma.candidateProfile.update({
+      where: { id: candidateId, userId },
+      data: {
+        ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        ...(data.tags !== undefined ? { tags: data.tags } : {}),
+      },
+      include: CANDIDATE_DETAIL_INCLUDE,
+    });
+  },
+
+  async listCandidatesByIds(userId: string, ids: string[]) {
+    return prisma.candidateProfile.findMany({
+      where: { userId, id: { in: ids } },
+      include: CANDIDATE_DETAIL_INCLUDE,
+    });
+  },
 };
