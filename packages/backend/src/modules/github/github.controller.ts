@@ -45,7 +45,8 @@ export const githubController = {
   },
 
   async oauthAuthorize(req: Request, res: Response) {
-    const result = await githubService.getOAuthAuthorizeUrl(currentUserId(req));
+    const requestOrigin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+    const result = await githubService.getOAuthAuthorizeUrl(currentUserId(req), requestOrigin);
     sendSuccess(res, result);
   },
 
@@ -60,8 +61,11 @@ export const githubController = {
       logger.warn("GitHub OAuth callback failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      const message = encodeURIComponent(error instanceof Error ? error.message : "GitHub OAuth failed");
-      res.redirect(302, `${env.CORS_ORIGIN.replace(/\/$/, "")}/github?github_oauth=error&message=${message}`);
+      const redirectUrl = await githubService.getOAuthErrorRedirectUrl(
+        state,
+        error instanceof Error ? error.message : "GitHub OAuth failed"
+      );
+      res.redirect(302, redirectUrl);
     }
   },
 

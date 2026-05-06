@@ -17,6 +17,7 @@ import { encrypt, decrypt } from "../../utils/helpers";
 import { logger } from "../../lib/logger";
 import { getQueue, QUEUE_NAMES } from "../../lib/queue";
 import { cacheDelete, cacheGet, cacheSet } from "../../lib/redis";
+import { getPrimaryFrontendOrigin, isAllowedCorsOrigin, normalizeOrigin } from "../../config/cors";
 import { env } from "../../config/env";
 import { attachImpactAnalysis, buildQuickRepoRecommendation } from "./github.scoring";
 import crypto from "node:crypto";
@@ -417,6 +418,30 @@ function oauthStateKey(state: string): string {
   return `github-oauth:${state}`;
 }
 
+type GitHubOAuthStatePayload = {
+  userId: string;
+  origin?: string;
+};
+
+function buildGitHubOAuthRedirectUrl(origin: string, status: "success" | "error", message?: string): string {
+  const url = new URL("/github", `${origin}/`);
+  url.searchParams.set("github_oauth", status);
+
+  if (message) {
+    url.searchParams.set("message", message);
+  }
+
+  return url.toString();
+}
+
+async function getOAuthStatePayload(state: string): Promise<GitHubOAuthStatePayload | null> {
+  return cacheGet<GitHubOAuthStatePayload>(oauthStateKey(state));
+}
+
+function resolveFrontendOrigin(preferredOrigin?: string): string {
+  return getPrimaryFrontendOrigin(env, preferredOrigin);
+}
+
 function ensureGitHubOAuthConfigured() {
   if (!env.GITHUB_OAUTH_CLIENT_ID || !env.GITHUB_OAUTH_CLIENT_SECRET || !env.GITHUB_OAUTH_REDIRECT_URI) {
     throw ApiError.badRequest("GitHub OAuth is not configured for this environment");
@@ -508,10 +533,14 @@ export const githubService = {
     });
   },
 
-  async getOAuthAuthorizeUrl(userId: string) {
+  async getOAuthAuthorizeUrl(userId: string, requestOrigin?: string) {
     const { clientId, redirectUri } = ensureGitHubOAuthConfigured();
     const state = crypto.randomBytes(24).toString("hex");
-    await cacheSet(oauthStateKey(state), { userId }, GITHUB_OAUTH_STATE_TTL_SECONDS);
+    const origin = requestOrigin && isAllowedCorsOrigin(requestOrigin, env)
+      ? normalizeOrigin(requestOrigin)
+      : undefined;
+
+    await cacheSet(oauthStateKey(state), { userId, origin }, GITHUB_OAUTH_STATE_TTL_SECONDS);
 
     const authUrl = new URL("https://github.com/login/oauth/authorize");
     authUrl.searchParams.set("client_id", clientId);
@@ -528,7 +557,7 @@ export const githubService = {
       throw ApiError.badRequest("Missing GitHub OAuth callback parameters");
     }
 
-    const statePayload = await cacheGet<{ userId: string }>(oauthStateKey(state));
+    const statePayload = await getOAuthStatePayload(state);
     if (!statePayload?.userId) {
       throw ApiError.badRequest("GitHub OAuth session expired or is invalid");
     }
@@ -565,7 +594,17 @@ export const githubService = {
 
     await cacheDelete(oauthStateKey(state));
 
-    return `${env.CORS_ORIGIN.replace(/\/$/, "")}/github?github_oauth=success`;
+    return buildGitHubOAuthRedirectUrl(resolveFrontendOrigin(statePayload.origin), "success");
+  },
+
+  async getOAuthErrorRedirectUrl(state?: string, message = "GitHub OAuth failed") {
+    const statePayload = state ? await getOAuthStatePayload(state) : null;
+
+    if (state) {
+      await cacheDelete(oauthStateKey(state));
+    }
+
+    return buildGitHubOAuthRedirectUrl(resolveFrontendOrigin(statePayload?.origin), "error", message);
   },
 
   async getRepos(userId: string, page = 1, perPage = 30, cvId?: string) {

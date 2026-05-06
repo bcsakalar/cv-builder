@@ -40,6 +40,7 @@ jest.mock("../../utils/helpers", () => ({
 
 jest.mock("../../config/env", () => ({
   env: {
+    NODE_ENV: "development",
     ENCRYPTION_KEY: "0".repeat(64),
     CORS_ORIGIN: "http://localhost:5173",
     GITHUB_OAUTH_CLIENT_ID: "github-client-id",
@@ -289,6 +290,16 @@ describe("githubService", () => {
       expect(mockCacheSet).toHaveBeenCalledWith(expect.stringContaining("github-oauth:"), { userId: USER_ID }, 600);
     });
 
+    it("stores the requesting frontend origin with the oauth state when provided", async () => {
+      await githubService.getOAuthAuthorizeUrl(USER_ID, "http://localhost:5174/");
+
+      expect(mockCacheSet).toHaveBeenCalledWith(
+        expect.stringContaining("github-oauth:"),
+        { userId: USER_ID, origin: "http://localhost:5174" },
+        600
+      );
+    });
+
     it("exchanges callback code for a token and redirects to the frontend", async () => {
       mockCacheGet.mockResolvedValue({ userId: USER_ID });
       mockFetch
@@ -310,6 +321,24 @@ describe("githubService", () => {
       });
       expect(mockCacheDelete).toHaveBeenCalledWith("github-oauth:state-123");
       expect(redirectUrl).toBe("http://localhost:5173/github?github_oauth=success");
+    });
+
+    it("redirects GitHub OAuth callbacks back to the originating frontend when available", async () => {
+      mockCacheGet.mockResolvedValue({ userId: USER_ID, origin: "http://localhost:5174" });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ access_token: "gho_live_token" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ login: "oauth-user", avatar_url: "url", name: "OAuth User" }),
+        });
+      mockUser.update.mockResolvedValue({ githubUsername: "oauth-user" });
+
+      const redirectUrl = await githubService.completeOAuthCallback("code-123", "state-123");
+
+      expect(redirectUrl).toBe("http://localhost:5174/github?github_oauth=success");
     });
   });
 
