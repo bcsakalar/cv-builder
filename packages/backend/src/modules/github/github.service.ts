@@ -62,11 +62,16 @@ function uniqueStrings(values: Array<string | null | undefined>, limit = Number.
   return result;
 }
 
-function formatHumanList(values: string[]): string {
+function formatHumanList(values: string[], locale: string = "en"): string {
   if (values.length === 0) return "";
   if (values.length === 1) return values[0]!;
-  if (values.length === 2) return `${values[0]} and ${values[1]}`;
-  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
+  const conjunction = locale === "tr" ? "ve" : "and";
+  if (values.length === 2) return `${values[0]} ${conjunction} ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")} ${conjunction} ${values.at(-1)}`;
+}
+
+function resolveResultLocale(result: DeepAnalysisResult): "en" | "tr" {
+  return result.analysisLocale === "tr" ? "tr" : "en";
 }
 
 function normalizeProjectDate(value: string | null | undefined): string | null {
@@ -117,53 +122,76 @@ function buildProjectDescription(result: DeepAnalysisResult): string {
     return preferred;
   }
 
+  const locale = resolveResultLocale(result);
+  const isTr = locale === "tr";
   const projectType = result.fileTree?.projectType ?? "unknown";
   const stackItems = buildTechnologyList(result).slice(0, 5);
-  const stack = formatHumanList(stackItems);
+  const stack = formatHumanList(stackItems, locale);
   const qualitySignals = uniqueStrings([
     result.codeQuality?.hasTypeScript ? "TypeScript" : null,
-    result.codeQuality?.hasTests ? "automated tests" : null,
-    result.codeQuality?.hasCI ? "CI/CD workflows" : null,
-    result.codeQuality?.hasDocker ? "Dockerized deployment" : null,
+    result.codeQuality?.hasTests ? (isTr ? "otomatik testler" : "automated tests") : null,
+    result.codeQuality?.hasCI ? (isTr ? "CI/CD süreçleri" : "CI/CD workflows") : null,
+    result.codeQuality?.hasDocker ? (isTr ? "Docker tabanlı dağıtım" : "Dockerized deployment") : null,
   ], 3);
-  const typeLabel = projectType === "unknown" ? "software" : projectType;
+  const typeLabel = isTr
+    ? (projectType === "unknown" ? "yazılım" : projectType === "fullstack" ? "tam yığın" : projectType === "monorepo" ? "monorepo" : projectType === "frontend" ? "ön yüz" : projectType === "backend" ? "arka uç" : projectType === "mobile" ? "mobil" : projectType === "library" ? "kütüphane" : projectType === "cli" ? "CLI" : projectType)
+    : (projectType === "unknown" ? "software" : projectType);
 
   if (hasText(stack)) {
-    return `Built a ${typeLabel} project using ${stack}. ${qualitySignals.length > 0 ? `Backed delivery with ${formatHumanList(qualitySignals)}.` : "Structured the repository with a maintainable, production-oriented engineering workflow."}`;
+    if (isTr) {
+      return `${stack} kullanılarak geliştirilen bir ${typeLabel} projesi. ${qualitySignals.length > 0 ? `Teslimat ${formatHumanList(qualitySignals, locale)} ile destekleniyor.` : "Depo, üretim odaklı, sürdürülebilir bir mühendislik akışıyla yapılandırıldı."}`;
+    }
+    return `Built a ${typeLabel} project using ${stack}. ${qualitySignals.length > 0 ? `Backed delivery with ${formatHumanList(qualitySignals, locale)}.` : "Structured the repository with a maintainable, production-oriented engineering workflow."}`;
   }
 
-  return `Built a ${typeLabel} project with a production-focused engineering setup and maintainable delivery workflow.`;
+  return isTr
+    ? `Üretim odaklı mühendislik kurulumu ve sürdürülebilir teslimat akışı ile geliştirilen bir ${typeLabel} projesi.`
+    : `Built a ${typeLabel} project with a production-focused engineering setup and maintainable delivery workflow.`;
 }
 
-function buildArchitectureHighlight(projectType: GitHubProjectType): string | null {
+function buildArchitectureHighlight(projectType: GitHubProjectType, locale: "en" | "tr" = "en"): string | null {
+  const isTr = locale === "tr";
   if (projectType === "fullstack") {
-    return "Structured as a full-stack codebase with clear frontend, API, and shared-service boundaries.";
+    return isTr
+      ? "Net ön yüz, API ve paylaşılan servis sınırları olan tam yığın bir kod tabanı olarak yapılandırıldı."
+      : "Structured as a full-stack codebase with clear frontend, API, and shared-service boundaries.";
   }
   if (projectType === "monorepo") {
-    return "Organized as a monorepo with separate applications and shared package boundaries.";
+    return isTr
+      ? "Ayrı uygulamalar ve paylaşılan paket sınırlarına sahip bir monorepo olarak organize edildi."
+      : "Organized as a monorepo with separate applications and shared package boundaries.";
   }
   if (projectType === "frontend") {
-    return "Frontend architecture emphasizes reusable UI structure, routing, and state-driven flows.";
+    return isTr
+      ? "Ön yüz mimarisi yeniden kullanılabilir UI yapısı, yönlendirme ve state odaklı akışları öne çıkarıyor."
+      : "Frontend architecture emphasizes reusable UI structure, routing, and state-driven flows.";
   }
   if (projectType === "backend") {
-    return "Backend architecture separates API, data access, and deployment concerns cleanly.";
+    return isTr
+      ? "Arka uç mimarisi API, veri erişim ve dağıtım kaygılarını net biçimde ayırıyor."
+      : "Backend architecture separates API, data access, and deployment concerns cleanly.";
   }
   if (projectType === "mobile") {
-    return "Mobile-oriented repository includes platform-specific structure and shared application logic.";
+    return isTr
+      ? "Mobil odaklı depo, platforma özgü yapı ve paylaşılan uygulama mantığı içeriyor."
+      : "Mobile-oriented repository includes platform-specific structure and shared application logic.";
   }
   if (projectType === "library" || projectType === "cli") {
-    return "Reusable tooling structure keeps commands and modules isolated for maintainability.";
+    return isTr
+      ? "Yeniden kullanılabilir araç yapısı, komutları ve modülleri sürdürülebilirlik için izole tutuyor."
+      : "Reusable tooling structure keeps commands and modules isolated for maintainability.";
   }
 
   return null;
 }
 
-function buildQualityHighlight(result: DeepAnalysisResult): string | null {
+function buildQualityHighlight(result: DeepAnalysisResult, locale: "en" | "tr" = "en"): string | null {
+  const isTr = locale === "tr";
   const quality = result.codeQuality;
   const signals = uniqueStrings([
-    quality?.hasTests ? "automated tests" : null,
-    quality?.hasCI ? "CI/CD workflows" : null,
-    quality?.hasDocker ? "containerized deployment" : null,
+    quality?.hasTests ? (isTr ? "otomatik testler" : "automated tests") : null,
+    quality?.hasCI ? (isTr ? "CI/CD süreçleri" : "CI/CD workflows") : null,
+    quality?.hasDocker ? (isTr ? "konteyner tabanlı dağıtım" : "containerized deployment") : null,
     quality?.hasTypeScript ? "TypeScript" : null,
   ]);
 
@@ -171,40 +199,49 @@ function buildQualityHighlight(result: DeepAnalysisResult): string | null {
     return null;
   }
 
+  if (isTr) {
+    if (signals.length === 1) return `Mühendislik kurulumu ${signals[0]} içeriyor.`;
+    return `Teslimat kalitesi ${formatHumanList(signals, locale)} ile pekiştirildi.`;
+  }
+
   if (signals.length === 1) {
     return `Engineering setup includes ${signals[0]}.`;
   }
-
-  if (signals.length === 2) {
-    return `Reinforced delivery quality with ${signals[0]} and ${signals[1]}.`;
-  }
-
-  return `Reinforced delivery quality with ${signals.slice(0, -1).join(", ")}, and ${signals.at(-1)}.`;
+  return `Reinforced delivery quality with ${formatHumanList(signals, locale)}.`;
 }
 
-function buildStackHighlight(result: DeepAnalysisResult): string | null {
+function buildStackHighlight(result: DeepAnalysisResult, locale: "en" | "tr" = "en"): string | null {
   const stack = buildTechnologyList(result).slice(0, 5);
   if (stack.length === 0) {
     return null;
   }
 
-  return `Implemented core capabilities with ${formatHumanList(stack)}.`;
+  return locale === "tr"
+    ? `Çekirdek yetenekler ${formatHumanList(stack, locale)} ile hayata geçirildi.`
+    : `Implemented core capabilities with ${formatHumanList(stack, locale)}.`;
 }
 
-function buildActivityHighlight(result: DeepAnalysisResult): string | null {
+function buildActivityHighlight(result: DeepAnalysisResult, locale: "en" | "tr" = "en"): string | null {
+  const isTr = locale === "tr";
   const recentActivity = result.commitAnalytics?.recentActivityCount ?? 0;
   const contributors = result.contributors?.length ?? 0;
 
   if (recentActivity > 0 && contributors > 1) {
-    return `Sustained active delivery across ${contributors} contributors with ${recentActivity} recent commits.`;
+    return isTr
+      ? `${contributors} katkıda bulunan ile son dönemde ${recentActivity} commit'lik aktif teslimat sürdürüldü.`
+      : `Sustained active delivery across ${contributors} contributors with ${recentActivity} recent commits.`;
   }
 
   if (recentActivity > 0) {
-    return `Sustained active delivery with ${recentActivity} recent commits.`;
+    return isTr
+      ? `Son dönemde ${recentActivity} commit ile aktif teslimat sürdürüldü.`
+      : `Sustained active delivery with ${recentActivity} recent commits.`;
   }
 
   if (contributors > 1) {
-    return `Collaborated across ${contributors} contributors on the repository's evolution.`;
+    return isTr
+      ? `${contributors} katkıda bulunanla deponun gelişimi üzerinde iş birliği yapıldı.`
+      : `Collaborated across ${contributors} contributors on the repository's evolution.`;
   }
 
   return null;
@@ -229,16 +266,17 @@ function buildHighlights(result: DeepAnalysisResult): string[] {
     .filter((value): value is string => value !== null)
     .slice(0, 3);
   const projectType = result.fileTree?.projectType ?? "unknown";
+  const locale = resolveResultLocale(result);
 
   return uniqueStrings(
     [
       ...aiHighlights,
       ...aiStrengths,
       buildImpactSignalHighlight(result),
-      buildStackHighlight(result),
-      buildArchitectureHighlight(projectType),
-      buildQualityHighlight(result),
-      buildActivityHighlight(result),
+      buildStackHighlight(result, locale),
+      buildArchitectureHighlight(projectType, locale),
+      buildQualityHighlight(result, locale),
+      buildActivityHighlight(result, locale),
     ],
     MAX_IMPORT_HIGHLIGHTS
   );
@@ -297,7 +335,7 @@ function buildImportDraft(result: DeepAnalysisResult): GitHubProjectImportDraft 
     name: result.name ?? result.repoFullName,
     description: buildProjectDescription(result),
     role: null,
-    technologies: [],
+    technologies: buildTechnologyList(result),
     url: repoUrl,
     githubUrl: repoUrl,
     startDate: normalizeProjectDate(result.createdAt) ?? new Date().toISOString().slice(0, 7),

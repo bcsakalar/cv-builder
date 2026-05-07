@@ -977,7 +977,7 @@ function uniqueInsightItems(
   return result;
 }
 
-function formatHumanList(values: string[]): string {
+function formatHumanList(values: string[], locale: string = "en"): string {
   if (values.length === 0) {
     return "";
   }
@@ -986,11 +986,13 @@ function formatHumanList(values: string[]): string {
     return values[0]!;
   }
 
+  const conjunction = locale === "tr" ? "ve" : "and";
+
   if (values.length === 2) {
-    return `${values[0]} and ${values[1]}`;
+    return `${values[0]} ${conjunction} ${values[1]}`;
   }
 
-  return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
+  return `${values.slice(0, -1).join(", ")} ${conjunction} ${values.at(-1)}`;
 }
 
 function mapRepoSkillLabel(value: string): string | null {
@@ -1019,7 +1021,28 @@ function repoSourceContains(repoData: DeepRepoAnalysisInput, pattern: RegExp): b
   return repoData.sourceSnippets.some((snippet) => pattern.test(`${snippet.path}\n${snippet.content}`));
 }
 
-function buildRepoTypeLabel(projectType: string): string {
+function buildRepoTypeLabel(projectType: string, locale: string = "en"): string {
+  if (locale === "tr") {
+    switch (projectType) {
+      case "fullstack":
+        return "tam yığın uygulama";
+      case "monorepo":
+        return "çok paketli mühendislik platformu";
+      case "frontend":
+        return "ön yüz ürün uygulaması";
+      case "backend":
+        return "arka uç servis platformu";
+      case "library":
+        return "yeniden kullanılabilir kütüphane";
+      case "cli":
+        return "geliştirici aracı projesi";
+      case "mobile":
+        return "mobil uygulama";
+      default:
+        return "yazılım sistemi";
+    }
+  }
+
   switch (projectType) {
     case "fullstack":
       return "full-stack application";
@@ -1075,14 +1098,15 @@ function buildRepoTechnologyList(repoData: DeepRepoAnalysisInput, limit = 10): s
   );
 }
 
-function buildRepoQualitySignals(repoData: DeepRepoAnalysisInput): string[] {
+function buildRepoQualitySignals(repoData: DeepRepoAnalysisInput, locale: string = "en"): string[] {
+  const isTr = locale === "tr";
   return uniqueInsightItems(
     [
       repoData.hasTypeScript ? "TypeScript" : null,
-      repoData.hasTests ? "automated tests" : null,
-      repoData.hasCI ? "CI/CD workflows" : null,
-      repoData.hasDocker ? "Dockerized environments" : null,
-      repoData.readmeContent ? "technical documentation" : null,
+      repoData.hasTests ? (isTr ? "otomatik testler" : "automated tests") : null,
+      repoData.hasCI ? (isTr ? "CI/CD iş akışları" : "CI/CD workflows") : null,
+      repoData.hasDocker ? (isTr ? "Docker tabanlı ortamlar" : "Dockerized environments") : null,
+      repoData.readmeContent ? (isTr ? "teknik dokümantasyon" : "technical documentation") : null,
     ],
     5,
     { minLength: 4, maxLength: 40 }
@@ -1116,120 +1140,211 @@ function inferRepoComplexity(repoData: DeepRepoAnalysisInput): GitHubComplexityL
   return "simple";
 }
 
-function buildFallbackRepoAnalysis(repoData: DeepRepoAnalysisInput): DeepRepoAnalysisOutput {
+function buildFallbackRepoAnalysis(repoData: DeepRepoAnalysisInput, locale: string = "en"): DeepRepoAnalysisOutput {
+  const isTr = locale === "tr";
   const technologies = buildRepoTechnologyList(repoData, 12);
   const stack = technologies.slice(0, 4);
-  const qualitySignals = buildRepoQualitySignals(repoData);
-  const projectTypeLabel = buildRepoTypeLabel(repoData.fileTree.projectType);
+  const qualitySignals = buildRepoQualitySignals(repoData, locale);
+  const projectTypeLabel = buildRepoTypeLabel(repoData.fileTree.projectType, locale);
   const directories = repoData.fileTree.keyDirectories.slice(0, 4);
   const configFiles = repoData.fileTree.configFiles.slice(0, 5);
   const complexityLevel = inferRepoComplexity(repoData);
+  const stackList = formatHumanList(stack.length > 0 ? stack : technologies.slice(0, 3), locale);
+  const qualityList = formatHumanList(qualitySignals, locale);
+  const dirList = formatHumanList(directories, locale);
+  const configList = formatHumanList(configFiles, locale);
+  const description = normalizeInsightText(repoData.description);
 
-  const projectSummary = normalizeInsightText(repoData.description)
-    ? `${repoData.name} is a ${projectTypeLabel} focused on ${normalizeInsightText(repoData.description)}. Repository evidence points to a concrete implementation stack spanning ${formatHumanList(stack.length > 0 ? stack : technologies.slice(0, 3)) || "multiple production-oriented technologies"}. ${qualitySignals.length > 0 ? `Engineering maturity is reinforced by ${formatHumanList(qualitySignals)}.` : "The structure suggests deliberate engineering practices rather than a lightweight scaffold."}`
-    : `${repoData.name} is a ${projectTypeLabel} built around ${formatHumanList(stack.length > 0 ? stack : technologies.slice(0, 3)) || "a modern application stack"}. ${qualitySignals.length > 0 ? `Engineering maturity is reinforced by ${formatHumanList(qualitySignals)}.` : "Repository structure suggests deliberate engineering practices rather than a lightweight scaffold."}`;
+  const projectSummary = isTr
+    ? (description
+        ? `${repoData.name}, ${description} odaklı bir ${projectTypeLabel}. Depo kanıtları ${stackList || "birden fazla üretim odaklı teknoloji"} üzerine kurulu somut bir uygulama yığınına işaret ediyor. ${qualitySignals.length > 0 ? `Mühendislik olgunluğu ${qualityList} ile pekiştiriliyor.` : "Yapı, hafif bir iskeletten ziyade bilinçli mühendislik pratiklerine işaret ediyor."}`
+        : `${repoData.name}, ${stackList || "modern bir uygulama yığını"} üzerine kurulu bir ${projectTypeLabel}. ${qualitySignals.length > 0 ? `Mühendislik olgunluğu ${qualityList} ile pekiştiriliyor.` : "Depo yapısı, hafif bir iskeletten ziyade bilinçli mühendislik pratiklerine işaret ediyor."}`)
+    : (description
+        ? `${repoData.name} is a ${projectTypeLabel} focused on ${description}. Repository evidence points to a concrete implementation stack spanning ${stackList || "multiple production-oriented technologies"}. ${qualitySignals.length > 0 ? `Engineering maturity is reinforced by ${qualityList}.` : "The structure suggests deliberate engineering practices rather than a lightweight scaffold."}`
+        : `${repoData.name} is a ${projectTypeLabel} built around ${stackList || "a modern application stack"}. ${qualitySignals.length > 0 ? `Engineering maturity is reinforced by ${qualityList}.` : "Repository structure suggests deliberate engineering practices rather than a lightweight scaffold."}`);
 
-  const architectureAnalysis = [
-    `The repository spans ${repoData.fileTree.totalFiles} files across ${repoData.fileTree.totalDirectories} directories and reads like a ${projectTypeLabel} rather than a toy project.`,
-    directories.length > 0
-      ? `Key directories such as ${formatHumanList(directories)} indicate intentional separation of concerns and clearer ownership boundaries.`
-      : `Directory layout suggests deliberate separation of product, platform, and support concerns.`,
-    configFiles.length > 0
-      ? `Operational tooling is visible through ${formatHumanList(configFiles)}, which signals attention to build, lint, test, or deployment workflows.`
-      : null,
-    repoData.sourceSnippets.length > 0
-      ? `Selected source files show that the implementation is anchored in real application modules instead of placeholder boilerplate.`
-      : null,
-  ].filter(Boolean).join(" ");
+  const architectureAnalysis = isTr
+    ? [
+        `Depo, ${repoData.fileTree.totalDirectories} dizin içinde ${repoData.fileTree.totalFiles} dosyaya yayılıyor ve oyuncak bir projeden çok bir ${projectTypeLabel} havası veriyor.`,
+        directories.length > 0
+          ? `${dirList} gibi temel dizinler, sorumlulukların bilinçli ayrıldığını ve sahiplik sınırlarının netleştirildiğini gösteriyor.`
+          : `Dizin düzeni; ürün, platform ve destek katmanlarının bilinçli ayrıldığına işaret ediyor.`,
+        configFiles.length > 0
+          ? `${configList} dosyaları aracılığıyla operasyonel araçların görünür olması; build, lint, test ve dağıtım iş akışlarına önem verildiğini gösteriyor.`
+          : null,
+        repoData.sourceSnippets.length > 0
+          ? `Seçili kaynak dosyalar, uygulamanın yer tutucu yerine gerçek modüllere yaslandığını gösteriyor.`
+          : null,
+      ].filter(Boolean).join(" ")
+    : [
+        `The repository spans ${repoData.fileTree.totalFiles} files across ${repoData.fileTree.totalDirectories} directories and reads like a ${projectTypeLabel} rather than a toy project.`,
+        directories.length > 0
+          ? `Key directories such as ${dirList} indicate intentional separation of concerns and clearer ownership boundaries.`
+          : `Directory layout suggests deliberate separation of product, platform, and support concerns.`,
+        configFiles.length > 0
+          ? `Operational tooling is visible through ${configList}, which signals attention to build, lint, test, or deployment workflows.`
+          : null,
+        repoData.sourceSnippets.length > 0
+          ? `Selected source files show that the implementation is anchored in real application modules instead of placeholder boilerplate.`
+          : null,
+      ].filter(Boolean).join(" ");
 
   const frameworkSignals = uniqueInsightItems(repoData.dependencySignals?.frameworks ?? [], 4, { minLength: 2, maxLength: 60 }).map(mapRepoSkillLabel).filter((value): value is string => Boolean(value));
   const databaseSignals = uniqueInsightItems(repoData.dependencySignals?.databases ?? [], 3, { minLength: 2, maxLength: 60 }).map(mapRepoSkillLabel).filter((value): value is string => Boolean(value));
   const testingSignals = uniqueInsightItems(repoData.dependencySignals?.testingTools ?? [], 3, { minLength: 2, maxLength: 60 }).map(mapRepoSkillLabel).filter((value): value is string => Boolean(value));
-  const techStackAssessment = [
-    stack.length > 0 ? `Core technologies include ${formatHumanList(stack)}.` : null,
-    frameworkSignals.length > 0 ? `Framework choices such as ${formatHumanList(frameworkSignals)} point to a coherent delivery stack.` : null,
-    databaseSignals.length > 0 ? `Data-layer signals include ${formatHumanList(databaseSignals)}.` : null,
-    testingSignals.length > 0 ? `Verification tooling is present through ${formatHumanList(testingSignals)}.` : null,
-    qualitySignals.length > 0 ? `Combined with ${formatHumanList(qualitySignals)}, the stack reads as production-minded and maintainable.` : `Even without every operational signal present, the stack appears intentional and credible.`,
-  ].filter(Boolean).join(" ");
+  const techStackAssessment = isTr
+    ? [
+        stack.length > 0 ? `Çekirdek teknolojiler arasında ${formatHumanList(stack, locale)} yer alıyor.` : null,
+        frameworkSignals.length > 0 ? `${formatHumanList(frameworkSignals, locale)} gibi framework tercihleri tutarlı bir teslimat yığınına işaret ediyor.` : null,
+        databaseSignals.length > 0 ? `Veri katmanı sinyalleri ${formatHumanList(databaseSignals, locale)} içeriyor.` : null,
+        testingSignals.length > 0 ? `Doğrulama araçları ${formatHumanList(testingSignals, locale)} ile mevcut.` : null,
+        qualitySignals.length > 0 ? `${qualityList} ile birlikte değerlendirildiğinde, yığın üretim odaklı ve sürdürülebilir görünüyor.` : `Tüm operasyonel sinyaller bulunmasa da yığın bilinçli ve güvenilir görünüyor.`,
+      ].filter(Boolean).join(" ")
+    : [
+        stack.length > 0 ? `Core technologies include ${formatHumanList(stack, locale)}.` : null,
+        frameworkSignals.length > 0 ? `Framework choices such as ${formatHumanList(frameworkSignals, locale)} point to a coherent delivery stack.` : null,
+        databaseSignals.length > 0 ? `Data-layer signals include ${formatHumanList(databaseSignals, locale)}.` : null,
+        testingSignals.length > 0 ? `Verification tooling is present through ${formatHumanList(testingSignals, locale)}.` : null,
+        qualitySignals.length > 0 ? `Combined with ${qualityList}, the stack reads as production-minded and maintainable.` : `Even without every operational signal present, the stack appears intentional and credible.`,
+      ].filter(Boolean).join(" ");
 
   const detectedSkills = uniqueInsightItems(
     [
       ...technologies,
-      repoData.fileTree.projectType === "monorepo" ? "Monorepo architecture" : null,
-      repoData.fileTree.projectType === "fullstack" ? "Full-stack system design" : null,
-      repoData.hasCI ? "CI/CD pipelines" : null,
-      repoData.hasTests ? "Automated testing" : null,
-      repoData.hasDocker ? "Dockerized delivery" : null,
-      repoData.readmeContent ? "Technical documentation" : null,
-      repoSourceContains(repoData, /auth|jwt|oauth/i) ? "Authentication flows" : null,
-      repoSourceContains(repoData, /redis|cache/i) ? "Caching with Redis" : null,
-      repoSourceContains(repoData, /bullmq|queue/i) ? "Background job processing" : null,
-      repoSourceContains(repoData, /prisma|postgres|sql/i) ? "Relational data modeling" : null,
-      repoSourceContains(repoData, /zod|schema/i) ? "Schema validation" : null,
-      repoSourceContains(repoData, /playwright|vitest|jest/i) ? "Quality engineering" : null,
+      repoData.fileTree.projectType === "monorepo" ? (isTr ? "Monorepo mimarisi" : "Monorepo architecture") : null,
+      repoData.fileTree.projectType === "fullstack" ? (isTr ? "Tam yığın sistem tasarımı" : "Full-stack system design") : null,
+      repoData.hasCI ? (isTr ? "CI/CD süreçleri" : "CI/CD pipelines") : null,
+      repoData.hasTests ? (isTr ? "Otomatik test yazımı" : "Automated testing") : null,
+      repoData.hasDocker ? (isTr ? "Docker ile dağıtım" : "Dockerized delivery") : null,
+      repoData.readmeContent ? (isTr ? "Teknik dokümantasyon" : "Technical documentation") : null,
+      repoSourceContains(repoData, /auth|jwt|oauth/i) ? (isTr ? "Kimlik doğrulama akışları" : "Authentication flows") : null,
+      repoSourceContains(repoData, /redis|cache/i) ? (isTr ? "Redis ile önbellekleme" : "Caching with Redis") : null,
+      repoSourceContains(repoData, /bullmq|queue/i) ? (isTr ? "Arka plan iş kuyrukları" : "Background job processing") : null,
+      repoSourceContains(repoData, /prisma|postgres|sql/i) ? (isTr ? "İlişkisel veri modelleme" : "Relational data modeling") : null,
+      repoSourceContains(repoData, /zod|schema/i) ? (isTr ? "Şema doğrulama" : "Schema validation") : null,
+      repoSourceContains(repoData, /playwright|vitest|jest/i) ? (isTr ? "Kalite mühendisliği" : "Quality engineering") : null,
     ],
     16,
     { minLength: 3, maxLength: 80 }
   );
 
   const strengths = uniqueInsightItems(
-    [
-      repoData.fileTree.projectType === "fullstack" ? "Implementation spans product-facing UI, API, and shared logic rather than a single isolated layer." : null,
-      repoData.fileTree.projectType === "monorepo" ? "Repository structure separates applications and shared packages cleanly." : null,
-      repoData.hasTests ? "Automated testing is present, which improves release confidence." : null,
-      repoData.hasCI ? "Delivery workflow includes CI/CD automation for repeatable verification." : null,
-      repoData.hasDocker ? "Containerized environments reduce setup drift across development and deployment." : null,
-      repoData.recentActivityCount > 0 ? "Recent commit activity suggests the codebase is actively maintained." : null,
-      repoData.contributors > 1 ? "Multiple contributors indicate collaborative development practices." : null,
-      repoData.qualityScore >= 70 ? "Repository quality signals point to a production-minded engineering workflow." : null,
-      repoData.readmeContent ? "Repository includes documentation that improves onboarding and communication." : null,
-    ],
+    isTr
+      ? [
+          repoData.fileTree.projectType === "fullstack" ? "Uygulama; tek bir katman yerine ürün arayüzü, API ve paylaşılan mantığı birlikte kapsıyor." : null,
+          repoData.fileTree.projectType === "monorepo" ? "Depo yapısı, uygulamaları ve paylaşılan paketleri net biçimde ayırıyor." : null,
+          repoData.hasTests ? "Otomatik testlerin bulunması, sürüm güvenini artırıyor." : null,
+          repoData.hasCI ? "Teslimat akışı, tekrarlanabilir doğrulama için CI/CD otomasyonu içeriyor." : null,
+          repoData.hasDocker ? "Konteynerleştirilmiş ortamlar, geliştirme ile dağıtım arasındaki kurulum farklarını azaltıyor." : null,
+          repoData.recentActivityCount > 0 ? "Son commit aktivitesi, kod tabanının aktif olarak sürdürüldüğüne işaret ediyor." : null,
+          repoData.contributors > 1 ? "Birden fazla katkıda bulunan, iş birliğine dayalı geliştirme pratiklerini gösteriyor." : null,
+          repoData.qualityScore >= 70 ? "Depo kalite sinyalleri, üretim odaklı bir mühendislik akışına işaret ediyor." : null,
+          repoData.readmeContent ? "Depo, ekibe katılımı ve iletişimi kolaylaştıran dokümantasyon içeriyor." : null,
+        ]
+      : [
+          repoData.fileTree.projectType === "fullstack" ? "Implementation spans product-facing UI, API, and shared logic rather than a single isolated layer." : null,
+          repoData.fileTree.projectType === "monorepo" ? "Repository structure separates applications and shared packages cleanly." : null,
+          repoData.hasTests ? "Automated testing is present, which improves release confidence." : null,
+          repoData.hasCI ? "Delivery workflow includes CI/CD automation for repeatable verification." : null,
+          repoData.hasDocker ? "Containerized environments reduce setup drift across development and deployment." : null,
+          repoData.recentActivityCount > 0 ? "Recent commit activity suggests the codebase is actively maintained." : null,
+          repoData.contributors > 1 ? "Multiple contributors indicate collaborative development practices." : null,
+          repoData.qualityScore >= 70 ? "Repository quality signals point to a production-minded engineering workflow." : null,
+          repoData.readmeContent ? "Repository includes documentation that improves onboarding and communication." : null,
+        ],
     6,
     { minLength: 18, maxLength: 180 }
   );
 
   const improvements = uniqueInsightItems(
-    [
-      repoData.hasTests
-        ? "Expand integration and contract tests around the highest-risk interfaces to complement the current test suite."
-        : "Add automated test coverage around the most important workflows and repository boundaries.",
-      repoData.hasCI
-        ? "Extend the existing CI pipeline with dependency, secret, and supply-chain scanning."
-        : "Introduce CI validation for build, lint, test, and security checks.",
-      repoData.hasDocker
-        ? "Add preview or release-promotion environments on top of the current Docker workflow."
-        : "Add a reproducible container workflow for development and deployment parity.",
-      repoData.readmeContent
-        ? "Add architecture decision records or operational runbooks to capture system trade-offs explicitly."
-        : "Document setup, architecture, and contribution workflows to reduce onboarding time.",
-      "Instrument performance and reliability monitoring around the most critical execution paths.",
-      repoData.contributors <= 1 ? "Add contribution guidelines, issue templates, or release notes to strengthen collaboration signals." : null,
-    ],
+    isTr
+      ? [
+          repoData.hasTests
+            ? "Mevcut test paketini güçlendirmek için en kritik arayüzlerde entegrasyon ve sözleşme testlerini genişletin."
+            : "En önemli iş akışları ve depo sınırları için otomatik test kapsamı ekleyin.",
+          repoData.hasCI
+            ? "Mevcut CI hattını bağımlılık, sır ve tedarik zinciri taramaları ile genişletin."
+            : "Build, lint, test ve güvenlik kontrolleri için CI doğrulaması ekleyin.",
+          repoData.hasDocker
+            ? "Mevcut Docker akışına önizleme veya sürüm yükseltme ortamları ekleyin."
+            : "Geliştirme ve dağıtım eşliği için yeniden üretilebilir bir konteyner akışı ekleyin.",
+          repoData.readmeContent
+            ? "Sistem ödünleşimlerini açıkça yakalamak için mimari karar kayıtları veya operasyonel runbook'lar ekleyin."
+            : "Katılım süresini azaltmak için kurulum, mimari ve katkı akışlarını dokümante edin.",
+          "En kritik yürütme yollarında performans ve güvenilirlik izlemesi ekleyin.",
+          repoData.contributors <= 1 ? "İş birliği sinyallerini güçlendirmek için katkı kuralları, issue şablonları veya sürüm notları ekleyin." : null,
+        ]
+      : [
+          repoData.hasTests
+            ? "Expand integration and contract tests around the highest-risk interfaces to complement the current test suite."
+            : "Add automated test coverage around the most important workflows and repository boundaries.",
+          repoData.hasCI
+            ? "Extend the existing CI pipeline with dependency, secret, and supply-chain scanning."
+            : "Introduce CI validation for build, lint, test, and security checks.",
+          repoData.hasDocker
+            ? "Add preview or release-promotion environments on top of the current Docker workflow."
+            : "Add a reproducible container workflow for development and deployment parity.",
+          repoData.readmeContent
+            ? "Add architecture decision records or operational runbooks to capture system trade-offs explicitly."
+            : "Document setup, architecture, and contribution workflows to reduce onboarding time.",
+          "Instrument performance and reliability monitoring around the most critical execution paths.",
+          repoData.contributors <= 1 ? "Add contribution guidelines, issue templates, or release notes to strengthen collaboration signals." : null,
+        ],
     6,
     { minLength: 18, maxLength: 200 }
   );
 
-  const cvReadyDescription = [
-    `Built a ${projectTypeLabel} using ${formatHumanList(stack.length > 0 ? stack : technologies.slice(0, 4)) || "a pragmatic production stack"}.`,
-    directories.length > 0
-      ? `Structured the codebase around ${formatHumanList(directories)} to keep responsibilities separated and maintainable.`
-      : `Structured the codebase to keep product, platform, and operational concerns clearly separated.`,
-    qualitySignals.length > 0
-      ? `Reinforced delivery quality with ${formatHumanList(qualitySignals)}.`
-      : null,
-  ].filter(Boolean).join(" ");
+  // CV-ready description focuses on what the project IS and does, not on the tech list
+  // (technologies are surfaced separately in the technologies field).
+  const cvReadyDescription = isTr
+    ? [
+        description
+          ? `${description.charAt(0).toLocaleUpperCase("tr-TR") + description.slice(1)} sunmak için tasarlanmış bir ${projectTypeLabel}.`
+          : `Üretim odaklı bir mühendislik akışıyla geliştirilen bir ${projectTypeLabel}.`,
+        directories.length > 0
+          ? `Kod tabanı; sorumlulukları ayrıştırmak ve sürdürülebilirliği artırmak için ${dirList} etrafında yapılandırıldı.`
+          : `Kod tabanı; ürün, platform ve operasyonel kaygıları net biçimde ayıracak şekilde organize edildi.`,
+        qualitySignals.length > 0
+          ? `Teslimat kalitesi ${qualityList} ile pekiştirildi.`
+          : null,
+      ].filter(Boolean).join(" ")
+    : [
+        description
+          ? `A ${projectTypeLabel} designed to ${description.charAt(0).toLowerCase() + description.slice(1)}.`
+          : `A ${projectTypeLabel} built with a production-focused engineering workflow.`,
+        directories.length > 0
+          ? `The codebase is organized around ${dirList} to keep responsibilities separated and maintainable.`
+          : `The codebase is organized to keep product, platform, and operational concerns clearly separated.`,
+        qualitySignals.length > 0
+          ? `Delivery quality is reinforced with ${qualityList}.`
+          : null,
+      ].filter(Boolean).join(" ");
 
+  // 4 bullet-ready highlights describing what the project DELIVERS / its features.
   const cvHighlights = uniqueInsightItems(
-    [
-      stack.length > 0 ? `Implemented core capabilities with ${formatHumanList(stack)}.` : null,
-      directories.length > 0 ? `Organized the repository around ${formatHumanList(directories)} for clearer ownership boundaries.` : null,
-      qualitySignals.length > 0 ? `Backed the codebase with ${formatHumanList(qualitySignals)} to improve release confidence.` : null,
-      repoData.recentActivityCount > 0 ? `Maintained active delivery with ${repoData.recentActivityCount} commits in the last 30 days.` : null,
-      repoData.contributors > 1 ? `Collaborated across ${repoData.contributors} contributors on the repository's evolution.` : null,
-    ],
+    isTr
+      ? [
+          description
+            ? `${description.charAt(0).toLocaleUpperCase("tr-TR") + description.slice(1)} sağlamak için bir ${projectTypeLabel} olarak hayata geçirildi.`
+            : `Üretim odaklı bir ${projectTypeLabel} olarak tasarlandı ve hayata geçirildi.`,
+          directories.length > 0 ? `${dirList} dizinleri etrafında modüler bir yapıyla geliştirildi.` : null,
+          qualitySignals.length > 0 ? `${qualityList} ile sürüm güveni desteklendi.` : null,
+          repoData.recentActivityCount > 0 ? `Son 30 günde ${repoData.recentActivityCount} commit ile aktif geliştirme sürdürüldü.` : null,
+          repoData.contributors > 1 ? `${repoData.contributors} katkıda bulunanla iş birliği içinde geliştirildi.` : null,
+          repoData.fileTree.totalFiles > 0 ? `${repoData.fileTree.totalDirectories} dizin altında ${repoData.fileTree.totalFiles} dosyalık bütünleşik bir kod tabanı oluşturuldu.` : null,
+        ]
+      : [
+          description
+            ? `Delivered as a ${projectTypeLabel} to ${description.charAt(0).toLowerCase() + description.slice(1)}.`
+            : `Delivered as a production-focused ${projectTypeLabel}.`,
+          directories.length > 0 ? `Built with a modular structure organized around ${dirList}.` : null,
+          qualitySignals.length > 0 ? `Hardened release confidence with ${qualityList}.` : null,
+          repoData.recentActivityCount > 0 ? `Maintained active development with ${repoData.recentActivityCount} commits in the last 30 days.` : null,
+          repoData.contributors > 1 ? `Collaborated across ${repoData.contributors} contributors on the codebase's evolution.` : null,
+          repoData.fileTree.totalFiles > 0 ? `Built a cohesive codebase of ${repoData.fileTree.totalFiles} files across ${repoData.fileTree.totalDirectories} directories.` : null,
+        ],
     4,
-    { minLength: 16, maxLength: 160 }
+    { minLength: 16, maxLength: 180 }
   );
 
   return {
@@ -2226,7 +2341,7 @@ export const aiService = {
 
   async deepAnalyzeRepo(repoData: DeepRepoAnalysisInput, locale?: string): Promise<DeepRepoAnalysisOutput> {
     const { system, buildPrompt, buildCompactPrompt } = AI_PROMPTS.deepRepoAnalysis;
-    const fallback = buildFallbackRepoAnalysis(repoData);
+    const fallback = buildFallbackRepoAnalysis(repoData, locale);
     const candidateModels = uniqueInsightItems(repoAnalysisModelCandidates, 5, { minLength: 2, maxLength: 80 });
 
     const runAttempt = async (

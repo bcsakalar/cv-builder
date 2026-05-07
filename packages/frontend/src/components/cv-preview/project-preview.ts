@@ -73,7 +73,7 @@ export function buildPreviewProject(
   const isFromGitHub = project.isFromGitHub === true;
   const dateRange = formatPreviewDateRange(project.startDate, project.endDate, false, locale);
   const repositoryUrl = isFromGitHub ? (asText(project.githubUrl) ?? asText(project.url)) : null;
-  const visibleTechnologies = isFromGitHub ? [] : technologies;
+  const visibleTechnologies = technologies;
   const description = resolveProjectDescription(asText(project.description), githubRepoData, isFromGitHub);
 
   return {
