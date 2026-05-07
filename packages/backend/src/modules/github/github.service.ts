@@ -526,7 +526,8 @@ async function getCvSignals(userId: string, cvId?: string) {
 }
 
 function decorateAnalysisResult(result: DeepAnalysisResult, cv: Record<string, unknown> | null) {
-  return attachImpactAnalysis(result, cv);
+  const locale = resolveResultLocale(result);
+  return attachImpactAnalysis(result, cv, locale);
 }
 
 function buildImportPreviewPayload(analysisId: string, result: DeepAnalysisResult): GitHubProjectImportPreview {
@@ -645,7 +646,7 @@ export const githubService = {
     return buildGitHubOAuthRedirectUrl(resolveFrontendOrigin(statePayload?.origin), "error", message);
   },
 
-  async getRepos(userId: string, page = 1, perPage = 30, cvId?: string) {
+  async getRepos(userId: string, page = 1, perPage = 30, cvId?: string, locale: "en" | "tr" = "en") {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.githubToken) throw ApiError.badRequest("GitHub not connected");
 
@@ -693,7 +694,7 @@ export const githubService = {
         stargazersCount: r.stargazers_count,
         forksCount: r.forks_count,
         updatedAt: r.updated_at,
-      }, cvSignals),
+      }, cvSignals, locale),
     }));
 
     return cvSignals

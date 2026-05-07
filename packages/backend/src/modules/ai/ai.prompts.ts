@@ -22,10 +22,10 @@ export function localizeSystemPrompt(system: string, locale?: string, isJson = f
   if (lang === "English") return system; // no wrapper needed for English
 
   const jsonNote = isJson
-    ? ` JSON keys MUST remain in English. Only translate the string VALUES inside the JSON.`
+    ? ` The JSON keys MUST remain in English. However, EVERY SINGLE STRING VALUE inside the JSON MUST be written in ${lang}. Do not leave any values in English.`
     : "";
 
-  return `IMPORTANT: You MUST respond entirely in ${lang}.${jsonNote} All text output must be written in ${lang}.\n\n${system}`;
+  return `CRITICAL INSTRUCTION: You MUST process this request and generate your response entirely in ${lang}.${jsonNote}\n\n${system}`;
 }
 
 /**
@@ -309,17 +309,17 @@ Return ONLY a valid JSON object.
 Quality rules:
 - Use only repository evidence. Never invent scale, users, or business metrics.
 - Prioritize concrete engineering signals: architecture boundaries, stack choices, testing, CI/CD, Docker, data layer, queueing, auth, documentation, developer workflow, and recent activity.
-- Keep wording recruiter-friendly but technically precise.
-- "cvReadyDescription" must read like a polished CV project paragraph and start with action verbs such as "Built", "Designed", or "Implemented".
+- Keep wording recruiter-friendly but technically precise in the target language.
+- "cvReadyDescription" must read like a polished CV project paragraph and start with strong action verbs in the target language.
 - "cvHighlights" must contain exactly 4 concise bullet-ready items.
-- "detectedSkills" should be specific capabilities, libraries, patterns, or tools; avoid vague labels such as "coding" or plain "JavaScript" unless it is part of a more specific capability.
+- "detectedSkills" should be specific capabilities, libraries, patterns, or tools; avoid vague labels.
 
 Required JSON shape:
 {
   "projectSummary": "2-4 concise sentences describing what the system is, why it is credible, and which implementation choices matter.",
   "architectureAnalysis": "Specific architecture assessment referencing directories, module boundaries, and delivery structure.",
   "techStackAssessment": "Assessment of stack fit, maturity, and production-readiness signals.",
-  "complexityLevel": "simple | medium | complex",
+  "complexityLevel": "simple | medium | complex (translate to the requested language if necessary)",
   "detectedSkills": ["10-20 specific skills or capabilities"],
   "strengths": ["4-6 strong hiring-manager-facing strengths"],
   "improvements": ["4-6 senior-level improvement suggestions"],

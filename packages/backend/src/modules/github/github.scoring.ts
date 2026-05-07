@@ -71,12 +71,13 @@ function intersectCount(left: string[], rightCorpus: string): number {
   return left.filter((item) => rightCorpus.includes(item.toLocaleLowerCase())).length;
 }
 
-export function buildQuickRepoRecommendation(repo: RepoListLike, cv?: CVLike | null) {
+export function buildQuickRepoRecommendation(repo: RepoListLike, cv?: CVLike | null, locale: "en" | "tr" = "en") {
   const reasons: string[] = [];
   if (!cv) {
     return { fitScore: null as number | null, fitReasons: [] as string[], recommended: false };
   }
 
+  const isTr = locale === "tr";
   const cvTerms = buildCvSignalTerms(cv).map((item) => item.toLocaleLowerCase());
   const corpus = [repo.name, repo.description ?? "", repo.language ?? "", ...(repo.topics ?? [])]
     .join(" ")
@@ -87,16 +88,16 @@ export function buildQuickRepoRecommendation(repo: RepoListLike, cv?: CVLike | n
 
   if (repo.language && cvTerms.includes(repo.language.toLocaleLowerCase())) {
     score += 12;
-    reasons.push(`${repo.language} aligns with the selected CV stack.`);
+    reasons.push(isTr ? `${repo.language} seçilen CV yığını ile uyumlu.` : `${repo.language} aligns with the selected CV stack.`);
   }
 
   if ((repo.topics ?? []).length > 0 && termMatches > 0) {
-    reasons.push(`Repository topics overlap with your CV skills and projects.`);
+    reasons.push(isTr ? `Depo konuları CV becerileriniz ve projelerinizle örtüşüyor.` : `Repository topics overlap with your CV skills and projects.`);
   }
 
   if (repo.stargazersCount >= 10) {
     score += 10;
-    reasons.push("Repository has visible community traction.");
+    reasons.push(isTr ? "Depo, görünür bir topluluk ilgisine sahip." : "Repository has visible community traction.");
   }
 
   if (repo.forksCount >= 3) {
@@ -106,7 +107,7 @@ export function buildQuickRepoRecommendation(repo: RepoListLike, cv?: CVLike | n
   const daysSinceUpdate = Math.max(1, Math.round((Date.now() - new Date(repo.updatedAt).getTime()) / 86400000));
   if (daysSinceUpdate <= 60) {
     score += 12;
-    reasons.push("Repository shows recent activity.");
+    reasons.push(isTr ? "Depo son dönemde aktivite gösteriyor." : "Repository shows recent activity.");
   }
 
   return {
@@ -116,7 +117,8 @@ export function buildQuickRepoRecommendation(repo: RepoListLike, cv?: CVLike | n
   };
 }
 
-export function buildImpactAnalysis(result: DeepAnalysisResult, cv?: CVLike | null): GitHubImpactAnalysis {
+export function buildImpactAnalysis(result: DeepAnalysisResult, cv?: CVLike | null, locale: "en" | "tr" = "en"): GitHubImpactAnalysis {
+  const isTr = locale === "tr";
   const documentation = clampScore(
     (result.hasReadme ? 35 : 10) +
     (result.license ? 15 : 0) +
@@ -167,11 +169,11 @@ export function buildImpactAnalysis(result: DeepAnalysisResult, cv?: CVLike | nu
     : null;
 
   const reasons = unique([
-    documentation >= 70 ? "Repository is well-documented and presentation-ready." : null,
-    engineering >= 70 ? "Engineering quality signals are strong (tests, CI, or tooling depth)." : null,
-    activity >= 65 ? "Commit history shows active and sustained delivery." : null,
-    community >= 55 ? "Stars, forks, and contributor signals add external credibility." : null,
-    fitScore !== null && fitScore >= 70 ? "Repository strongly matches the selected CV tech narrative." : null,
+    documentation >= 70 ? (isTr ? "Depo iyi belgelenmiş ve sunuma hazır." : "Repository is well-documented and presentation-ready.") : null,
+    engineering >= 70 ? (isTr ? "Mühendislik kalite sinyalleri güçlü (testler, CI veya araç derinliği)." : "Engineering quality signals are strong (tests, CI, or tooling depth).") : null,
+    activity >= 65 ? (isTr ? "Commit geçmişi aktif ve sürekli bir teslimat gösteriyor." : "Commit history shows active and sustained delivery.") : null,
+    community >= 55 ? (isTr ? "Yıldızlar, forklama ve katkıda bulunan sinyalleri dış güvenilirlik katıyor." : "Stars, forks, and contributor signals add external credibility.") : null,
+    fitScore !== null && fitScore >= 70 ? (isTr ? "Depo, seçilen CV teknoloji anlatımıyla güçlü bir şekilde eşleşiyor." : "Repository strongly matches the selected CV tech narrative.") : null,
   ].filter((value): value is string => typeof value === "string"), 4);
 
   return {
@@ -188,9 +190,9 @@ export function buildImpactAnalysis(result: DeepAnalysisResult, cv?: CVLike | nu
   };
 }
 
-export function attachImpactAnalysis(result: DeepAnalysisResult, cv?: CVLike | null): DeepAnalysisResult {
+export function attachImpactAnalysis(result: DeepAnalysisResult, cv?: CVLike | null, locale: "en" | "tr" = "en"): DeepAnalysisResult {
   return {
     ...result,
-    impactAnalysis: buildImpactAnalysis(result, cv),
+    impactAnalysis: buildImpactAnalysis(result, cv, locale),
   };
 }

@@ -73,7 +73,8 @@ export const githubController = {
     const page = Number(req.query.page) || 1;
     const perPage = Number(req.query.perPage) || 30;
     const cvId = typeof req.query.cvId === "string" ? req.query.cvId : undefined;
-    const repos = await githubService.getRepos(currentUserId(req), page, perPage, cvId);
+    const locale = resolveAnalysisLocale(req);
+    const repos = await githubService.getRepos(currentUserId(req), page, perPage, cvId, locale);
     sendSuccess(res, repos);
   },
 
