@@ -508,7 +508,7 @@ describe("aiService", () => {
       const result = await aiService.deepAnalyzeRepo(MOCK_REPO_ANALYSIS_INPUT, "en");
 
       expect(result.projectSummary).toContain("CvBuilder");
-      expect(result.cvReadyDescription).toMatch(/^Built /);
+      expect(result.cvReadyDescription).toMatch(/^A full-stack application/);
       expect(result.detectedSkills).toEqual(expect.arrayContaining(["React", "Express", "Prisma ORM", "CI/CD pipelines"]));
       expect(result.improvements.length).toBeGreaterThanOrEqual(4);
     });
