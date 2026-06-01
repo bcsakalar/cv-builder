@@ -93,7 +93,13 @@ function cvToContext(cvData: Record<string, unknown>): string {
   if (projects.length) {
     lines.push(`## Projects`);
     for (const p of projects) {
-      lines.push(`- ${p.name}: ${p.description ?? ""}${p.technologies ? ` [${(p.technologies as string[]).join(", ")}]` : ""}`);
+      const tech = Array.isArray(p.technologies) ? (p.technologies as string[]) : [];
+      const ghData = p.githubRepoData as Record<string, unknown> | null;
+      const detectedSkills = ghData && Array.isArray(ghData.detectedSkills) ? (ghData.detectedSkills as string[]) : [];
+      lines.push(`- ${p.name}: ${p.description ?? ""}${tech.length ? ` [${tech.join(", ")}]` : ""}`);
+      if (detectedSkills.length) {
+        lines.push(`  Applied skills (from GitHub analysis): ${detectedSkills.slice(0, 12).join(", ")}`);
+      }
     }
     lines.push("");
   }
@@ -167,12 +173,19 @@ export const AI_PROMPTS = {
   },
 
   suggestSkills: {
-    system: `You are a career advisor. Based on the CV data, suggest exactly 10 relevant technical and soft skills that would strengthen this CV. You MUST respond with ONLY a valid JSON object. No explanation, no markdown, no code fences.
+    system: `You are an expert technical recruiter and software-engineering career advisor. Suggest 8-12 high-signal, CV-ready skills that strengthen this developer's CV.
+
+Rules:
+- GROUND every skill in the candidate's real evidence: their CV (title, experience, projects) AND the skills/technologies detected across their analyzed GitHub repositories. The GitHub evidence is the strongest signal — prioritise it.
+- Prefer concrete, in-demand technical skills and applied capabilities the candidate has clearly demonstrated (e.g. "React", "Node.js", "PostgreSQL", "Docker", "REST API design", "CI/CD", "JWT authentication", "Prisma ORM"). A few genuinely-supported soft skills are fine but keep them in the minority.
+- Do NOT suggest skills the candidate already lists. Do NOT invent skills with no supporting evidence. Do NOT pad with vague filler ("synergy", "hard worker").
+- Deduplicate and use canonical names ("Node.js" not "nodejs", "PostgreSQL" not "postgres").
+- You MUST respond with ONLY a valid JSON object. No explanation, no markdown, no code fences.
 
 Example output:
-  {"skills":["React", "Node.js", "Team Leadership", "Docker", "CI/CD", "Agile", "REST APIs", "PostgreSQL", "Communication", "Problem Solving"]}`,
-    buildPrompt: (cvData: Record<string, unknown>) =>
-      `Suggest 10 skills for this person. Respond ONLY with a JSON object containing a "skills" array.\n\n${cvToContext(cvData)}`,
+  {"skills":["React", "Node.js", "Docker", "PostgreSQL", "REST API design", "CI/CD", "Redis", "Prisma ORM", "Jest", "TypeScript"]}`,
+    buildPrompt: (cvData: Record<string, unknown>, githubEvidence?: string) =>
+      `Suggest CV-ready skills for this developer, grounded in their evidence. Respond ONLY with a JSON object containing a "skills" array.\n\n${cvToContext(cvData)}${githubEvidence ? `\n\n${githubEvidence}` : ""}`,
   },
 
   atsCheck: {

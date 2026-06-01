@@ -1494,12 +1494,90 @@ function shouldRetryRepoAnalysis(attempt: RepoAnalysisAttemptResult): boolean {
   );
 }
 
-function deriveFallbackSkillSuggestions(cvData: Record<string, unknown>, existingSkillNames: Set<string>): string[] {
+/**
+ * Aggregates the skills + technologies the AI detected across ALL of the
+ * user's completed GitHub repository analyses, ranked by how many repos each
+ * appears in. This is the strongest, most grounded signal for skill
+ * suggestions — far better than guessing from the (often sparse) CV alone.
+ */
+async function aggregateGitHubSkills(
+  userId: string
+): Promise<{ promptText: string | null; rankedSkills: string[]; repoCount: number }> {
+  const rows = await prisma.gitHubAnalysis.findMany({
+    where: { userId, status: "COMPLETED" },
+    select: { result: true },
+    orderBy: { updatedAt: "desc" },
+    take: 60,
+  });
+  const analyses = Array.isArray(rows) ? rows : [];
+
+  const skillFreq = new Map<string, number>();
+  const techFreq = new Map<string, number>();
+  const bump = (map: Map<string, number>, value: unknown) => {
+    if (typeof value !== "string") return;
+    const key = value.trim();
+    if (key) map.set(key, (map.get(key) ?? 0) + 1);
+  };
+
+  for (const row of analyses) {
+    const result = row.result as unknown as {
+      aiInsights?: { detectedSkills?: string[] } | null;
+      technologies?: string[];
+      dependencyInfo?: {
+        frameworks?: string[];
+        databases?: string[];
+        uiLibraries?: string[];
+        testingTools?: string[];
+        buildTools?: string[];
+      } | null;
+    } | null;
+    if (!result) continue;
+    for (const skill of result.aiInsights?.detectedSkills ?? []) bump(skillFreq, skill);
+    for (const tech of result.technologies ?? []) bump(techFreq, tech);
+    const dep = result.dependencyInfo;
+    if (dep) {
+      for (const tech of [
+        ...(dep.frameworks ?? []),
+        ...(dep.databases ?? []),
+        ...(dep.uiLibraries ?? []),
+        ...(dep.testingTools ?? []),
+        ...(dep.buildTools ?? []),
+      ]) {
+        bump(techFreq, tech);
+      }
+    }
+  }
+
+  const rank = (map: Map<string, number>) =>
+    [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([key]) => key);
+  const topSkills = rank(skillFreq).slice(0, 25);
+  const topTech = rank(techFreq).slice(0, 25);
+  const rankedSkills = uniqueInsightItems([...topSkills, ...topTech], 30, { minLength: 2, maxLength: 60 });
+
+  if (analyses.length === 0 || rankedSkills.length === 0) {
+    return { promptText: null, rankedSkills: [], repoCount: analyses.length };
+  }
+
+  const parts = [
+    `## Skills & technologies detected across the candidate's ${analyses.length} analyzed GitHub repositories (most frequent first — strongest evidence):`,
+  ];
+  if (topSkills.length) parts.push(`Applied skills: ${topSkills.join(", ")}`);
+  if (topTech.length) parts.push(`Technologies: ${topTech.join(", ")}`);
+
+  return { promptText: parts.join("\n"), rankedSkills, repoCount: analyses.length };
+}
+
+function deriveFallbackSkillSuggestions(
+  cvData: Record<string, unknown>,
+  existingSkillNames: Set<string>,
+  githubSkills: string[] = []
+): string[] {
   const personalInfo = cvData.personalInfo as Record<string, unknown> | null;
   const summary = cvData.summary as Record<string, unknown> | null;
   const experiences = (cvData.experiences ?? []) as Record<string, unknown>[];
   const projects = (cvData.projects ?? []) as Record<string, unknown>[];
-  const inferred: string[] = [];
+  // GitHub-detected skills are real evidence → offer them first.
+  const inferred: string[] = [...githubSkills];
 
   const addStringArray = (values: unknown) => {
     if (!Array.isArray(values)) return;
@@ -1896,7 +1974,10 @@ export const aiService = {
         .filter(Boolean)
     );
 
-    logger.info("Suggesting skills", { cvId, locale: effectiveLocale });
+    // Ground suggestions in the user's actual analyzed GitHub repositories.
+    const githubEvidence = await aggregateGitHubSkills(userId);
+
+    logger.info("Suggesting skills", { cvId, locale: effectiveLocale, githubRepos: githubEvidence.repoCount });
     const { output, artifact } = await runToolWithArtifact({
       userId,
       cvId,
@@ -1904,14 +1985,14 @@ export const aiService = {
       locale: effectiveLocale,
       model: ollamaConfig.structuredModel,
       targetSection: "skills",
-      input: { cvId },
+      input: { cvId, githubRepoCount: githubEvidence.repoCount },
       cacheable: true,
       cacheTtlSeconds: 1800,
       execute: async () => {
         try {
           const result = await generateWithDefaultFallback({
             model: ollamaConfig.structuredModel,
-            prompt: buildPrompt(cv as unknown as Record<string, unknown>),
+            prompt: buildPrompt(cv as unknown as Record<string, unknown>, githubEvidence.promptText ?? undefined),
             system: localizeSystemPrompt(system, effectiveLocale, true),
             temperature: 0.25,
             maxTokens: 768,
@@ -1921,8 +2002,18 @@ export const aiService = {
           const extractedSkills = parseSkillSuggestionPayload(result);
 
           const normalizedSuggestions = sanitizeSkillSuggestions(extractedSkills, existingSkillNames);
-          if (normalizedSuggestions.length > 0) {
+          if (normalizedSuggestions.length >= 5) {
             return normalizedSuggestions;
+          }
+
+          // Backfill with grounded GitHub skills so the user always gets a
+          // strong, evidence-based list even if the model under-delivers.
+          const merged = sanitizeSkillSuggestions(
+            [...normalizedSuggestions, ...githubEvidence.rankedSkills],
+            existingSkillNames
+          );
+          if (merged.length > 0) {
+            return merged;
           }
 
           logger.warn("AI returned no usable skill suggestions, using fallback", { cvId });
@@ -1933,7 +2024,11 @@ export const aiService = {
           });
         }
 
-        return deriveFallbackSkillSuggestions(cv as unknown as Record<string, unknown>, existingSkillNames);
+        return deriveFallbackSkillSuggestions(
+          cv as unknown as Record<string, unknown>,
+          existingSkillNames,
+          githubEvidence.rankedSkills
+        );
       },
     });
 
