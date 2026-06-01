@@ -68,6 +68,8 @@ jest.mock("../../lib/ollama", () => ({
 
 jest.mock("../../lib/redis", () => ({
   cacheDelete: (...args: unknown[]) => mockCacheDelete(...args),
+  cacheGet: jest.fn().mockResolvedValue(null),
+  cacheSet: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../../lib/logger", () => ({

@@ -4,7 +4,7 @@
 
 import type { Request, Response } from "express";
 import { requireAuthUser } from "../../middleware/auth";
-import { pdfService } from "./pdf.service";
+import { pdfService, getPdfDir } from "./pdf.service";
 import { generatePDFSchema } from "./pdf.schema";
 import { sendCreated, sendSuccess } from "../../utils/api-response";
 import { ApiError } from "../../utils/api-error";
@@ -12,6 +12,12 @@ import path from "node:path";
 
 function currentUserId(req: Request): string {
   return requireAuthUser(req).userId;
+}
+
+/** True when `target` resolves to a file inside `dir` (separator-safe). */
+function isInsideDir(target: string, dir: string): boolean {
+  const relative = path.relative(dir, target);
+  return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 export const pdfController = {
@@ -36,9 +42,10 @@ export const pdfController = {
 
     const pdfExport = await pdfService.getExport(currentUserId(req), exportId);
 
-    // Security: ensure the file path is within the upload directory
+    // Security: ensure the stored file path resolves inside the PDF directory
+    // (separator-safe containment check, not a brittle substring match).
     const resolvedPath = path.resolve(pdfExport.filePath);
-    if (!resolvedPath.includes(path.sep + "pdfs" + path.sep)) {
+    if (!isInsideDir(resolvedPath, getPdfDir())) {
       throw ApiError.forbidden("Invalid file path");
     }
 
@@ -63,5 +70,16 @@ export const pdfController = {
 
     await pdfService.deleteExport(currentUserId(req), exportId);
     sendSuccess(res, { deleted: true });
+  },
+
+  /**
+   * Public, token-gated endpoint consumed by the chromeless /print page.
+   * Authorization comes solely from the signed print token (bound to
+   * user + CV, short TTL) — there is no user session in headless Chrome.
+   */
+  async renderData(req: Request, res: Response) {
+    const token = typeof req.query.token === "string" ? req.query.token : undefined;
+    const data = await pdfService.getRenderData(token);
+    sendSuccess(res, data);
   },
 };

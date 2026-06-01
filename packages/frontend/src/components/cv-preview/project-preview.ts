@@ -7,6 +7,8 @@ interface BuildPreviewProjectOptions {
   highlightLimit?: number;
 }
 
+export type ProjectVisibility = "public" | "private";
+
 export interface PreviewProjectViewModel {
   name: string;
   description: string | null;
@@ -16,6 +18,13 @@ export interface PreviewProjectViewModel {
   repositoryDisplayUrl: string | null;
   technologies: string[];
   extraTechnologyCount: number;
+  /** Deep, project-specific applied skills (AI detectedSkills, tech fallback). */
+  skills: string[];
+  extraSkillCount: number;
+  /** Public/Private status for GitHub-imported projects; null otherwise. */
+  visibility: ProjectVisibility | null;
+  /** True when the project originated from a GitHub analysis import. */
+  isFromGitHub: boolean;
   highlights: string[];
   githubRepoData: GitHubRepoData | null;
 }
@@ -60,6 +69,35 @@ function resolveProjectDescription(
   return /(?:…|\.\.\.)$/.test(description) ? fullGitHubDescription : description;
 }
 
+function resolveVisibility(
+  isFromGitHub: boolean,
+  githubRepoData: GitHubRepoData | null
+): ProjectVisibility | null {
+  if (!isFromGitHub) return null;
+  if (githubRepoData && typeof githubRepoData.isPrivate === "boolean") {
+    return githubRepoData.isPrivate ? "private" : "public";
+  }
+  return null;
+}
+
+/**
+ * Deep applied skills for a project. For GitHub-imported projects we prefer the
+ * AI-extracted `detectedSkills` (specific capabilities, patterns, architectures)
+ * and fall back to the surface technology list when none were detected. This is
+ * what fixes the long-standing bug where analyzed projects rendered no skills.
+ */
+function resolveProjectSkills(
+  isFromGitHub: boolean,
+  githubRepoData: GitHubRepoData | null,
+  technologies: string[]
+): string[] {
+  if (isFromGitHub) {
+    const detected = asStringArray(githubRepoData?.detectedSkills);
+    if (detected.length > 0) return detected;
+  }
+  return technologies;
+}
+
 export function buildPreviewProject(
   project: Record<string, unknown>,
   locale?: string,
@@ -73,8 +111,12 @@ export function buildPreviewProject(
   const isFromGitHub = project.isFromGitHub === true;
   const dateRange = formatPreviewDateRange(project.startDate, project.endDate, false, locale);
   const repositoryUrl = isFromGitHub ? (asText(project.githubUrl) ?? asText(project.url)) : null;
-  const visibleTechnologies = repositoryUrl ? [] : technologies;
   const description = resolveProjectDescription(asText(project.description), githubRepoData, isFromGitHub);
+
+  // Manual projects keep showing their technology line; GitHub projects show the
+  // repository link plus a dedicated deep-skills line (resolved below).
+  const visibleTechnologies = isFromGitHub ? [] : technologies;
+  const skills = resolveProjectSkills(isFromGitHub, githubRepoData, technologies);
 
   return {
     name: asText(project.name) ?? "",
@@ -85,6 +127,10 @@ export function buildPreviewProject(
     repositoryDisplayUrl: repositoryUrl ? formatProjectLink(repositoryUrl) : null,
     technologies: visibleTechnologies.slice(0, technologyLimit),
     extraTechnologyCount: Math.max(0, visibleTechnologies.length - technologyLimit),
+    skills: skills.slice(0, technologyLimit),
+    extraSkillCount: Math.max(0, skills.length - technologyLimit),
+    visibility: resolveVisibility(isFromGitHub, githubRepoData),
+    isFromGitHub,
     highlights,
     githubRepoData,
   };

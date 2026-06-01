@@ -32,6 +32,10 @@ const envSchema = z.object({
   OLLAMA_MAX_TOKENS: z.coerce.number().int().positive().default(1536),
   OLLAMA_REPO_ANALYSIS_MAX_TOKENS: z.coerce.number().int().positive().default(4096),
   OLLAMA_KEEP_ALIVE: z.string().default("10m"),
+  // Per-request timeouts (ms). Repo analysis runs a large model on a big prompt,
+  // so it gets a much longer budget than ordinary short completions.
+  OLLAMA_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  OLLAMA_REPO_ANALYSIS_TIMEOUT_MS: z.coerce.number().int().positive().default(420000),
 
   // Security
   JWT_SECRET: z.string().min(16),
@@ -40,6 +44,13 @@ const envSchema = z.object({
 
   // CORS
   CORS_ORIGIN: z.string().default("http://localhost:5173,http://localhost:5174"),
+
+  // PDF / Print
+  // Base URL of the frontend that headless Chrome navigates to when rendering
+  // the chromeless /print page. Defaults to the primary CORS origin.
+  PRINT_BASE_URL: z.string().url().optional(),
+  // Max time (ms) to wait for the print page to signal it is ready to print.
+  PDF_RENDER_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
 
   // GitHub OAuth
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),

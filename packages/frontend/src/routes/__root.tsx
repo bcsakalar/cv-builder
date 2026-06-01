@@ -69,8 +69,13 @@ function RootLayout() {
     };
   }, [checkingSession, token, setUser, clearSession]);
 
+  // The chromeless print route is authorized by a signed print token in the
+  // URL (used by headless Chrome for PDF export), not by a user session — so it
+  // must bypass the auth redirect and the blanking guard below.
+  const isPrintRoute = pathname.startsWith("/print");
+
   useEffect(() => {
-    if (!hydrated || checkingSession) return;
+    if (!hydrated || checkingSession || isPrintRoute) return;
 
     if (!token && pathname !== "/auth") {
       void navigate({ to: "/auth", replace: true });
@@ -80,7 +85,7 @@ function RootLayout() {
     if (token && pathname === "/auth") {
       void navigate({ to: "/", replace: true });
     }
-  }, [hydrated, checkingSession, token, pathname, navigate]);
+  }, [hydrated, checkingSession, token, pathname, navigate, isPrintRoute]);
 
   if (!hydrated || checkingSession) {
     return (
@@ -92,7 +97,7 @@ function RootLayout() {
     );
   }
 
-  if ((!token && pathname !== "/auth") || (token && pathname === "/auth")) {
+  if (!isPrintRoute && ((!token && pathname !== "/auth") || (token && pathname === "/auth"))) {
     return <div className="min-h-screen bg-background" />;
   }
 

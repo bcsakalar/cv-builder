@@ -6,6 +6,8 @@ import { z } from "zod";
 
 export const generatePDFSchema = z.object({
   templateId: z.string().uuid().optional(),
+  /** Preview template the user is currently viewing (modern/classic/...). */
+  templateName: z.string().min(1).max(40).optional(),
   pageSize: z.enum(["A4", "LETTER", "LEGAL"]).default("A4"),
   margin: z.enum(["narrow", "normal", "wide"]).default("normal"),
   theme: z

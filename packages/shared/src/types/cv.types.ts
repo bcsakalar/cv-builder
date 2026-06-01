@@ -236,6 +236,8 @@ export interface GitHubRepoData {
   openIssues: number;
   topics: string[];
   license: string | null;
+  /** Whether the source repository is private on GitHub. */
+  isPrivate?: boolean;
   projectType?: GitHubProjectType | null;
   qualityScore?: number | null;
   complexityLevel?: GitHubComplexityLevel | null;

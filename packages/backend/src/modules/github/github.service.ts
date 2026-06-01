@@ -296,6 +296,7 @@ function buildGitHubRepoData(result: DeepAnalysisResult): GitHubRepoData {
     openIssues: result.openIssues ?? 0,
     topics: result.topics ?? [],
     license: result.license ?? null,
+    isPrivate: result.isPrivate === true,
     projectType: result.fileTree?.projectType ?? null,
     qualityScore: result.codeQuality?.qualityScore ?? null,
     complexityLevel: result.aiInsights?.complexityLevel ?? null,

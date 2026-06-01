@@ -148,10 +148,40 @@
       "description": "Hikayenize uygun bir bölüm oluşturun"
     }
   },
+  "cvStrength": {
+    "title": "CV Gücü",
+    "subtitle": "Önerileri tamamla, puanını yükselt",
+    "completed": "{{completed}}/{{total}} tamamlandı",
+    "toImprove": "İyileştirilecekler",
+    "allDone": "Harika — CV'n işe alıma hazır görünüyor 🎉",
+    "completedSection": "Tamamlananlar ({{count}})",
+    "level": {
+      "low": "Geliştirilmeli",
+      "medium": "İyi",
+      "high": "Mükemmel"
+    },
+    "checks": {
+      "name": "Ad ve soyadını ekle",
+      "title": "Profesyonel unvan ekle",
+      "email": "E-posta adresi ekle",
+      "contact": "Telefon veya konum ekle",
+      "links": "Web sitesi, GitHub veya LinkedIn ekle",
+      "summary": "Profesyonel özet yaz",
+      "richSummary": "Özetini detaylandır (200+ karakter)",
+      "experience": "İş deneyimi ekle",
+      "expDescriptions": "Deneyimlerini açıklamalarla anlat",
+      "quantified": "Başarılarını sayılarla somutlaştır",
+      "education": "Eğitim bilgisi ekle",
+      "skills": "En az 5 yetenek ekle",
+      "project": "Bir proje ekle",
+      "language": "Dil ekle"
+    }
+  },
   "editor": {
     "theme": "Tema",
     "pdf": "PDF",
     "ai": "AI",
+    "strength": "Güç",
     "preview": "Önizleme",
     "showPreview": "Göster",
     "hidePreview": "Gizle",
@@ -261,7 +291,10 @@
       "applyingImprovement": "Uygulanıyor...",
       "improveWithAi": "AI ile iyileştir",
       "viewOnGithub": "GitHub'da görüntüle",
-      "visitProject": "Projeyi ziyaret et"
+      "visitProject": "Projeyi ziyaret et",
+      "skillsLabel": "Yetkinlikler",
+      "visibilityPublic": "Herkese Açık",
+      "visibilityPrivate": "Özel"
     },
     "certifications": {
       "add": "Sertifika Ekle",
@@ -725,6 +758,13 @@
       "STRONG_MATCH": "Güçlü eşleşme",
       "POTENTIAL_MATCH": "Potansiyel eşleşme",
       "WEAK_MATCH": "Zayıf eşleşme"
+    },
+    "funnel": {
+      "title": "Aday hattı",
+      "all": "Tümü",
+      "avgScore": "Ort. skor",
+      "brokenLinks": "Bozuk bağlantı",
+      "basedOn": "Yüklü {{count}} adaya göre"
     },
     "candidates": {
       "title": "Sıralanmış adaylar",

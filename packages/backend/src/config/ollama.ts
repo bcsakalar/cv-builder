@@ -38,7 +38,13 @@ export const ollamaConfig = {
   defaultMaxTokens: env.OLLAMA_MAX_TOKENS ?? 1536,
   repoAnalysisMaxTokens: env.OLLAMA_REPO_ANALYSIS_MAX_TOKENS ?? 4096,
   keepAlive: env.OLLAMA_KEEP_ALIVE ?? "10m",
-  timeout: 120000,
+  // Default per-request timeout for ordinary (short) completions.
+  timeout: env.OLLAMA_REQUEST_TIMEOUT_MS ?? 120000,
+  // Longer budget for deep repo analysis: a 14B model on a ~10k-char prompt
+  // measured ~264s (warm) on commodity hardware, so give it generous headroom
+  // for cold-start model loading + machine load. Tune via env if your hardware
+  // is slower/faster (a 7B/9B model is ~2-3x faster if you prefer speed).
+  repoAnalysisTimeout: env.OLLAMA_REPO_ANALYSIS_TIMEOUT_MS ?? 420000,
   maxRetries: 2,
 };
 

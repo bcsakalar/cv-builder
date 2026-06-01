@@ -2,6 +2,7 @@ import type { CVDetail } from "@/services/cv.api";
 import type { ThemeConfig } from "@/stores/theme.store";
 import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
+import { ProjectVisibilityBadge } from "../ProjectVisibilityBadge";
 import { getProjectsFooterSettings } from "@/lib/project-links";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
@@ -117,7 +118,10 @@ export function MinimalTemplate({ cv, theme }: TemplateProps) {
 
             return (
               <div key={i} className="mb-5">
-                <p className="font-medium">{project.name}</p>
+                <p className="flex items-center gap-2 font-medium">
+                  <span>{project.name}</span>
+                  <ProjectVisibilityBadge visibility={project.visibility} theme={theme} locale={cv.locale} />
+                </p>
                 {project.metaLine && <p className="mt-0.5 text-xs" style={{ color: theme.secondaryColor }}>{project.metaLine}</p>}
                 {project.description && <p className="mt-1 font-light whitespace-pre-line">{project.description}</p>}
                 {project.highlights.length > 0 && (
@@ -131,6 +135,12 @@ export function MinimalTemplate({ cv, theme }: TemplateProps) {
                   <a href={project.repositoryUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs underline-offset-2 hover:underline" style={{ color: theme.secondaryColor }}>
                     {translateForLocale(cv.locale, "editorSections.projects.repositoryLinkLabel")}: {project.repositoryDisplayUrl}
                   </a>
+                )}
+                {project.isFromGitHub && project.skills.length > 0 && (
+                  <p className="mt-1 text-xs" style={{ color: theme.secondaryColor }}>
+                    <span className="font-semibold">{translateForLocale(cv.locale, "editorSections.projects.skillsLabel")}:</span>{" "}
+                    {project.skills.join(" · ")}{project.extraSkillCount > 0 ? ` · +${project.extraSkillCount}` : ""}
+                  </p>
                 )}
                 {project.technologies.length > 0 && (
                   <p className="mt-1 text-xs" style={{ color: theme.secondaryColor }}>

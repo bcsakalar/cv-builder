@@ -13,6 +13,8 @@ export interface PDFExportResult {
 
 export interface GeneratePDFOptions {
   templateId?: string;
+  /** Active preview template (modern/classic/minimal/creative/corporate). */
+  templateName?: string;
   pageSize?: "A4" | "LETTER" | "LEGAL";
   margin?: "narrow" | "normal" | "wide";
   theme?: {

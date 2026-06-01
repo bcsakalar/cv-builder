@@ -12,6 +12,7 @@ interface PDFExportPanelProps {
 export function PDFExportPanel({ cvId }: PDFExportPanelProps) {
   const { t, i18n } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
+  const activeTemplate = useThemeStore((s) => s.activeTemplate);
   const [pageSize, setPageSize] = useState<"A4" | "LETTER" | "LEGAL">("A4");
   const [margin, setMargin] = useState<"narrow" | "normal" | "wide">("normal");
   const pageSizeId = useId();
@@ -26,7 +27,7 @@ export function PDFExportPanel({ cvId }: PDFExportPanelProps) {
   const handleGenerate = () => {
     generateMutation.mutate({
       cvId,
-      options: { pageSize, margin, theme },
+      options: { pageSize, margin, theme, templateName: activeTemplate },
     });
   };
 

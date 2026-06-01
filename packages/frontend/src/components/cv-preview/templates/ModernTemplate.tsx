@@ -2,6 +2,7 @@ import type { CVDetail } from "@/services/cv.api";
 import type { ThemeConfig } from "@/stores/theme.store";
 import { formatPreviewDateRange } from "../date-range";
 import { buildPreviewProject } from "../project-preview";
+import { ProjectVisibilityBadge } from "../ProjectVisibilityBadge";
 import { getProjectsFooterSettings } from "@/lib/project-links";
 import { PreviewContactItems } from "../PreviewContactItems";
 import { resolveProfilePhotoUrl } from "../personal-info";
@@ -102,7 +103,10 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
 
                 return (
                   <div key={i} className="mb-4">
-                    <strong>{project.name}</strong>
+                    <span className="inline-flex items-center gap-2">
+                      <strong>{project.name}</strong>
+                      <ProjectVisibilityBadge visibility={project.visibility} theme={theme} locale={cv.locale} />
+                    </span>
                     {project.metaLine && <p className="mt-0.5 text-xs" style={{ color: theme.secondaryColor }}>{project.metaLine}</p>}
                     {project.description && <p className="mt-1 whitespace-pre-line">{project.description}</p>}
                     {project.highlights.length > 0 && (
@@ -116,6 +120,21 @@ export function ModernTemplate({ cv, theme }: TemplateProps) {
                       <a href={project.repositoryUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-medium underline-offset-2 hover:underline" style={{ color: theme.primaryColor }}>
                         {translateForLocale(cv.locale, "editorSections.projects.repositoryLinkLabel")}: {project.repositoryDisplayUrl}
                       </a>
+                    )}
+                    {project.isFromGitHub && project.skills.length > 0 && (
+                      <div className="mt-2">
+                        <span className="text-xs font-semibold" style={{ color: theme.secondaryColor }}>
+                          {translateForLocale(cv.locale, "editorSections.projects.skillsLabel")}:
+                        </span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {project.skills.map((skill) => (
+                            <span key={skill} className="rounded px-1.5 py-0.5 text-xs" style={{ backgroundColor: `${theme.primaryColor}10`, color: theme.primaryColor }}>{skill}</span>
+                          ))}
+                          {project.extraSkillCount > 0 && (
+                            <span className="rounded px-1.5 py-0.5 text-xs" style={{ backgroundColor: `${theme.primaryColor}08`, color: theme.secondaryColor }}>+{project.extraSkillCount}</span>
+                          )}
+                        </div>
+                      </div>
                     )}
                     {project.technologies.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">

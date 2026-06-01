@@ -25,7 +25,10 @@ export function localizeSystemPrompt(system: string, locale?: string, isJson = f
     ? ` The JSON keys MUST remain in English. However, EVERY SINGLE STRING VALUE inside the JSON MUST be written in ${lang}. Do not leave any values in English.`
     : "";
 
-  return `CRITICAL INSTRUCTION: You MUST process this request and generate your response entirely in ${lang}.${jsonNote}\n\n${system}`;
+  // Note: technical proper nouns (library, framework, tool, and product names
+  // such as "Docker", "PostgreSQL", "Next.js") may stay in their original form —
+  // they are language-neutral. Everything else MUST be in the target language.
+  return `CRITICAL INSTRUCTION: You MUST write your entire response in ${lang}. Do NOT answer in English. Technology, library, and product names may keep their original spelling, but all sentences, descriptions, and explanations MUST be in ${lang}.${jsonNote}\n\n${system}`;
 }
 
 /**
@@ -312,7 +315,7 @@ Quality rules:
 - Keep wording recruiter-friendly but technically precise in the target language.
 - "cvReadyDescription" must read like a polished CV project paragraph and start with strong action verbs in the target language.
 - "cvHighlights" must contain exactly 4 concise bullet-ready items.
-- "detectedSkills" should be specific capabilities, libraries, patterns, or tools; avoid vague labels.
+- "detectedSkills" must be the concrete, APPLIED skills, patterns, and architectures actually demonstrated by THIS repository — e.g. "JWT authentication", "RBAC authorization", "BullMQ job queues", "WebRTC signaling", "Prisma schema modeling", "Server-Sent Events streaming", "Dockerized deployment", "monorepo workspace architecture". Prefer specific capabilities over bare language names (do not just list "JavaScript" or "TypeScript"). Ground every skill in observable repository evidence (dependencies, directories, source snippets, CI config).
 
 Required JSON shape:
 {

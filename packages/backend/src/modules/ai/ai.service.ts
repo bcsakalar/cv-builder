@@ -37,6 +37,7 @@ import { ApiError } from "../../utils/api-error";
 import { aiRepository, AI_ARTIFACT_SELECT } from "./ai.repository";
 import { AI_PROMPTS, localizeSystemPrompt } from "./ai.prompts";
 import { buildAtsAnalysis } from "./ai.ats";
+import { isLikelyLocale, proseLocalePurity, type SupportedLocale } from "./ai.lang";
 
 type ArtifactRecord = Prisma.AiArtifactGetPayload<{ select: typeof AI_ARTIFACT_SELECT }>;
 
@@ -160,6 +161,8 @@ interface RepoAnalysisAttemptResult {
   merged: DeepRepoAnalysisOutput;
   qualityScore: number;
   directFieldCount: number;
+  /** Fraction (0..1) of AI prose fields that matched the requested locale. */
+  localePurity: number;
 }
 
 const stringArraySchema = z.array(z.string().trim().min(1));
@@ -1360,16 +1363,35 @@ function buildFallbackRepoAnalysis(repoData: DeepRepoAnalysisInput, locale: stri
   };
 }
 
-function mergeRepoAnalysis(primary: Record<string, unknown>, fallback: DeepRepoAnalysisOutput): DeepRepoAnalysisOutput {
+function mergeRepoAnalysis(
+  primary: Record<string, unknown>,
+  fallback: DeepRepoAnalysisOutput,
+  locale: SupportedLocale = "en"
+): DeepRepoAnalysisOutput {
   const validComplexities: GitHubComplexityLevel[] = ["simple", "medium", "complex"];
   const complexityLevel = validComplexities.includes(primary.complexityLevel as GitHubComplexityLevel)
     ? (primary.complexityLevel as GitHubComplexityLevel)
     : fallback.complexityLevel;
 
+  // Strict localization: an AI prose value is only used when it actually
+  // matches the requested locale; otherwise the localized fallback wins so no
+  // off-language text ever leaks onto the CV. Skill/technology lists are
+  // language-neutral and are merged as-is.
+  const localizedProse = (value: unknown): string => {
+    const text = normalizeInsightText(value);
+    return text && isLikelyLocale(text, locale) ? text : "";
+  };
+  const localizedItems = (values: unknown[], limit: number, minLength: number, maxLength: number): string[] =>
+    uniqueInsightItems(
+      values.filter((item) => typeof item !== "string" || isLikelyLocale(item, locale)),
+      limit,
+      { minLength, maxLength }
+    );
+
   return {
-    projectSummary: normalizeInsightText(primary.projectSummary) || fallback.projectSummary,
-    architectureAnalysis: normalizeInsightText(primary.architectureAnalysis) || fallback.architectureAnalysis,
-    techStackAssessment: normalizeInsightText(primary.techStackAssessment) || fallback.techStackAssessment,
+    projectSummary: localizedProse(primary.projectSummary) || fallback.projectSummary,
+    architectureAnalysis: localizedProse(primary.architectureAnalysis) || fallback.architectureAnalysis,
+    techStackAssessment: localizedProse(primary.techStackAssessment) || fallback.techStackAssessment,
     complexityLevel,
     detectedSkills: uniqueInsightItems(
       [
@@ -1379,41 +1401,60 @@ function mergeRepoAnalysis(primary: Record<string, unknown>, fallback: DeepRepoA
       16,
       { minLength: 3, maxLength: 80 }
     ),
-    strengths: uniqueInsightItems(
+    strengths: localizedItems(
       [
         ...(Array.isArray(primary.strengths) ? primary.strengths : []),
         ...fallback.strengths,
       ],
       6,
-      { minLength: 18, maxLength: 180 }
+      18,
+      180
     ),
-    improvements: uniqueInsightItems(
+    improvements: localizedItems(
       [
         ...(Array.isArray(primary.improvements) ? primary.improvements : []),
         ...fallback.improvements,
       ],
       6,
-      { minLength: 18, maxLength: 200 }
+      18,
+      200
     ),
-    cvReadyDescription: normalizeInsightText(primary.cvReadyDescription) || fallback.cvReadyDescription,
-    cvHighlights: uniqueInsightItems(
+    cvReadyDescription: localizedProse(primary.cvReadyDescription) || fallback.cvReadyDescription,
+    cvHighlights: localizedItems(
       [
         ...(Array.isArray(primary.cvHighlights) ? primary.cvHighlights : []),
         ...fallback.cvHighlights,
       ],
       4,
-      { minLength: 16, maxLength: 160 }
+      16,
+      160
     ),
   };
 }
 
-function scoreRepoAnalysis(primary: Record<string, unknown>, merged: DeepRepoAnalysisOutput): RepoAnalysisAttemptResult {
-  const directFieldCount = [
+function scoreRepoAnalysis(
+  primary: Record<string, unknown>,
+  merged: DeepRepoAnalysisOutput,
+  locale: SupportedLocale = "en"
+): RepoAnalysisAttemptResult {
+  const proseFields = [
     normalizeInsightText(primary.projectSummary),
     normalizeInsightText(primary.architectureAnalysis),
     normalizeInsightText(primary.techStackAssessment),
     normalizeInsightText(primary.cvReadyDescription),
-  ].filter(Boolean).length;
+  ];
+  const directFieldCount = proseFields.filter(Boolean).length;
+
+  // Language purity over every AI prose field (long-form + highlight/strength
+  // bullets). A response in the wrong language scores poorly so it is retried.
+  const localePurity = proseLocalePurity(
+    [
+      ...proseFields,
+      ...(Array.isArray(primary.cvHighlights) ? (primary.cvHighlights as unknown[]) : []).map(normalizeInsightText),
+      ...(Array.isArray(primary.strengths) ? (primary.strengths as unknown[]) : []).map(normalizeInsightText),
+    ],
+    locale
+  );
 
   const parsedSkills = uniqueInsightItems(Array.isArray(primary.detectedSkills) ? primary.detectedSkills : [], 20, {
     minLength: 3,
@@ -1428,18 +1469,29 @@ function scoreRepoAnalysis(primary: Record<string, unknown>, merged: DeepRepoAna
     maxLength: 180,
   }).length;
 
-  const qualityScore = directFieldCount * 2 + Math.min(parsedSkills, 8) + Math.min(parsedHighlights, 4) + Math.min(parsedStrengths, 4);
+  const completenessScore =
+    directFieldCount * 2 + Math.min(parsedSkills, 8) + Math.min(parsedHighlights, 4) + Math.min(parsedStrengths, 4);
+  // Scale the whole score by language purity so an otherwise-complete but
+  // off-language response ranks below a localized one.
+  const qualityScore = Math.round(completenessScore * localePurity);
 
   return {
     parsed: primary,
     merged,
     directFieldCount,
     qualityScore,
+    localePurity,
   };
 }
 
 function shouldRetryRepoAnalysis(attempt: RepoAnalysisAttemptResult): boolean {
-  return attempt.directFieldCount < 3 || attempt.qualityScore < 11 || attempt.merged.detectedSkills.length < 8 || attempt.merged.cvHighlights.length < 4;
+  return (
+    attempt.directFieldCount < 3 ||
+    attempt.qualityScore < 11 ||
+    attempt.localePurity < 0.8 ||
+    attempt.merged.detectedSkills.length < 8 ||
+    attempt.merged.cvHighlights.length < 4
+  );
 }
 
 function deriveFallbackSkillSuggestions(cvData: Record<string, unknown>, existingSkillNames: Set<string>): string[] {
@@ -2341,7 +2393,8 @@ export const aiService = {
 
   async deepAnalyzeRepo(repoData: DeepRepoAnalysisInput, locale?: string): Promise<DeepRepoAnalysisOutput> {
     const { system, buildPrompt, buildCompactPrompt } = AI_PROMPTS.deepRepoAnalysis;
-    const fallback = buildFallbackRepoAnalysis(repoData, locale);
+    const targetLocale: SupportedLocale = locale === "tr" ? "tr" : "en";
+    const fallback = buildFallbackRepoAnalysis(repoData, targetLocale);
     const candidateModels = uniqueInsightItems(repoAnalysisModelCandidates, 5, { minLength: 2, maxLength: 80 });
 
     const runAttempt = async (
@@ -2350,30 +2403,43 @@ export const aiService = {
       temperature: number,
       model: string
     ): Promise<RepoAnalysisAttemptResult> => {
+      // Local models obey a trailing reminder better than a system-prompt-only
+      // instruction, so reinforce the target language at the end of the prompt.
+      const localizedPrompt =
+        targetLocale === "tr"
+          ? `${prompt}\n\nÖNEMLİ: Tüm JSON metin değerlerini (projectSummary, architectureAnalysis, techStackAssessment, strengths, improvements, cvReadyDescription, cvHighlights) yalnızca Türkçe yaz. Teknoloji ve ürün adları orijinal kalabilir; cümleler İngilizce OLMAMALIDIR.`
+          : prompt;
+
       const result = await generateWithDefaultFallback({
         model,
-        prompt,
+        prompt: localizedPrompt,
         system: localizeSystemPrompt(system, locale, true),
         temperature,
         topP: 0.9,
         numCtx: ollamaConfig.repoAnalysisNumCtx,
         maxTokens: ollamaConfig.repoAnalysisMaxTokens,
         format: repoAnalysisJsonSchema,
+        // The 14B model on a large prompt needs a generous budget; retrying a
+        // timed-out generation wastes minutes, so the model-candidate loop
+        // (below) is the only retry mechanism for the heavy analysis call.
+        timeoutMs: ollamaConfig.repoAnalysisTimeout,
+        retries: 0,
       });
 
       const parsed = extractJSON<Record<string, unknown>>(result, {});
-      const merged = mergeRepoAnalysis(parsed, fallback);
+      const merged = mergeRepoAnalysis(parsed, fallback, targetLocale);
       const validated = validateRepoAnalysisOutput(merged, `${repoData.name}:${attemptLabel}:${model}`);
-      const scored = scoreRepoAnalysis(parsed, validated);
+      const scored = scoreRepoAnalysis(parsed, validated, targetLocale);
 
       logger.info("Completed repo analysis attempt", {
         name: repoData.name,
-        locale,
+        locale: targetLocale,
         attemptLabel,
         model,
         promptLength: prompt.length,
         qualityScore: scored.qualityScore,
         directFieldCount: scored.directFieldCount,
+        localePurity: scored.localePurity,
         detectedSkills: scored.merged.detectedSkills.length,
         highlights: scored.merged.cvHighlights.length,
       });

@@ -12,6 +12,7 @@ import { templatesRoute } from "./routes/templates/index";
 import { githubRoute } from "./routes/github/index";
 import { recruiterRoute } from "./routes/recruiter/index";
 import { settingsRoute } from "./routes/settings/index";
+import { printRoute } from "./routes/print/$cvId";
 
 const routeTree = rootRoute.addChildren([
   authRoute,
@@ -23,6 +24,7 @@ const routeTree = rootRoute.addChildren([
   githubRoute,
   recruiterRoute,
   settingsRoute,
+  printRoute,
 ]);
 
 export { routeTree };

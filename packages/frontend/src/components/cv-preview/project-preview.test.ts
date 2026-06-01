@@ -29,7 +29,7 @@ describe("buildPreviewProject", () => {
     expect(result.metaLine).toBe("Lead Engineer");
   });
 
-  it("shows repository link instead of technologies for public GitHub projects", () => {
+  it("shows a repository link and falls back to technologies as skills for GitHub projects without detected skills", () => {
     const result = buildPreviewProject({
       name: "CvBuilder",
       isFromGitHub: true,
@@ -39,7 +39,56 @@ describe("buildPreviewProject", () => {
 
     expect(result.repositoryUrl).toBe("https://github.com/mock-dev/cvbuilder");
     expect(result.signalLine).toBe("github.com/mock-dev/cvbuilder");
+    // The standalone technology line is suppressed for GitHub projects, but the
+    // skills line MUST render (regression guard for the "no skills" bug).
     expect(result.technologies).toEqual([]);
+    expect(result.skills).toEqual(["TypeScript", "React"]);
+  });
+
+  it("renders the AI-detected deep skills for GitHub projects when available", () => {
+    const result = buildPreviewProject({
+      name: "CvBuilder",
+      isFromGitHub: true,
+      technologies: ["TypeScript", "React"],
+      githubUrl: "https://github.com/mock-dev/cvbuilder",
+      githubRepoData: {
+        detectedSkills: ["JWT authentication", "BullMQ job queues", "Monorepo architecture"],
+        isPrivate: false,
+      },
+    }, "en");
+
+    // Deep skills take precedence over the surface technology list.
+    expect(result.skills).toEqual(["JWT authentication", "BullMQ job queues", "Monorepo architecture"]);
+    expect(result.isFromGitHub).toBe(true);
+  });
+
+  it("exposes public/private visibility from githubRepoData.isPrivate", () => {
+    const publicProject = buildPreviewProject({
+      name: "PublicRepo",
+      isFromGitHub: true,
+      githubUrl: "https://github.com/mock-dev/public",
+      githubRepoData: { isPrivate: false },
+    }, "en");
+    expect(publicProject.visibility).toBe("public");
+
+    const privateProject = buildPreviewProject({
+      name: "PrivateRepo",
+      isFromGitHub: true,
+      githubRepoData: { isPrivate: true },
+    }, "en");
+    expect(privateProject.visibility).toBe("private");
+  });
+
+  it("keeps the technology line and reports no visibility for manual projects", () => {
+    const result = buildPreviewProject({
+      name: "Manual Project",
+      isFromGitHub: false,
+      technologies: ["Figma", "Photoshop"],
+    }, "en");
+
+    expect(result.technologies).toEqual(["Figma", "Photoshop"]);
+    expect(result.visibility).toBeNull();
+    expect(result.isFromGitHub).toBe(false);
   });
 
   it("falls back to the full GitHub AI description for previously truncated imports", () => {

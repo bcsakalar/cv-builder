@@ -148,10 +148,40 @@
       "description": "Create a section tailored to your story"
     }
   },
+  "cvStrength": {
+    "title": "CV Strength",
+    "subtitle": "Complete the suggestions to boost your score",
+    "completed": "{{completed}}/{{total}} done",
+    "toImprove": "To improve",
+    "allDone": "Great — your CV looks recruiter-ready 🎉",
+    "completedSection": "Completed ({{count}})",
+    "level": {
+      "low": "Needs work",
+      "medium": "Good",
+      "high": "Excellent"
+    },
+    "checks": {
+      "name": "Add your full name",
+      "title": "Add a professional title",
+      "email": "Add an email address",
+      "contact": "Add phone or location",
+      "links": "Add a website, GitHub or LinkedIn",
+      "summary": "Write a professional summary",
+      "richSummary": "Make your summary detailed (200+ chars)",
+      "experience": "Add work experience",
+      "expDescriptions": "Describe your experience with details",
+      "quantified": "Quantify achievements with numbers",
+      "education": "Add education",
+      "skills": "Add at least 5 skills",
+      "project": "Add a project",
+      "language": "Add a language"
+    }
+  },
   "editor": {
     "theme": "Theme",
     "pdf": "PDF",
     "ai": "AI",
+    "strength": "Strength",
     "preview": "Preview",
     "showPreview": "Show",
     "hidePreview": "Hide",
@@ -261,7 +291,10 @@
       "applyingImprovement": "Applying...",
       "improveWithAi": "Improve with AI",
       "viewOnGithub": "View on GitHub",
-      "visitProject": "Visit project"
+      "visitProject": "Visit project",
+      "skillsLabel": "Skills",
+      "visibilityPublic": "Public",
+      "visibilityPrivate": "Private"
     },
     "certifications": {
       "add": "Add Certification",
@@ -720,6 +753,13 @@
       "STRONG_MATCH": "Strong match",
       "POTENTIAL_MATCH": "Potential match",
       "WEAK_MATCH": "Weak match"
+    },
+    "funnel": {
+      "title": "Candidate pipeline",
+      "all": "All",
+      "avgScore": "Avg. score",
+      "brokenLinks": "Broken links",
+      "basedOn": "Based on {{count}} loaded candidates"
     },
     "candidates": {
       "title": "Ranked candidates",

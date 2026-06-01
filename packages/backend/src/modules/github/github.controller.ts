@@ -188,11 +188,27 @@ export const githubController = {
       maxRetriesPerRequest: null,
       lazyConnect: true,
     });
-    await subscriber.connect();
 
     const channel = progressChannel(id);
 
+    let cleaned = false;
+    let timeout: NodeJS.Timeout | undefined;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      if (timeout) clearTimeout(timeout);
+      subscriber.unsubscribe(channel).catch(() => {});
+      subscriber.disconnect();
+      if (!res.writableEnded) res.end();
+    };
+
+    // Register disconnect handlers BEFORE connecting so a client abort or a
+    // failed subscription during setup can never leak the Redis subscriber.
+    req.on("close", cleanup);
+    req.on("error", cleanup);
+
     const onMessage = (_ch: string, message: string) => {
+      if (cleaned) return;
       res.write(`data: ${message}\n\n`);
 
       // Auto-close on terminal states
@@ -206,30 +222,32 @@ export const githubController = {
       }
     };
 
-    await subscriber.subscribe(channel);
-    subscriber.on("message", onMessage);
+    try {
+      await subscriber.connect();
+      await subscriber.subscribe(channel);
+      subscriber.on("message", onMessage);
+    } catch (error) {
+      logger.error("Failed to open SSE Redis subscription", {
+        analysisId: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.write(
+        `data: ${JSON.stringify({ stage: "failed", progress: 0, message: "Analysis stream unavailable" })}\n\n`
+      );
+      cleanup();
+      return;
+    }
 
-    // Safety timeout — close after 5 minutes if analysis hangs
-    const timeout = setTimeout(() => {
+    // Safety timeout — deep analysis with a large local model can legitimately
+    // take several minutes, so give it generous headroom before the stream
+    // gives up. The worker keeps running regardless; the UI reflects the final
+    // status on the next poll/refresh.
+    timeout = setTimeout(() => {
       res.write(
         `data: ${JSON.stringify({ stage: "failed", progress: 0, message: "Analysis timed out" })}\n\n`
       );
       cleanup();
-    }, 5 * 60 * 1000);
-
-    let cleaned = false;
-    function cleanup() {
-      if (cleaned) return;
-      cleaned = true;
-      clearTimeout(timeout);
-      subscriber.unsubscribe(channel).catch(() => {});
-      subscriber.disconnect();
-      res.end();
-    }
-
-    // Clean up on client disconnect
-    req.on("close", cleanup);
-    req.on("error", cleanup);
+    }, 12 * 60 * 1000);
 
     // Send initial state
     res.write(

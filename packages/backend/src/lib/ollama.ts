@@ -23,6 +23,10 @@ export interface OllamaGenerateOptions {
   json?: boolean;
   /** Ollama native structured output format. Can be "json" or a JSON schema. */
   format?: "json" | Record<string, unknown>;
+  /** Per-request abort timeout in ms (defaults to ollamaConfig.timeout). */
+  timeoutMs?: number;
+  /** Number of internal retries on failure (defaults to ollamaConfig.maxRetries). */
+  retries?: number;
 }
 
 export interface OllamaChatMessage {
@@ -128,9 +132,11 @@ function buildFormat(options: { json?: boolean; format?: "json" | Record<string,
 async function ollamaFetch<T>(
   endpoint: string,
   body: Record<string, unknown>,
-  retries = ollamaConfig.maxRetries
+  options: { retries?: number; timeoutMs?: number } = {}
 ): Promise<T> {
   const url = `${ollamaConfig.baseUrl}${endpoint}`;
+  const retries = options.retries ?? ollamaConfig.maxRetries;
+  const timeoutMs = options.timeoutMs ?? ollamaConfig.timeout;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -138,7 +144,7 @@ async function ollamaFetch<T>(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(ollamaConfig.timeout),
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       if (!response.ok) {
@@ -210,6 +216,8 @@ export async function generate(
     keepAlive = ollamaConfig.keepAlive,
     json = false,
     format,
+    timeoutMs,
+    retries,
   } = options;
 
   logger.debug("Ollama generate", { model, promptLength: prompt.length });
@@ -234,7 +242,8 @@ export async function generate(
 
   const response = await ollamaFetch<OllamaGenerateResponse>(
     "/api/generate",
-    body
+    body,
+    { timeoutMs, retries }
   );
 
   const raw = response.response ?? "";

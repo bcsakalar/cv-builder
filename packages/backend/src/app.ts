@@ -20,6 +20,7 @@ import { authRoutes } from "./modules/auth/auth.routes";
 import { cvRoutes } from "./modules/cv/cv.routes";
 import { templateRoutes } from "./modules/template/template.routes";
 import { pdfRoutes } from "./modules/pdf/pdf.routes";
+import { printRoutes } from "./modules/pdf/pdf.print.routes";
 import { githubRoutes } from "./modules/github/github.routes";
 import { aiRoutes } from "./modules/ai/ai.routes";
 import { uploadRoutes } from "./modules/upload/upload.routes";
@@ -79,6 +80,8 @@ app.get("/api/health", async (_req, res) => {
 
 // ── API Routes ───────────────────────────────────────────
 app.use("/api/auth", authRoutes);
+// Public, token-gated print data for headless-Chrome PDF rendering (no session).
+app.use("/api/print", printRoutes);
 app.use("/api/cv", requireAuth, cvRoutes);
 app.use("/api/templates", templateRoutes);
 app.use("/api/pdf", requireAuth, pdfRoutes);
