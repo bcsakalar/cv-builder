@@ -800,6 +800,29 @@
       "rawPreview": "Çıkarılan metin önizlemesi",
       "empty": "Tam analiz detaylarını görmek için soldan bir aday seçin."
     },
+    "detail": {
+      "tabs": {
+        "overview": "Genel Bakış",
+        "evidence": "Eşleşme",
+        "document": "Belge",
+        "notes": "Notlar"
+      },
+      "matchedHardSkills": "Eşleşen hard skill'ler",
+      "matchedKeywords": "Eşleşen anahtar kelimeler",
+      "matchEvidence": "CV metninden eşleşme kanıtı",
+      "mustHave": "olmazsa olmaz",
+      "keyword": "anahtar kelime",
+      "extractedChars": "Çıkarılan metin: {{count}} karakter",
+      "extractedPreview": "Çıkarılan PDF metni önizlemesi"
+    },
+    "notes": {
+      "title": "Notlar & etiketler",
+      "tagsLabel": "Etiketler (virgülle ayır)",
+      "notesLabel": "Notlar",
+      "placeholder": "Bu aday hakkında dahili notlar...",
+      "save": "Notları & etiketleri kaydet",
+      "saving": "Kaydediliyor..."
+    },
     "breakdown": {
       "mustHaveScore": "Olmazsa olmaz uyumu",
       "keywordScore": "Anahtar kelime kapsaması",

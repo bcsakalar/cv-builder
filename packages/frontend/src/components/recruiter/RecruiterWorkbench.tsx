@@ -7,13 +7,10 @@ import type {
 import {
   ArrowUpDown,
   BriefcaseBusiness,
-  CheckCircle2,
   FileSearch,
   Files,
   Filter,
   Gauge,
-  Link2,
-  RefreshCcw,
   Search,
   Sparkles,
   TriangleAlert,
@@ -43,9 +40,9 @@ import {
   formatDate,
   parseSkillsInput,
   recommendationClass,
-  scoreLabelMap,
 } from "./recruiter-ui";
 import { CandidateFunnel } from "./CandidateFunnel";
+import { CandidateDetailDrawer } from "./CandidateDetailDrawer";
 
 const ACTIVE_BATCH_STATUSES = new Set<RecruiterBatchStatus>(["PENDING", "PROCESSING"]);
 
@@ -107,19 +104,7 @@ export function RecruiterWorkbench() {
   const compareMutation = useCompareCandidates();
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
-  const [notesDraft, setNotesDraft] = useState<string>("");
-  const [tagsDraft, setTagsDraft] = useState<string>("");
-
-  // sync drafts when candidate changes (React "adjusting state during render" pattern)
-  const candidateId = candidateQuery.data?.id;
-  const [prevCandidateId, setPrevCandidateId] = useState<string | undefined>(undefined);
-  if (candidateId !== prevCandidateId) {
-    setPrevCandidateId(candidateId);
-    if (candidateId) {
-      setNotesDraft(candidateQuery.data?.notes ?? "");
-      setTagsDraft((candidateQuery.data?.tags ?? []).join(", "));
-    }
-  }
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const toggleCompare = (id: string) => {
     setCompareIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(-5)));
@@ -130,14 +115,6 @@ export function RecruiterWorkbench() {
       compareMutation.mutate(compareIds);
       setShowCompare(true);
     }
-  };
-
-  const saveMetadata = () => {
-    const tags = tagsDraft
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    updateMetadataMutation.mutate({ notes: notesDraft.trim() || null, tags });
   };
 
   const summaryStats = useMemo(() => {
@@ -546,7 +523,7 @@ export function RecruiterWorkbench() {
                 onSelectRecommendation={(recommendation) => updateFilters({ recommendation })}
               />
 
-              <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.1fr)_420px]">
+              <div className="space-y-6">
                 <SectionCard
                   title={t("recruiter.candidates.title")}
                   subtitle={t("recruiter.candidates.subtitle", {
@@ -607,7 +584,10 @@ export function RecruiterWorkbench() {
                         {candidateList.map((item, index) => (
                           <tr
                             key={item.id}
-                            onClick={() => setSelectedCandidateId(item.id)}
+                            onClick={() => {
+                              setSelectedCandidateId(item.id);
+                              setDetailOpen(true);
+                            }}
                             className={`cursor-pointer align-top transition hover:bg-accent/40 ${
                               selectedCandidateId === item.id ? "bg-primary/5" : ""
                             }`}
@@ -706,261 +686,7 @@ export function RecruiterWorkbench() {
                   ) : null}
                 </SectionCard>
 
-                <div className="space-y-6">
-                  <SectionCard
-                    title={t("recruiter.candidateDetail.title")}
-                    subtitle={candidate ? candidate.document.originalFileName : t("recruiter.candidateDetail.emptySubtitle")}
-                    actions={
-                      candidate ? (
-                        <button
-                          type="button"
-                          onClick={() => reEvaluateMutation.mutate({ force: true })}
-                          disabled={reEvaluateMutation.isPending}
-                          className="inline-flex items-center rounded-xl border px-3 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <RefreshCcw size={14} className="mr-2" />
-                          {reEvaluateMutation.isPending ? t("recruiter.actions.reevaluating") : t("recruiter.actions.reEvaluate")}
-                        </button>
-                      ) : null
-                    }
-                  >
-                    {candidate ? (
-                      <div className="space-y-5">
-                        <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-background/70 p-4">
-                          <div>
-                            <h3 className="text-xl font-semibold">{candidate.fullName || t("recruiter.common.unknownCandidate")}</h3>
-                            <p className="text-sm text-muted-foreground">{candidate.headline || candidate.email || t("recruiter.common.notAvailable")}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {candidate.location || t("recruiter.common.remote")} • {candidate.phone || t("recruiter.common.notAvailable")}
-                            </p>
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <ScoreRing value={candidate.evaluation?.overallScore} size={72} />
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${recommendationClass(candidate.evaluation?.recommendation)}`}>
-                              {candidate.evaluation?.recommendation
-                                ? t(`recruiter.recommendations.${candidate.evaluation.recommendation}`)
-                                : t("recruiter.common.pending")}
-                            </span>
-                          </div>
-                        </div>
-
-                        {candidate.evaluation ? (
-                          <>
-                            <div className="grid gap-3">
-                              {scoreLabelMap.map((item) => {
-                                const score = candidate.evaluation?.[item.key] ?? 0;
-                                return (
-                                  <div key={item.key}>
-                                    <div className="mb-1 flex items-center justify-between text-sm">
-                                      <span>{t(`recruiter.breakdown.${item.key}`)}</span>
-                                      <span className="font-medium">{score}</span>
-                                    </div>
-                                    <div className="h-2 rounded-full bg-muted">
-                                      <div
-                                        className={`h-2 rounded-full ${item.tone}`}
-                                        style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            <div className="space-y-2 rounded-2xl border bg-background/60 p-4">
-                              <div className="flex items-center gap-2 text-sm font-medium">
-                                <CheckCircle2 size={16} className="text-emerald-500" />
-                                {t("recruiter.candidateDetail.summary")}
-                              </div>
-                              <p className="text-sm text-muted-foreground">{candidate.evaluation.shortSummary}</p>
-                              {candidate.evaluation.explanation ? (
-                                <p className="text-sm text-muted-foreground">{candidate.evaluation.explanation}</p>
-                              ) : null}
-                            </div>
-
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div className="rounded-2xl border p-4">
-                                <p className="mb-3 text-sm font-medium">
-                                  {t("recruiter.candidateDetail.matchedHardSkills", { defaultValue: "Matched hard skills" })}
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {candidate.evaluation.matchedHardSkills.map((item) => (
-                                    <Chip key={item} tone="success">{item}</Chip>
-                                  ))}
-                                  {!candidate.evaluation.matchedHardSkills.length ? <p className="text-sm text-muted-foreground">—</p> : null}
-                                </div>
-                              </div>
-                              <div className="rounded-2xl border p-4">
-                                <p className="mb-3 text-sm font-medium">
-                                  {t("recruiter.candidateDetail.matchedKeywords", { defaultValue: "Matched keywords" })}
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {candidate.evaluation.matchedKeywords.map((item) => (
-                                    <Chip key={item}>{item}</Chip>
-                                  ))}
-                                  {!candidate.evaluation.matchedKeywords.length ? <p className="text-sm text-muted-foreground">—</p> : null}
-                                </div>
-                              </div>
-                            </div>
-
-                            {candidate.evaluation.matchEvidence.length > 0 ? (
-                              <div className="rounded-2xl border p-4">
-                                <p className="mb-3 text-sm font-medium">
-                                  {t("recruiter.candidateDetail.matchEvidence", { defaultValue: "Match evidence from CV text" })}
-                                </p>
-                                <div className="space-y-2">
-                                  {candidate.evaluation.matchEvidence.slice(0, 8).map((item, index) => (
-                                    <div key={`${item.term}-${index}`} className="rounded-xl bg-background/70 p-3 text-xs">
-                                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                                        <Chip tone={item.source === "mustHave" ? "success" : "default"}>{item.term}</Chip>
-                                        <span className="text-muted-foreground">
-                                          {item.source === "mustHave"
-                                            ? t("recruiter.candidateDetail.mustHaveEvidence", { defaultValue: "must-have" })
-                                            : t("recruiter.candidateDetail.keywordEvidence", { defaultValue: "keyword" })}
-                                        </span>
-                                      </div>
-                                      <p className="leading-relaxed text-muted-foreground">{item.evidence}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : null}
-
-                            <div className="grid gap-4 md:grid-cols-3">
-                              <div className="rounded-2xl border p-4">
-                                <p className="mb-3 text-sm font-medium">{t("recruiter.candidateDetail.strengths")}</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {candidate.evaluation.strengths.map((item) => (
-                                    <Chip key={item} tone="success">{item}</Chip>
-                                  ))}
-                                  {!candidate.evaluation.strengths.length ? <p className="text-sm text-muted-foreground">—</p> : null}
-                                </div>
-                              </div>
-                              <div className="rounded-2xl border p-4">
-                                <p className="mb-3 text-sm font-medium">{t("recruiter.candidateDetail.missingSkills")}</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {candidate.evaluation.missingHardSkills.map((item) => (
-                                    <Chip key={item} tone="warning">{item}</Chip>
-                                  ))}
-                                  {!candidate.evaluation.missingHardSkills.length ? <p className="text-sm text-muted-foreground">—</p> : null}
-                                </div>
-                              </div>
-                              <div className="rounded-2xl border p-4">
-                                <p className="mb-3 text-sm font-medium">{t("recruiter.candidateDetail.riskFlags")}</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {candidate.evaluation.riskFlags.map((item) => (
-                                    <Chip key={item} tone="danger">{item}</Chip>
-                                  ))}
-                                  {!candidate.evaluation.riskFlags.length ? <p className="text-sm text-muted-foreground">—</p> : null}
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        ) : null}
-
-                        <div className="rounded-2xl border p-4">
-                          <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                            <Link2 size={16} />
-                            {t("recruiter.candidateDetail.links")}
-                          </div>
-                          <div className="space-y-3">
-                            {candidate.links.map((link) => (
-                              <div key={link.id} className="rounded-xl bg-background/70 p-3 text-sm">
-                                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                                  <a href={link.finalUrl || link.url} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
-                                    {link.title || link.host}
-                                  </a>
-                                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${link.accessible === false ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"}`}>
-                                    {link.accessible === false ? t("recruiter.links.broken") : t("recruiter.links.ok")}
-                                  </span>
-                                </div>
-                                <p className="text-muted-foreground">{link.description || link.url}</p>
-                              </div>
-                            ))}
-                            {!candidate.links.length ? <p className="text-sm text-muted-foreground">{t("recruiter.links.empty")}</p> : null}
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border p-4">
-                          <p className="mb-3 text-sm font-medium">{t("recruiter.candidateDetail.document")}</p>
-                          <div className="space-y-2 text-sm text-muted-foreground">
-                            <p>{candidate.document.originalFileName}</p>
-                            <p>{t("recruiter.candidateDetail.documentStatus", { status: candidate.document.extractionStatus })}</p>
-                            <p>
-                              {t("recruiter.candidateDetail.extractedTextLength", {
-                                count: candidate.document.extractedTextLength,
-                                defaultValue: "Extracted text: {{count}} characters",
-                              })}
-                            </p>
-                            <p>{t("recruiter.candidateDetail.completeness", { score: candidate.completenessScore })}</p>
-                          </div>
-                        </div>
-
-                        {candidate.document.extractedTextPreview ? (
-                          <div className="rounded-2xl border p-4">
-                            <p className="mb-3 text-sm font-medium">
-                              {t("recruiter.candidateDetail.extractedTextPreview", { defaultValue: "Extracted PDF text preview" })}
-                            </p>
-                            <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
-                              {candidate.document.extractedTextPreview}
-                            </pre>
-                          </div>
-                        ) : null}
-
-                        <div className="rounded-2xl border p-4">
-                          <p className="mb-3 text-sm font-medium">{t("recruiter.candidateDetail.rawPreview")}</p>
-                          <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
-                            {candidate.rawTextSnippet}
-                          </pre>
-                        </div>
-
-                        <div className="rounded-2xl border p-4 space-y-3" data-testid="recruiter-notes-section">
-                          <p className="text-sm font-medium">{t("recruiter.notes.title", "Notes & Tags")}</p>
-                          <div className="space-y-2">
-                            <label className="text-xs text-muted-foreground">{t("recruiter.notes.tagsLabel", "Tags (comma separated)")}</label>
-                            <input
-                              type="text"
-                              data-testid="recruiter-tags-input"
-                              value={tagsDraft}
-                              onChange={(e) => setTagsDraft(e.target.value)}
-                              placeholder="senior, react, remote"
-                              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
-                            />
-                            <div className="flex flex-wrap gap-2">
-                              {(candidate.tags ?? []).map((tag) => (
-                                <Chip key={tag} tone="success">{tag}</Chip>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-xs text-muted-foreground">{t("recruiter.notes.notesLabel", "Notes")}</label>
-                            <textarea
-                              data-testid="recruiter-notes-input"
-                              value={notesDraft}
-                              onChange={(e) => setNotesDraft(e.target.value)}
-                              rows={4}
-                              placeholder={t("recruiter.notes.placeholder", "Internal notes about this candidate...")}
-                              className="w-full rounded-xl border bg-background px-3 py-2 text-sm"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            data-testid="recruiter-save-metadata"
-                            onClick={saveMetadata}
-                            disabled={updateMetadataMutation.isPending}
-                            className="inline-flex items-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-                          >
-                            {updateMetadataMutation.isPending
-                              ? t("recruiter.notes.saving", "Saving...")
-                              : t("recruiter.notes.save", "Save notes & tags")}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                        {t("recruiter.candidateDetail.empty")}
-                      </div>
-                    )}
-                  </SectionCard>
+                <div className="grid gap-6 lg:grid-cols-2">
 
                   <SectionCard
                     title={t("recruiter.batchHistory.title")}
@@ -1026,6 +752,18 @@ export function RecruiterWorkbench() {
           )}
         </div>
       </div>
+
+      <CandidateDetailDrawer
+        candidate={candidate ?? null}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        onReEvaluate={() => reEvaluateMutation.mutate({ force: true })}
+        reEvaluating={reEvaluateMutation.isPending}
+        onSaveMetadata={(data) => updateMetadataMutation.mutate(data)}
+        savingMetadata={updateMetadataMutation.isPending}
+        locale={i18n.language}
+      />
+
       {showCompare && compareMutation.data && compareMutation.data.length > 0 ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"

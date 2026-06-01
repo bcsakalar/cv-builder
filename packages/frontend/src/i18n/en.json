@@ -795,6 +795,29 @@
       "rawPreview": "Extracted text preview",
       "empty": "Pick a candidate from the left to see full analysis details."
     },
+    "detail": {
+      "tabs": {
+        "overview": "Overview",
+        "evidence": "Match",
+        "document": "Document",
+        "notes": "Notes"
+      },
+      "matchedHardSkills": "Matched hard skills",
+      "matchedKeywords": "Matched keywords",
+      "matchEvidence": "Match evidence from CV text",
+      "mustHave": "must-have",
+      "keyword": "keyword",
+      "extractedChars": "Extracted text: {{count}} characters",
+      "extractedPreview": "Extracted PDF text preview"
+    },
+    "notes": {
+      "title": "Notes & tags",
+      "tagsLabel": "Tags (comma separated)",
+      "notesLabel": "Notes",
+      "placeholder": "Internal notes about this candidate...",
+      "save": "Save notes & tags",
+      "saving": "Saving..."
+    },
     "breakdown": {
       "mustHaveScore": "Must-have fit",
       "keywordScore": "Keyword coverage",

@@ -255,13 +255,24 @@ describe("RecruiterWorkbench", () => {
 
     expect(screen.getByText("High-volume candidate review workspace")).toBeInTheDocument();
     expect(screen.getAllByText("Jane Doe").length).toBeGreaterThan(0);
+
+    // Open the candidate detail drawer by clicking the ranked row.
+    await user.click(screen.getByText("Jane Doe"));
+
+    // Overview tab (default) shows the summary + matched hard skills.
     expect(screen.getByText("High-confidence shortlist candidate.")).toBeInTheDocument();
     expect(screen.getByText("Matched hard skills")).toBeInTheDocument();
+
+    // Match evidence lives under the "Match" tab.
+    await user.click(screen.getByTestId("recruiter-detail-tab-evidence"));
     expect(screen.getByText("Match evidence from CV text")).toBeInTheDocument();
+
+    // Extracted document text lives under the "Document" tab.
+    await user.click(screen.getByTestId("recruiter-detail-tab-document"));
     expect(screen.getByText(/Extracted text: 64 characters/i)).toBeInTheDocument();
 
+    // Re-score action sits in the drawer header.
     await user.click(screen.getByRole("button", { name: /re-score candidate/i }));
-
     expect(reEvaluateMutate).toHaveBeenCalledWith({ force: true });
   });
 });
