@@ -1,5 +1,4 @@
 import type {
-  CandidateEvaluationBreakdown,
   CandidateRecommendation,
   CreateRecruiterJobInput,
   RecruiterBatchStatus,
@@ -36,6 +35,17 @@ import {
   useCompareCandidates,
 } from "@/hooks/useRecruiter";
 import { recruiterApi } from "@/services/recruiter.api";
+import {
+  Chip,
+  ScoreRing,
+  SectionCard,
+  batchStatusClass,
+  formatDate,
+  parseSkillsInput,
+  recommendationClass,
+  scoreLabelMap,
+} from "./recruiter-ui";
+import { CandidateFunnel } from "./CandidateFunnel";
 
 const ACTIVE_BATCH_STATUSES = new Set<RecruiterBatchStatus>(["PENDING", "PROCESSING"]);
 
@@ -57,83 +67,6 @@ const EMPTY_JOB_FORM: CreateRecruiterJobInput = {
   niceToHaveSkills: [],
   minimumYearsExperience: null,
 };
-
-const scoreLabelMap: Array<{ key: keyof CandidateEvaluationBreakdown; tone: string }> = [
-  { key: "mustHaveScore", tone: "bg-emerald-500" },
-  { key: "keywordScore", tone: "bg-blue-500" },
-  { key: "experienceScore", tone: "bg-indigo-500" },
-  { key: "readabilityScore", tone: "bg-amber-500" },
-  { key: "linkQualityScore", tone: "bg-cyan-500" },
-  { key: "riskPenalty", tone: "bg-rose-500" },
-];
-
-function parseSkillsInput(value: string): string[] {
-  return value
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function recommendationClass(recommendation?: CandidateRecommendation | null): string {
-  switch (recommendation) {
-    case "STRONG_MATCH":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300";
-    case "POTENTIAL_MATCH":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300";
-    case "WEAK_MATCH":
-    default:
-      return "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300";
-  }
-}
-
-function batchStatusClass(status?: RecruiterBatchStatus | null): string {
-  switch (status) {
-    case "COMPLETED":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300";
-    case "COMPLETED_WITH_ERRORS":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300";
-    case "FAILED":
-      return "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300";
-    case "PROCESSING":
-      return "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300";
-    case "PENDING":
-    default:
-      return "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300";
-  }
-}
-
-function formatDate(value: string | null | undefined, locale: string) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString(locale);
-}
-
-function Chip({ children, tone = "default" }: { children: string; tone?: "default" | "danger" | "success" | "warning" }) {
-  const classes =
-    tone === "danger"
-      ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
-      : tone === "success"
-        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-        : tone === "warning"
-          ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-          : "bg-muted text-muted-foreground";
-
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${classes}`}>{children}</span>;
-}
-
-function SectionCard({ title, subtitle, actions, children }: { title: string; subtitle?: string; actions?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl border bg-card p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">{title}</h2>
-          {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
-        </div>
-        {actions}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export function RecruiterWorkbench() {
   const { t, i18n } = useTranslation();
@@ -607,6 +540,12 @@ export function RecruiterWorkbench() {
                 </label>
               </SectionCard>
 
+              <CandidateFunnel
+                candidates={candidateList}
+                activeRecommendation={filters.recommendation}
+                onSelectRecommendation={(recommendation) => updateFilters({ recommendation })}
+              />
+
               <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.1fr)_420px]">
                 <SectionCard
                   title={t("recruiter.candidates.title")}
@@ -665,7 +604,7 @@ export function RecruiterWorkbench() {
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {candidateList.map((item) => (
+                        {candidateList.map((item, index) => (
                           <tr
                             key={item.id}
                             onClick={() => setSelectedCandidateId(item.id)}
@@ -683,19 +622,24 @@ export function RecruiterWorkbench() {
                               />
                             </td>
                             <td className="py-3 pr-4">
-                              <div>
-                                <p className="font-medium">{item.fullName || t("recruiter.common.unknownCandidate")}</p>
-                                <p className="text-muted-foreground">{item.headline || item.email || "—"}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {item.yearsOfExperience != null
-                                    ? t("recruiter.candidates.experienceYears", { count: item.yearsOfExperience })
-                                    : t("recruiter.common.notAvailable")}
-                                </p>
+                              <div className="flex items-start gap-3">
+                                <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
+                                  {((filters.page ?? 1) - 1) * (filters.limit ?? 20) + index + 1}
+                                </span>
+                                <div>
+                                  <p className="font-medium">{item.fullName || t("recruiter.common.unknownCandidate")}</p>
+                                  <p className="text-muted-foreground">{item.headline || item.email || "—"}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {item.yearsOfExperience != null
+                                      ? t("recruiter.candidates.experienceYears", { count: item.yearsOfExperience })
+                                      : t("recruiter.common.notAvailable")}
+                                  </p>
+                                </div>
                               </div>
                             </td>
                             <td className="py-3 pr-4">
-                              <div className="space-y-2">
-                                <div className="text-xl font-semibold">{item.evaluation?.overallScore ?? "—"}</div>
+                              <div className="flex items-center gap-3">
+                                <ScoreRing value={item.evaluation?.overallScore} size={44} />
                                 <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${recommendationClass(item.evaluation?.recommendation)}`}>
                                   {item.evaluation?.recommendation
                                     ? t(`recruiter.recommendations.${item.evaluation.recommendation}`)
@@ -790,8 +734,8 @@ export function RecruiterWorkbench() {
                               {candidate.location || t("recruiter.common.remote")} • {candidate.phone || t("recruiter.common.notAvailable")}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <div className="text-3xl font-bold">{candidate.evaluation?.overallScore ?? "—"}</div>
+                          <div className="flex flex-col items-end gap-2">
+                            <ScoreRing value={candidate.evaluation?.overallScore} size={72} />
                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${recommendationClass(candidate.evaluation?.recommendation)}`}>
                               {candidate.evaluation?.recommendation
                                 ? t(`recruiter.recommendations.${candidate.evaluation.recommendation}`)
