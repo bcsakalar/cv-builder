@@ -239,6 +239,7 @@ async function runCandidateEvaluation(candidateId: string, userId: string) {
       mustHaveSkills: toStringArray(job.mustHaveSkills),
       niceToHaveSkills: toStringArray(job.niceToHaveSkills),
       minimumYearsExperience: job.minimumYearsExperience,
+      locale: job.locale,
     },
     {
       fullName: candidate.fullName,
@@ -562,6 +563,7 @@ export const recruiterService = {
             mustHaveSkills: toStringArray(batch.job.mustHaveSkills),
             niceToHaveSkills: toStringArray(batch.job.niceToHaveSkills),
             minimumYearsExperience: batch.job.minimumYearsExperience,
+            locale: batch.job.locale,
           },
           {
             fullName: parsedCandidate.fullName,

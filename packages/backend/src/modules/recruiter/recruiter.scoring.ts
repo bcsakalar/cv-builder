@@ -60,6 +60,20 @@ export interface RecruiterJobForScoring {
   mustHaveSkills: string[];
   niceToHaveSkills: string[];
   minimumYearsExperience: number | null;
+  /** Job locale ("tr" | "en") — drives the language of the generated evaluation prose. */
+  locale?: string | null;
+}
+
+/** Localized recommendation phrase used inside the explanation sentence. */
+function recommendationPhrase(recommendation: CandidateRecommendation, isTr: boolean): string {
+  if (isTr) {
+    return recommendation === "STRONG_MATCH"
+      ? "güçlü eşleşme"
+      : recommendation === "POTENTIAL_MATCH"
+        ? "potansiyel eşleşme"
+        : "zayıf eşleşme";
+  }
+  return recommendation.replace(/_/g, " ").toLowerCase();
 }
 
 export interface CandidateForScoring {
@@ -298,31 +312,41 @@ export function scoreCandidate(job: RecruiterJobForScoring, candidate: Candidate
   const readabilityScore = candidate.completenessScore;
   const linkScore = computeLinkScore(links);
 
+  const isTr = (job.locale ?? "en").toLowerCase().startsWith("tr");
+
   const riskFlags: string[] = [];
   let riskPenalty = 0;
 
   if (!candidate.email) {
-    riskFlags.push("Missing email address");
+    riskFlags.push(isTr ? "E-posta adresi eksik" : "Missing email address");
     riskPenalty += 6;
   }
 
   if (!candidate.phone) {
-    riskFlags.push("Missing phone number");
+    riskFlags.push(isTr ? "Telefon numarası eksik" : "Missing phone number");
     riskPenalty += 4;
   }
 
   if (mustHaveCoverage.score < 50) {
-    riskFlags.push("Less than half of the must-have criteria are evidenced");
+    riskFlags.push(
+      isTr
+        ? "Olmazsa olmaz kriterlerin yarısından azı kanıtlanmış"
+        : "Less than half of the must-have criteria are evidenced"
+    );
     riskPenalty += 10;
   }
 
   if (linkScore.brokenLinks > 0) {
-    riskFlags.push(`${linkScore.brokenLinks} broken or blocked link${linkScore.brokenLinks > 1 ? "s" : ""} found`);
+    riskFlags.push(
+      isTr
+        ? `${linkScore.brokenLinks} kırık veya bloklu link bulundu`
+        : `${linkScore.brokenLinks} broken or blocked link${linkScore.brokenLinks > 1 ? "s" : ""} found`
+    );
     riskPenalty += Math.min(8, linkScore.brokenLinks * 2);
   }
 
   if (candidate.completenessScore < 55 && fullCandidateText.length < 1200) {
-    riskFlags.push("Candidate profile is incomplete");
+    riskFlags.push(isTr ? "Aday profili eksik" : "Candidate profile is incomplete");
     riskPenalty += 5;
   }
 
@@ -342,26 +366,52 @@ export function scoreCandidate(job: RecruiterJobForScoring, candidate: Candidate
   const strengths: string[] = [];
 
   if (mustHaveCoverage.score >= 75) {
-    strengths.push(`Matches ${mustHaveCoverage.matched.length}/${mustHaveFallback.length} must-have skills`);
+    strengths.push(
+      isTr
+        ? `${mustHaveCoverage.matched.length}/${mustHaveFallback.length} olmazsa olmaz yeteneği karşılıyor`
+        : `Matches ${mustHaveCoverage.matched.length}/${mustHaveFallback.length} must-have skills`
+    );
   }
   if (experienceScore >= 70) {
-    strengths.push("Experience evidence meets or exceeds the job's expected level");
+    strengths.push(
+      isTr
+        ? "Deneyim, pozisyonun beklenen seviyesini karşılıyor veya aşıyor"
+        : "Experience evidence meets or exceeds the job's expected level"
+    );
   }
   if (linkScore.accessibleLinks >= 2) {
-    strengths.push("Multiple accessible profile or portfolio links are available");
+    strengths.push(
+      isTr
+        ? "Birden fazla erişilebilir profil veya portföy linki mevcut"
+        : "Multiple accessible profile or portfolio links are available"
+    );
   }
   if (readabilityScore >= 75) {
-    strengths.push("CV structure is complete enough for fast recruiter review");
+    strengths.push(
+      isTr
+        ? "CV yapısı hızlı değerlendirme için yeterince eksiksiz"
+        : "CV structure is complete enough for fast recruiter review"
+    );
   }
 
   if (strengths.length === 0) {
-    strengths.push("Candidate has some relevant signals but needs closer manual review");
+    strengths.push(
+      isTr
+        ? "Aday bazı ilgili sinyaller taşıyor ancak daha yakından incelenmeli"
+        : "Candidate has some relevant signals but needs closer manual review"
+    );
   }
 
-  const matchedLabel = candidate.fullName ?? candidate.headline ?? "This candidate";
-  const shortSummary = `${matchedLabel} scored ${overallScore}/100 with ${mustHaveCoverage.matched.length}/${mustHaveFallback.length || 1} must-have matches and ${linkScore.brokenLinks} problematic links.`;
+  const matchedLabel = candidate.fullName ?? candidate.headline ?? (isTr ? "Bu aday" : "This candidate");
+  const missingHard = mustHaveCoverage.missing.slice(0, 4).join(", ") || (isTr ? "yok" : "none");
+  const missingKw = keywordCoverage.missing.slice(0, 4).join(", ") || (isTr ? "yok" : "none");
+  const shortSummary = isTr
+    ? `${matchedLabel}, ${overallScore}/100 puan aldı; ${mustHaveCoverage.matched.length}/${mustHaveFallback.length || 1} olmazsa olmaz eşleşme ve ${linkScore.brokenLinks} sorunlu link.`
+    : `${matchedLabel} scored ${overallScore}/100 with ${mustHaveCoverage.matched.length}/${mustHaveFallback.length || 1} must-have matches and ${linkScore.brokenLinks} problematic links.`;
   const matchEvidence = [...mustHaveCoverage.evidence, ...keywordCoverage.evidence].slice(0, 12);
-  const explanation = `${shortSummary} Recommendation: ${recommendation.replace(/_/g, " ").toLowerCase()}. Missing hard skills: ${mustHaveCoverage.missing.slice(0, 4).join(", ") || "none"}. Missing keywords: ${keywordCoverage.missing.slice(0, 4).join(", ") || "none"}.`;
+  const explanation = isTr
+    ? `${shortSummary} Öneri: ${recommendationPhrase(recommendation, true)}. Eksik hard skill'ler: ${missingHard}. Eksik anahtar kelimeler: ${missingKw}.`
+    : `${shortSummary} Recommendation: ${recommendationPhrase(recommendation, false)}. Missing hard skills: ${missingHard}. Missing keywords: ${missingKw}.`;
 
   return {
     overallScore,
