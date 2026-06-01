@@ -18,7 +18,8 @@ import { ReferencesSection } from "./sections/ReferencesSection";
 import { HobbiesSection } from "./sections/HobbiesSection";
 import { CustomSectionEditor } from "./sections/CustomSectionEditor";
 import { CVPreview } from "../cv-preview/CVPreview";
-import { ChevronRight, GripVertical, Palette, FileDown, Sparkles } from "lucide-react";
+import { CVStrengthPanel } from "./CVStrengthPanel";
+import { ChevronRight, GripVertical, Palette, FileDown, Sparkles, Gauge } from "lucide-react";
 import { resolveTemplatePreview, useThemeStore } from "@/stores/theme.store";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useUpdateCV, useUpdateSectionOrder } from "@/hooks/useCV";
@@ -63,6 +64,7 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
   const [showTheme, setShowTheme] = useState(false);
   const [showPDF, setShowPDF] = useState(false);
   const [showAI, setShowAI] = useState(false);
+  const [showStrength, setShowStrength] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState(cv.templateId);
   const replaceTheme = useThemeStore((s) => s.replaceTheme);
   const setActiveTemplate = useThemeStore((s) => s.setActiveTemplate);
@@ -199,6 +201,14 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
             >
               <Sparkles size={12} /> {t("editor.ai")}
             </button>
+            <button
+              type="button"
+              data-testid="editor-strength-toggle"
+              onClick={() => setShowStrength(!showStrength)}
+              className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${showStrength ? "bg-primary text-primary-foreground" : "border hover:bg-accent"}`}
+            >
+              <Gauge size={12} /> {t("editor.strength", { defaultValue: "Strength" })}
+            </button>
           </div>
           {showTheme && (
             <div className="border-b bg-card p-4">
@@ -219,6 +229,11 @@ export function CVEditorLayout({ cv }: CVEditorLayoutProps) {
               <Suspense fallback={<PanelFallback label={t("editor.loadingAiPanel", { defaultValue: "Loading AI assistant…" })} />}>
                 <LazyAIAssistPanel cvId={cv.id} />
               </Suspense>
+            </div>
+          )}
+          {showStrength && (
+            <div className="border-b bg-card p-4">
+              <CVStrengthPanel cv={cv} />
             </div>
           )}
           <div className="p-4">
