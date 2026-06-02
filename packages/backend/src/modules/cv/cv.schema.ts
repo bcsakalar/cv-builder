@@ -170,6 +170,7 @@ export const projectSchema = z.object({
   highlights: z.array(z.string()).default([]),
   isFromGitHub: z.boolean().default(false),
   githubRepoData: z.record(z.unknown()).nullable().default(null),
+  showVisibilityBadge: z.boolean().default(true),
   orderIndex: z.number().int().min(0).default(0),
 });
 

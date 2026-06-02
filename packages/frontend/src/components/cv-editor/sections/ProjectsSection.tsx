@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { CVDetail } from "@/services/cv.api";
 import { useSectionMutation, useUpdateTheme } from "@/hooks/useCV";
 import { useApplyAIArtifact, useImproveProject } from "@/hooks/useAI";
-import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { buildPreviewProject } from "@/components/cv-preview/project-preview";
 import { useCVStore } from "@/stores/cv.store";
 import {
@@ -163,8 +163,32 @@ function ProjectCard({ cvId, project, onRemove }: { cvId: string; project: FormD
   const { t, i18n } = useTranslation();
   const improveMut = useImproveProject();
   const applyArtifact = useApplyAIArtifact();
+  const { updateProject } = useSectionMutation(cvId);
   const [improved, setImproved] = useState<{ text: string; artifactId: string } | null>(null);
   const [expanded, setExpanded] = useState(false);
+
+  const projectRecord = project as unknown as Record<string, unknown>;
+  const showBadge = projectRecord.showVisibilityBadge !== false;
+  const toggleVisibilityBadge = () => {
+    updateProject.mutate({
+      id: project.id,
+      data: {
+        name: project.name,
+        description: project.description ?? "",
+        role: project.role ?? null,
+        technologies: project.technologies ?? [],
+        url: project.url ?? null,
+        githubUrl: project.githubUrl ?? null,
+        startDate: project.startDate,
+        endDate: project.endDate ?? null,
+        highlights: project.highlights ?? [],
+        isFromGitHub: project.isFromGitHub ?? false,
+        githubRepoData: projectRecord.githubRepoData ?? null,
+        showVisibilityBadge: !showBadge,
+        orderIndex: projectRecord.orderIndex ?? 0,
+      },
+    });
+  };
 
   const allHighlights = project.highlights ?? [];
   const previewProject = buildPreviewProject(project as unknown as Record<string, unknown>, i18n.language, {
@@ -208,6 +232,22 @@ function ProjectCard({ cvId, project, onRemove }: { cvId: string; project: FormD
               title={t("editorSections.projects.improveWithAi")}
             >
               {improveMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            </button>
+          )}
+          {project.isFromGitHub && (
+            <button
+              type="button"
+              data-testid={`project-badge-toggle-${project.id}`}
+              onClick={toggleVisibilityBadge}
+              disabled={updateProject.isPending}
+              className="rounded p-1.5 hover:bg-accent disabled:opacity-50"
+              title={
+                showBadge
+                  ? t("editorSections.projects.hideBadge", { defaultValue: "Hide Public/Private badge on CV" })
+                  : t("editorSections.projects.showBadge", { defaultValue: "Show Public/Private badge on CV" })
+              }
+            >
+              {showBadge ? <Eye size={14} /> : <EyeOff size={14} className="text-muted-foreground" />}
             </button>
           )}
           {project.githubUrl && (

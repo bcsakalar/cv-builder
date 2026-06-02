@@ -221,6 +221,8 @@ export interface Project {
   highlights: string[];
   isFromGitHub: boolean;
   githubRepoData: GitHubRepoData | null;
+  /** Whether to render the Public/Private visibility badge on the CV. */
+  showVisibilityBadge: boolean;
   githubAnalysisId: string | null;
   orderIndex: number;
 }

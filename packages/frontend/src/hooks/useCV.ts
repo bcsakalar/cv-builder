@@ -154,6 +154,10 @@ export function useSectionMutation(cvId: string) {
       mutationFn: (data: Record<string, unknown>) => cvApi.addProject(cvId, data),
       onSuccess: invalidate,
     }),
+    updateProject: useMutation({
+      mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => cvApi.updateProject(cvId, id, data),
+      onSuccess: invalidate,
+    }),
     removeProject: useMutation({
       mutationFn: (id: string) => cvApi.removeProject(cvId, id),
       onSuccess: invalidate,

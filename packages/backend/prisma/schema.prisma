@@ -352,6 +352,7 @@ model Project {
   highlights     Json     @default("[]")
   isFromGitHub   Boolean  @default(false) @map("is_from_github")
   githubRepoData Json?    @map("github_repo_data")
+  showVisibilityBadge Boolean @default(true) @map("show_visibility_badge")
   githubAnalysisId String? @map("github_analysis_id") @db.Uuid
   orderIndex     Int      @default(0) @map("order_index")
   cvId           String   @map("cv_id") @db.Uuid

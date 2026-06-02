@@ -129,7 +129,7 @@ export function buildPreviewProject(
     extraTechnologyCount: Math.max(0, visibleTechnologies.length - technologyLimit),
     skills: skills.slice(0, technologyLimit),
     extraSkillCount: Math.max(0, skills.length - technologyLimit),
-    visibility: resolveVisibility(isFromGitHub, githubRepoData),
+    visibility: project.showVisibilityBadge === false ? null : resolveVisibility(isFromGitHub, githubRepoData),
     isFromGitHub,
     highlights,
     githubRepoData,
