@@ -291,6 +291,8 @@
       "applyImprovement": "Projeye uygula",
       "applyingImprovement": "Uygulanıyor...",
       "improveWithAi": "AI ile iyileştir",
+      "moveUp": "Projeyi yukarı taşı",
+      "moveDown": "Projeyi aşağı taşı",
       "viewOnGithub": "GitHub'da görüntüle",
       "visitProject": "Projeyi ziyaret et",
       "skillsLabel": "Yetkinlikler",

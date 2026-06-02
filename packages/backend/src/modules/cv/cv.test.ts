@@ -367,4 +367,51 @@ describe("cvService", () => {
       expect(result).toEqual({ id: "pi-1" });
     });
   });
+
+  describe("reorderProjects", () => {
+    const CV_WITH_PROJECTS = {
+      ...MOCK_CV,
+      projects: [
+        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", orderIndex: 0 },
+        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", orderIndex: 1 },
+        { id: "cccccccc-cccc-cccc-cccc-cccccccccccc", orderIndex: 2 },
+      ],
+    };
+
+    it("persists the new order when the IDs are an exact permutation", async () => {
+      mockRepo.findByIdForUser.mockResolvedValue(CV_WITH_PROJECTS as never);
+      mockRepo.reorderProjects.mockResolvedValue([] as never);
+
+      const newOrder = [
+        "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      ];
+
+      await cvService.reorderProjects(USER_ID, MOCK_CV.id, newOrder);
+
+      expect(mockRepo.reorderProjects).toHaveBeenCalledWith(MOCK_CV.id, newOrder);
+    });
+
+    it("rejects a payload that is not a permutation of the CV's projects", async () => {
+      mockRepo.findByIdForUser.mockResolvedValue(CV_WITH_PROJECTS as never);
+
+      await expect(
+        cvService.reorderProjects(USER_ID, MOCK_CV.id, [
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        ])
+      ).rejects.toThrow(ApiError);
+
+      expect(mockRepo.reorderProjects).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFound when the CV does not belong to the user", async () => {
+      mockRepo.findByIdForUser.mockResolvedValue(null);
+
+      await expect(
+        cvService.reorderProjects(USER_ID, MOCK_CV.id, ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"])
+      ).rejects.toThrow(ApiError);
+    });
+  });
 });

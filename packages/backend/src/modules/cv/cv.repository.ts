@@ -200,6 +200,18 @@ export const cvRepository = {
     return prisma.project.delete({ where: { id } });
   },
 
+  async reorderProjects(cvId: string, orderedIds: string[]) {
+    // Scope every update by cvId so a foreign ID can never mutate another CV's rows.
+    return prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.project.updateMany({
+          where: { id, cvId },
+          data: { orderIndex: index },
+        })
+      )
+    );
+  },
+
   // ── Certification ────────────────────────────────────
 
   async createCertification(cvId: string, data: Prisma.CertificationCreateWithoutCvInput) {

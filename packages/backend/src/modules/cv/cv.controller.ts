@@ -146,6 +146,11 @@ export const cvController = {
     sendNoContent(res);
   },
 
+  async reorderProjects(req: Request, res: Response) {
+    const result = await cvService.reorderProjects(currentUserId(req), param(req, "cvId"), req.body.projectIds);
+    sendSuccess(res, result, "Projects reordered");
+  },
+
   // ── Certifications ─────────────────────────────────────
 
   async addCertification(req: Request, res: Response) {

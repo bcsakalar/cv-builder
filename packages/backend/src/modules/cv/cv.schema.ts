@@ -82,6 +82,12 @@ export const updateSectionOrderSchema = z.object({
   sectionOrder: z.array(z.string()).min(1, "At least one section is required"),
 });
 
+export const reorderProjectsSchema = z.object({
+  projectIds: z
+    .array(z.string().uuid("Invalid project ID"))
+    .min(1, "At least one project is required"),
+});
+
 export const cloneCVSchema = z.object({
   locale: z.string().min(2).max(5).optional(),
   targetRole: z.string().trim().max(120).optional(),
@@ -309,6 +315,7 @@ export type CreateCVInput = z.infer<typeof createCVSchema>;
 export type UpdateCVInput = z.infer<typeof updateCVSchema>;
 export type UpdateThemeInput = z.infer<typeof updateThemeSchema>;
 export type UpdateSectionOrderInput = z.infer<typeof updateSectionOrderSchema>;
+export type ReorderProjectsInput = z.infer<typeof reorderProjectsSchema>;
 export type CloneCVInput = z.infer<typeof cloneCVSchema>;
 export type PersonalInfoInput = z.infer<typeof personalInfoSchema>;
 export type SummaryInput = z.infer<typeof summarySchema>;

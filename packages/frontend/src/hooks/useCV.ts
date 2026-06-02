@@ -162,6 +162,37 @@ export function useSectionMutation(cvId: string) {
       mutationFn: (id: string) => cvApi.removeProject(cvId, id),
       onSuccess: invalidate,
     }),
+    reorderProjects: useMutation({
+      mutationFn: (projectIds: string[]) => cvApi.reorderProjects(cvId, projectIds),
+      // Optimistically reorder the cached CV so the editor + live preview move
+      // instantly, then reconcile with the server response on settle.
+      onMutate: async (projectIds: string[]) => {
+        await qc.cancelQueries({ queryKey: cvKeys.detail(cvId) });
+        const previous = qc.getQueryData<CVDetail>(cvKeys.detail(cvId));
+        if (previous) {
+          const byId = new Map(
+            (previous.projects ?? []).map((p) => [(p as { id: string }).id, p])
+          );
+          const reordered: Record<string, unknown>[] = [];
+          projectIds.forEach((id, index) => {
+            const project = byId.get(id);
+            if (project) reordered.push({ ...project, orderIndex: index });
+          });
+          qc.setQueryData<CVDetail>(cvKeys.detail(cvId), {
+            ...previous,
+            projects: reordered,
+          });
+        }
+        return { previous };
+      },
+      onError: (err: Error, _vars, context) => {
+        if (context?.previous) {
+          qc.setQueryData(cvKeys.detail(cvId), context.previous);
+        }
+        toast.error(err.message);
+      },
+      onSettled: invalidate,
+    }),
 
     // ── Grouped section helpers ──
     certification: {

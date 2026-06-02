@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { CVDetail } from "@/services/cv.api";
 import { useSectionMutation, useUpdateTheme } from "@/hooks/useCV";
 import { useApplyAIArtifact, useImproveProject } from "@/hooks/useAI";
-import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Github, Sparkles, Loader2, ChevronDown, ChevronUp, Eye, EyeOff, ArrowUp, ArrowDown } from "lucide-react";
 import { buildPreviewProject } from "@/components/cv-preview/project-preview";
 import { useCVStore } from "@/stores/cv.store";
 import {
@@ -36,7 +36,7 @@ type FormData = z.infer<ReturnType<typeof createSchema>>;
 export function ProjectsSection({ cv }: { cv: CVDetail }) {
   const { t } = useTranslation();
   const [isAdding, setIsAdding] = useState(false);
-  const { addProject, removeProject } = useSectionMutation(cv.id);
+  const { addProject, removeProject, reorderProjects } = useSectionMutation(cv.id);
   const updateTheme = useUpdateTheme(cv.id);
   const setSaveStatus = useCVStore((state) => state.setSaveStatus);
   const footerSettings = getProjectsFooterSettings(cv.themeConfig);
@@ -46,6 +46,18 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
   const footerUrl = footerDraft?.sourceKey === footerSourceKey ? footerDraft.url : footerSettings.url ?? "";
 
   const projects = cv.projects as (FormData & { id: string })[];
+
+  function moveProject(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= projects.length) return;
+    const ids = projects.map((p) => p.id);
+    const a = ids[index];
+    const b = ids[target];
+    if (a === undefined || b === undefined) return;
+    ids[index] = b;
+    ids[target] = a;
+    reorderProjects.mutate(ids);
+  }
 
   function persistProjectsFooter(nextEnabled: boolean, nextUrl: string) {
     const normalizedUrl = nextUrl.trim();
@@ -66,11 +78,16 @@ export function ProjectsSection({ cv }: { cv: CVDetail }) {
 
   return (
     <div className="space-y-4">
-      {projects.map((proj) => (
+      {projects.map((proj, index) => (
         <ProjectCard
           key={proj.id}
           cvId={cv.id}
           project={proj}
+          isFirst={index === 0}
+          isLast={index === projects.length - 1}
+          reordering={reorderProjects.isPending}
+          onMoveUp={() => moveProject(index, -1)}
+          onMoveDown={() => moveProject(index, 1)}
           onRemove={() => removeProject.mutate(proj.id)}
         />
       ))}
@@ -159,7 +176,25 @@ function ProjectForm({ orderIndex, onSubmit, onCancel }: { orderIndex: number; o
   );
 }
 
-function ProjectCard({ cvId, project, onRemove }: { cvId: string; project: FormData & { id: string }; onRemove: () => void }) {
+function ProjectCard({
+  cvId,
+  project,
+  isFirst,
+  isLast,
+  reordering,
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+}: {
+  cvId: string;
+  project: FormData & { id: string };
+  isFirst: boolean;
+  isLast: boolean;
+  reordering: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemove: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const improveMut = useImproveProject();
   const applyArtifact = useApplyAIArtifact();
@@ -219,6 +254,31 @@ function ProjectCard({ cvId, project, onRemove }: { cvId: string; project: FormD
 
         {/* Action buttons */}
         <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Reorder controls */}
+          <div className="mr-0.5 flex items-center gap-0.5 border-r border-border pr-1.5">
+            <button
+              type="button"
+              data-testid={`project-move-up-${project.id}`}
+              onClick={onMoveUp}
+              disabled={isFirst || reordering}
+              className="rounded p-1.5 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30"
+              title={t("editorSections.projects.moveUp")}
+              aria-label={t("editorSections.projects.moveUp")}
+            >
+              <ArrowUp size={14} />
+            </button>
+            <button
+              type="button"
+              data-testid={`project-move-down-${project.id}`}
+              onClick={onMoveDown}
+              disabled={isLast || reordering}
+              className="rounded p-1.5 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30"
+              title={t("editorSections.projects.moveDown")}
+              aria-label={t("editorSections.projects.moveDown")}
+            >
+              <ArrowDown size={14} />
+            </button>
+          </div>
           {project.description && (
             <button
               onClick={() =>

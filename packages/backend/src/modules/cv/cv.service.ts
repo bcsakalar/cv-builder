@@ -364,6 +364,26 @@ export const cvService = {
     await cacheDelete(cacheKey(userId, cvId));
   },
 
+  async reorderProjects(userId: string, cvId: string, projectIds: string[]) {
+    const cv = await this.ensureCVAccess(userId, cvId);
+
+    // The payload must be an exact permutation of this CV's projects — no
+    // missing, extra, duplicate, or foreign IDs — otherwise ordering would
+    // silently corrupt.
+    const existingIds = (cv.projects as { id: string }[]).map((p) => p.id);
+    const requested = new Set(projectIds);
+    const sameLength = projectIds.length === existingIds.length;
+    const noDuplicates = requested.size === projectIds.length;
+    const sameMembers = existingIds.every((id) => requested.has(id));
+    if (!sameLength || !noDuplicates || !sameMembers) {
+      throw ApiError.badRequest("projectIds must match this CV's projects exactly");
+    }
+
+    await cvRepository.reorderProjects(cvId, projectIds);
+    await cacheDelete(cacheKey(userId, cvId));
+    return cvRepository.findByIdForUser(cvId, userId);
+  },
+
   // ── Certifications ─────────────────────────────────────
 
   async addCertification(userId: string, cvId: string, input: CertificationInput) {

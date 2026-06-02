@@ -12,6 +12,7 @@ import {
   updateCVSchema,
   updateThemeSchema,
   updateSectionOrderSchema,
+  reorderProjectsSchema,
   cloneCVSchema,
   cvIdParamSchema,
   personalInfoSchema,
@@ -173,6 +174,12 @@ router.post(
   "/:cvId/projects",
   validate({ params: cvIdParam, body: projectSchema }),
   asyncHandler(cvController.addProject)
+);
+
+router.patch(
+  "/:cvId/projects/reorder",
+  validate({ params: cvIdParam, body: reorderProjectsSchema }),
+  asyncHandler(cvController.reorderProjects)
 );
 
 router.put(

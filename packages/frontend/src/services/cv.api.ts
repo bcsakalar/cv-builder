@@ -110,6 +110,9 @@ export const cvApi = {
   removeProject: (cvId: string, id: string) =>
     api.delete(`/cv/${cvId}/projects/${id}`),
 
+  reorderProjects: (cvId: string, projectIds: string[]) =>
+    api.patch(`/cv/${cvId}/projects/reorder`, { projectIds }).then(unwrap<CVDetail>),
+
   addCertification: (cvId: string, data: Record<string, unknown>) =>
     api.post(`/cv/${cvId}/certifications`, data).then(unwrap),
 
