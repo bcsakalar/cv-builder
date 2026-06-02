@@ -68,10 +68,10 @@ function cvToContext(cvData: Record<string, unknown>): string {
     for (const exp of experiences) {
       lines.push(`- ${exp.jobTitle} at ${exp.company} (${exp.startDate}–${exp.endDate ?? "Present"})`);
       if (exp.description) lines.push(`  ${exp.description}`);
-      const achv = exp.achievements as string[] | undefined;
-      if (achv?.length) lines.push(`  Achievements: ${achv.join("; ")}`);
-      const tech = exp.technologies as string[] | undefined;
-      if (tech?.length) lines.push(`  Tech: ${tech.join(", ")}`);
+      const achv = Array.isArray(exp.achievements) ? (exp.achievements as string[]) : [];
+      if (achv.length) lines.push(`  Achievements: ${achv.join("; ")}`);
+      const tech = Array.isArray(exp.technologies) ? (exp.technologies as string[]) : [];
+      if (tech.length) lines.push(`  Tech: ${tech.join(", ")}`);
     }
     lines.push("");
   }
@@ -161,6 +161,20 @@ export const AI_PROMPTS = {
       `Write a natural developer CV summary for this person. Use the strongest evidence from personal info, skills, experiences, and projects/GitHub data. Do not sound AI-generated.\n\n${cvToContext(cvData)}`,
   },
 
+  improveSummary: {
+    system: `You are a senior technical recruiter and CV writer. The candidate ALREADY has a professional summary. Rewrite it to be sharper, more specific, and more credible while keeping their real identity and evidence.
+
+  Rules:
+  - 2-4 sentences. Preserve the factual claims of the original; do NOT invent years, scale, users, or metrics.
+  - Strengthen with concrete engineering signals from the CV evidence (stack, shipped projects, GitHub work, delivery, system design).
+  - Remove generic clichés ("passionate", "results-driven", "team player", "dynamic") unless strongly justified by evidence.
+  - Keep recruiter-readable rhythm; do not keyword-stuff.
+  - Do NOT use first-person pronouns and do NOT write in third person with the candidate's name.
+  - Output ONLY the improved summary text — no labels, no quotes, no explanation.`,
+    buildPrompt: (cvData: Record<string, unknown>, existingSummary: string) =>
+      `Improve and sharpen this developer's existing professional summary. Keep it truthful and grounded in their evidence.\n\n## Current summary to improve:\n${existingSummary}\n\n## Candidate evidence:\n${cvToContext(cvData)}`,
+  },
+
   improveExperience: {
     system: `You are a professional CV writer specializing in job experience descriptions. Rewrite the description to be more impactful. Rules:
 - Start each bullet with a strong action verb
@@ -197,24 +211,30 @@ Example output:
   },
 
   generateCoverLetter: {
-    system: `You are a professional cover letter writer. Generate a compelling, tailored cover letter. Rules:
-- 3-4 paragraphs
-- Professional but warm tone
-- Reference specific experiences from the CV
-- If a job description is provided, tailor to it specifically
-- Output ONLY the cover letter text, nothing else`,
+    system: `You are an elite cover letter writer for software engineers. Write a sharp, specific, human cover letter a hiring manager would actually enjoy reading.
+
+Rules:
+- Structure: a strong opening hook (why this role/company), 1-2 middle paragraphs that PROVE fit with concrete evidence from the CV (shipped projects, GitHub work, specific technologies, real outcomes), and a confident close with a clear call to action.
+- 3-4 short paragraphs, ~180-280 words total.
+- Ground every claim in the candidate's real CV/GitHub evidence. NEVER invent employers, metrics, team size, users, or scope.
+- No clichés ("I am writing to apply", "team player", "passionate", "results-driven"). No buzzword stuffing.
+- If a job description is provided, mirror its key requirements and language naturally without copying it verbatim.
+- Confident, warm, first-person voice.
+- Output ONLY the cover letter body text — no "Dear Hiring Manager", no signature block, no labels, no markdown.`,
     buildPrompt: (cvData: Record<string, unknown>, jobDescription?: string) =>
-      `Write a cover letter for this person:\n\n${cvToContext(cvData)}${jobDescription ? `\n\n## Target Job Description:\n${jobDescription}` : ""}`,
+      `Write a cover letter for this developer using their strongest real evidence.\n\n${cvToContext(cvData)}${jobDescription ? `\n\n## Target Job Description (tailor to this):\n${jobDescription}` : ""}`,
   },
 
   improveProject: {
-    system: `You are a professional CV writer. Rewrite the project description to be more impactful and professional. Rules:
-- Highlight technical complexity and impact
-- Use strong action verbs
-- Mention technologies naturally
-- Output ONLY a valid JSON object with this shape: {"improved":"string"}`,
+    system: `You are a senior technical CV writer. Rewrite the project description so a busy technical recruiter instantly grasps what was built, the engineering depth, and the credible impact.
+
+Rules:
+- 2-3 tight sentences. Lead with what the system does, then the hardest/most credible engineering choices (architecture, real-time, auth, data layer, integrations, delivery) grounded in the given technologies.
+- Strong action verbs and concrete capabilities; no buzzword soup, no invented metrics/users/scale.
+- Stay truthful to the original facts — sharpen, do not fabricate.
+- Output ONLY a valid JSON object: {"improved":"string"}`,
     buildPrompt: (name: string, description: string, technologies: string[]) =>
-      `Improve this project description.\n\nProject: ${name}\nTechnologies: ${technologies.join(", ")}\nOriginal Description:\n${description}`,
+      `Rewrite this project description to be sharper and more credible.\n\nProject: ${name}\nTechnologies: ${technologies.join(", ")}\nOriginal Description:\n${description}`,
   },
 
   reviewCV: {

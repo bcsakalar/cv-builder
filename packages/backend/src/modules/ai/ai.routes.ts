@@ -27,6 +27,7 @@ router.post("/artifacts/:artifactId/apply", aiRateLimiter, validate({ params: ar
 router.post("/artifacts/:artifactId/dismiss", validate({ params: artifactIdParamSchema }), asyncHandler(aiController.dismissArtifact));
 
 router.post("/summary/:cvId", aiRateLimiter, validate({ params: cvIdParamSchema }), asyncHandler(aiController.generateSummary));
+router.post("/summary/:cvId/improve", aiRateLimiter, validate({ params: cvIdParamSchema }), asyncHandler(aiController.improveSummary));
 router.get("/summary/:cvId/stream", aiRateLimiter, validate({ params: cvIdParamSchema }), asyncHandler(aiController.generateSummaryStream));
 
 router.post("/improve-experience", aiRateLimiter, validate({ body: improveExperienceBodySchema }), asyncHandler(aiController.improveExperience));

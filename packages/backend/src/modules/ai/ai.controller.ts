@@ -53,6 +53,12 @@ export const aiController = {
     sendSuccess(res, summary);
   },
 
+  async improveSummary(req: Request, res: Response) {
+    const cvId = req.params.cvId as string;
+    const summary = await aiService.improveSummary(currentUserId(req), cvId, getLocale(req));
+    sendSuccess(res, summary);
+  },
+
   async generateSummaryStream(req: Request, res: Response) {
     const cvId = req.params.cvId as string;
 

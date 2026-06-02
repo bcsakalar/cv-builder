@@ -7,8 +7,8 @@ import { useTranslation } from "react-i18next";
 import type { CVDetail } from "@/services/cv.api";
 import { useSectionMutation } from "@/hooks/useCV";
 import { useAutoSave } from "@/hooks/useDebounce";
-import { useGenerateSummary, useStreamingSummary } from "@/hooks/useAI";
-import { Sparkles, Loader2, Zap } from "lucide-react";
+import { useGenerateSummary, useImproveSummary, useStreamingSummary } from "@/hooks/useAI";
+import { Sparkles, Loader2, Zap, Wand2 } from "lucide-react";
 
 const createSchema = (t: TFunction) => z.object({
   content: z.string().max(5000, t("common.maxLength", { count: 5000 })).default(""),
@@ -21,6 +21,7 @@ export function SummarySection({ cv }: { cv: CVDetail }) {
   const { t } = useTranslation();
   const { upsertSummary } = useSectionMutation(cv.id);
   const summaryMut = useGenerateSummary();
+  const improveMut = useImproveSummary();
   const { text: streamText, isStreaming, startStream } = useStreamingSummary();
   const schema = createSchema(t);
 
@@ -47,19 +48,31 @@ export function SummarySection({ cv }: { cv: CVDetail }) {
     });
   };
 
+  const handleImprove = () => {
+    improveMut.mutate(cv.id, {
+      onSuccess: (data) => {
+        form.setValue("content", data.summary);
+        form.setValue("aiGenerated", true);
+      },
+    });
+  };
+
   const handleStream = () => {
     startStream(cv.id);
   };
+
+  const aiBusy = summaryMut.isPending || improveMut.isPending || isStreaming;
+  const hasContent = content.trim().length > 0;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium">{t("editorSections.summary.title")}</label>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={summaryMut.isPending || isStreaming}
+            disabled={aiBusy}
             className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
           >
             {summaryMut.isPending ? (
@@ -69,10 +82,22 @@ export function SummarySection({ cv }: { cv: CVDetail }) {
             )}
             {t("editorSections.summary.generate")}
           </button>
+          {hasContent && (
+            <button
+              type="button"
+              data-testid="summary-improve-button"
+              onClick={handleImprove}
+              disabled={aiBusy}
+              className="flex items-center gap-1.5 rounded-md border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-500/40 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
+            >
+              {improveMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+              {t("editorSections.summary.improve", { defaultValue: "Improve with AI" })}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleStream}
-            disabled={summaryMut.isPending || isStreaming}
+            disabled={aiBusy}
             className="flex items-center gap-1.5 rounded-md border border-purple-300 px-3 py-1.5 text-xs font-medium text-purple-600 hover:bg-purple-50 disabled:opacity-50"
           >
             {isStreaming ? (

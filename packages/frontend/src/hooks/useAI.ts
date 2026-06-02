@@ -77,6 +77,18 @@ export function useGenerateSummary() {
   });
 }
 
+export function useImproveSummary() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (cvId: string) => aiApi.improveSummary(cvId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: aiKeys.artifacts(data.artifact.cvId ?? undefined) });
+    },
+    onError: () => toast.error(translate("ai.toasts.summaryFailed")),
+  });
+}
+
 export function useImproveExperience() {
   const qc = useQueryClient();
 

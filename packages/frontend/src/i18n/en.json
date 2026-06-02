@@ -212,6 +212,7 @@
     "summary": {
       "title": "Professional Summary",
       "generate": "AI Generate",
+      "improve": "Improve with AI",
       "stream": "Stream",
       "apply": "Apply to summary",
       "placeholder": "Write a brief professional summary...",
@@ -294,7 +295,9 @@
       "visitProject": "Visit project",
       "skillsLabel": "Skills",
       "visibilityPublic": "Public",
-      "visibilityPrivate": "Private"
+      "visibilityPrivate": "Private",
+      "hideBadge": "Hide Public/Private badge on CV",
+      "showBadge": "Show Public/Private badge on CV"
     },
     "certifications": {
       "add": "Add Certification",
@@ -369,6 +372,7 @@
   },
   "themeCustomizer": {
     "title": "Theme Customizer",
+    "presets": "Theme presets",
     "colors": "Colors",
     "typography": "Typography",
     "layout": "Layout",

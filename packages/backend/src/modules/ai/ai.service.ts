@@ -1934,6 +1934,36 @@ export const aiService = {
     return { summary: output, artifact };
   },
 
+  async improveSummary(userId: string, cvId: string, locale?: string): Promise<AISummaryGenerationResult> {
+    const cv = await getCVData(userId, cvId);
+    const effectiveLocale = resolveCvLocale(cv, locale);
+    const existingSummary = normalizeInsightText((cv.summary as Record<string, unknown> | null)?.content);
+    if (!existingSummary) {
+      throw ApiError.badRequest("No existing summary to improve");
+    }
+    const { system, buildPrompt } = AI_PROMPTS.improveSummary;
+
+    logger.info("Improving AI summary", { cvId, locale: effectiveLocale });
+    const { output, artifact } = await runToolWithArtifact({
+      userId,
+      cvId,
+      tool: "summary",
+      locale: effectiveLocale,
+      targetSection: "summary",
+      input: { cvId, mode: "improve" },
+      execute: async () => {
+        const result = await generateWithDefaultFallback({
+          prompt: buildPrompt(cv as unknown as Record<string, unknown>, existingSummary),
+          system: localizeSystemPrompt(system, effectiveLocale),
+          temperature: 0.5,
+        });
+        return result.trim() || existingSummary;
+      },
+    });
+
+    return { summary: output, artifact };
+  },
+
   async improveExperience(
     userId: string,
     description: string,

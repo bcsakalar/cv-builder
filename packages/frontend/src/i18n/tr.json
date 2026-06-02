@@ -212,6 +212,7 @@
     "summary": {
       "title": "Profesyonel Özet",
       "generate": "AI ile Üret",
+      "improve": "AI ile İyileştir",
       "stream": "Akış",
       "apply": "Özete uygula",
       "placeholder": "Kısa bir profesyonel özet yazın...",
@@ -294,7 +295,9 @@
       "visitProject": "Projeyi ziyaret et",
       "skillsLabel": "Yetkinlikler",
       "visibilityPublic": "Herkese Açık",
-      "visibilityPrivate": "Özel"
+      "visibilityPrivate": "Özel",
+      "hideBadge": "CV'de Herkese Açık/Özel rozetini gizle",
+      "showBadge": "CV'de Herkese Açık/Özel rozetini göster"
     },
     "certifications": {
       "add": "Sertifika Ekle",
@@ -369,6 +372,7 @@
   },
   "themeCustomizer": {
     "title": "Tema Özelleştirici",
+    "presets": "Tema şablonları",
     "colors": "Renkler",
     "typography": "Tipografi",
     "layout": "Yerleşim",

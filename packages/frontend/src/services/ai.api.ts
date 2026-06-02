@@ -47,6 +47,11 @@ export const aiApi = {
     return res.data.data;
   },
 
+  async improveSummary(cvId: string): Promise<AISummaryGenerationResult> {
+    const res = await api.post(`/ai/summary/${cvId}/improve`);
+    return res.data.data;
+  },
+
   async improveExperience(description: string, jobTitle: string, company: string): Promise<AIImproveTextResult> {
     const res = await api.post("/ai/improve-experience", { description, jobTitle, company });
     return res.data.data;
