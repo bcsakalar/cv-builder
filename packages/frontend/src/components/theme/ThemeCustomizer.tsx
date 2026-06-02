@@ -20,6 +20,16 @@ const FONTS = [
 
 const FONT_SIZES = [9, 10, 11, 12, 13, 14];
 
+/** One-click professional theme presets (colors + fonts). */
+const THEME_PRESETS: Array<{ name: string; theme: Partial<ThemeConfig> }> = [
+  { name: "Modern Blue", theme: { primaryColor: "#2563eb", secondaryColor: "#64748b", accentColor: "#f59e0b", textColor: "#1e293b", bgColor: "#ffffff", headingFont: "Inter", bodyFont: "Inter" } },
+  { name: "Slate Mono", theme: { primaryColor: "#0f172a", secondaryColor: "#475569", accentColor: "#0ea5e9", textColor: "#0f172a", bgColor: "#ffffff", headingFont: "DM Sans", bodyFont: "DM Sans" } },
+  { name: "Emerald", theme: { primaryColor: "#059669", secondaryColor: "#6b7280", accentColor: "#f59e0b", textColor: "#1f2937", bgColor: "#ffffff", headingFont: "Poppins", bodyFont: "Open Sans" } },
+  { name: "Royal Purple", theme: { primaryColor: "#7c3aed", secondaryColor: "#6b7280", accentColor: "#ec4899", textColor: "#1e1b4b", bgColor: "#ffffff", headingFont: "Montserrat", bodyFont: "Lato" } },
+  { name: "Crimson", theme: { primaryColor: "#dc2626", secondaryColor: "#57534e", accentColor: "#ea580c", textColor: "#292524", bgColor: "#ffffff", headingFont: "Playfair Display", bodyFont: "Source Sans Pro" } },
+  { name: "Teal Ink", theme: { primaryColor: "#0d9488", secondaryColor: "#64748b", accentColor: "#f97316", textColor: "#134e4a", bgColor: "#ffffff", headingFont: "Work Sans", bodyFont: "Work Sans" } },
+];
+
 const LAYOUTS = [
   { value: "single" as const, labelKey: "themeCustomizer.layouts.single", icon: "▐" },
   { value: "two-column" as const, labelKey: "themeCustomizer.layouts.twoColumn", icon: "▐▐" },
@@ -70,6 +80,36 @@ export function ThemeCustomizer({ cvId, defaultThemeConfig, currentThemeConfig }
           {t("common.reset")}
         </button>
       </div>
+
+      {/* Presets */}
+      <section>
+        <h4 className="mb-2 text-xs font-medium uppercase text-muted-foreground">{t("themeCustomizer.presets", { defaultValue: "Theme presets" })}</h4>
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_PRESETS.map((preset) => {
+            const active =
+              theme.primaryColor === preset.theme.primaryColor &&
+              theme.accentColor === preset.theme.accentColor &&
+              theme.headingFont === preset.theme.headingFont;
+            return (
+              <button
+                key={preset.name}
+                type="button"
+                data-testid={`theme-preset-${preset.name.toLowerCase().replace(/\s+/g, "-")}`}
+                onClick={() => handleChange(preset.theme)}
+                className={`rounded-lg border p-2 text-center transition hover:bg-accent ${active ? "border-primary ring-1 ring-primary" : ""}`}
+                title={preset.name}
+              >
+                <div className="mx-auto mb-1 flex justify-center gap-0.5">
+                  <span style={{ background: preset.theme.primaryColor }} className="h-4 w-4 rounded-full border" />
+                  <span style={{ background: preset.theme.accentColor }} className="h-4 w-4 rounded-full border" />
+                  <span style={{ background: preset.theme.secondaryColor }} className="h-4 w-4 rounded-full border" />
+                </div>
+                <div className="truncate text-[11px]">{preset.name}</div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {/* Colors */}
       <section>
