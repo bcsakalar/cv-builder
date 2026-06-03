@@ -266,7 +266,11 @@ export function CorporateTemplate({ cv, theme }: TemplateProps) {
               <div key={i} className="mb-3">
                 <p className="font-bold">{String(r.name)}</p>
                 <p className="text-sm">{String(r.title)}, {String(r.company)}</p>
-                {!!r.email && <p className="text-xs" style={{ color: theme.secondaryColor }}>{String(r.email)}</p>}
+                {(Boolean(r.email) || Boolean(r.phone)) && (
+                  <p className="text-xs" style={{ color: theme.secondaryColor }}>
+                    {[r.email, r.phone].filter(Boolean).map(String).join(" · ")}
+                  </p>
+                )}
               </div>
             ))}
           </section>

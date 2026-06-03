@@ -278,7 +278,11 @@ export function CreativeTemplate({ cv, theme }: TemplateProps) {
                 <div key={i} className="rounded-lg p-3" style={{ backgroundColor: `${theme.primaryColor}0A` }}>
                   <p className="font-bold">{String(r.name)}</p>
                   <p className="text-sm">{String(r.title)}, {String(r.company)}</p>
-                  {!!r.email && <p className="text-xs" style={{ color: theme.primaryColor }}>{String(r.email)}</p>}
+                  {(Boolean(r.email) || Boolean(r.phone)) && (
+                    <p className="text-xs" style={{ color: theme.primaryColor }}>
+                      {[r.email, r.phone].filter(Boolean).map(String).join(" · ")}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

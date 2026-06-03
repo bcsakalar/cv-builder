@@ -92,7 +92,7 @@
       "description": "LinkedIn, GitHub ve diğer profesyonel profiller"
     },
     "summary": {
-      "label": "Profesyonel Özet",
+      "label": "Hakkımda",
       "description": "Hedef rolünüze uygun kısa bir tanıtım"
     },
     "coverLetter": {
@@ -210,7 +210,7 @@
       "socialLinks": "Sosyal Bağlantılar"
     },
     "summary": {
-      "title": "Profesyonel Özet",
+      "title": "Hakkımda",
       "generate": "AI ile Üret",
       "improve": "AI ile İyileştir",
       "stream": "Akış",
@@ -435,7 +435,7 @@
       "reviewCv": "CV'mi İncele",
       "analyzeMatch": "Eşleşmeyi Analiz Et",
       "tailorCv": "CV'mi Uyarlat",
-      "generateSummary": "Profesyonel Özet Oluştur",
+      "generateSummary": "Hakkımda Oluştur",
       "suggestSkills": "Yetenek Öner",
       "runAts": "ATS Kontrolü Yap",
       "generateCoverLetter": "Ön Yazı Oluştur",

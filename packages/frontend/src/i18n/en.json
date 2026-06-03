@@ -92,7 +92,7 @@
       "description": "LinkedIn, GitHub, and other professional profiles"
     },
     "summary": {
-      "label": "Professional Summary",
+      "label": "About Me",
       "description": "A concise introduction tailored to your target role"
     },
     "coverLetter": {
@@ -210,7 +210,7 @@
       "socialLinks": "Social Links"
     },
     "summary": {
-      "title": "Professional Summary",
+      "title": "About Me",
       "generate": "AI Generate",
       "improve": "Improve with AI",
       "stream": "Stream",
@@ -430,7 +430,7 @@
       "reviewCv": "Review My CV",
       "analyzeMatch": "Analyze Match",
       "tailorCv": "Tailor My CV",
-      "generateSummary": "Generate Professional Summary",
+      "generateSummary": "Generate About Me",
       "suggestSkills": "Suggest Skills",
       "runAts": "Run ATS Check",
       "generateCoverLetter": "Generate Cover Letter",

@@ -31,7 +31,7 @@ export const CV_SECTIONS: Record<string, SectionDefinition> = {
   },
   summary: {
     key: "summary",
-    label: "Professional Summary",
+    label: "About Me",
     icon: "FileText",
     description: "A brief professional overview or career objective",
     isRequired: false,

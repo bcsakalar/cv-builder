@@ -228,7 +228,11 @@ export function ClassicTemplate({ cv, theme }: TemplateProps) {
           {cv.references.map((r: Record<string, unknown>, i: number) => (
             <div key={i} className="mb-2">
               <strong>{String(r.name)}</strong> — {String(r.title)}, {String(r.company)}
-              {!!r.email && <p className="text-xs" style={{ color: theme.secondaryColor }}>{String(r.email)}</p>}
+              {(Boolean(r.email) || Boolean(r.phone)) && (
+                <p className="text-xs" style={{ color: theme.secondaryColor }}>
+                  {[r.email, r.phone].filter(Boolean).map(String).join(" · ")}
+                </p>
+              )}
             </div>
           ))}
         </section>

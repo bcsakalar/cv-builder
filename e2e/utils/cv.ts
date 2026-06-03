@@ -32,7 +32,7 @@ export async function fillPersonalInfo(page: Page, data: {
 }
 
 export async function openSummarySection(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Professional Summary" }).click();
+  await page.getByRole("button", { name: "About Me" }).click();
   await expect(page.getByPlaceholder("Write a brief professional summary...")).toBeVisible();
 }
 
