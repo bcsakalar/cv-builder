@@ -120,7 +120,18 @@ function PrintPage() {
         body * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         .cv-print-root > div { box-shadow: none !important; border-radius: 0 !important; }
         @media print {
-          section, li, .mb-3, .mb-4, .mb-5 { break-inside: avoid; }
+          /* Section containers must flow freely across page boundaries; otherwise a
+             whole section that doesn't fit jumps to the next page and leaves a large
+             gap at the bottom. (.mb-5/.mb-6/.mb-8 are section wrappers across templates;
+             Modern renders its sections as div.mb-5 rather than <section>.) */
+          section, .mb-6, .mb-8 { break-inside: auto; }
+          :not(section) > .mb-5 { break-inside: auto; }
+          /* Keep each individual entry and list item intact (no mid-block splits). */
+          section > div, .mb-5 > div, li { break-inside: avoid; }
+          /* Never strand a section heading alone at the bottom of a page. The hr is
+             included because Classic renders its heading as <h2> + <hr>, so the break
+             must also be suppressed after the divider to keep it with the first entry. */
+          h1, h2, h3, hr { break-after: avoid; }
         }
       `}</style>
       <CVPreview cv={data.cv as CVDetail} />
